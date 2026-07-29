@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-01
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `planning` agent from the previous 13-agent architecture. The new architecture uses 3 agent types (Tori, Specialist, Scribe) with personas/modes. Planning responsibilities are now handled by the `scribe:plan` persona and by Tori directly for simple tasks.
 
 # Spec : Agent `planning`
 

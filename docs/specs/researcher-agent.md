@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-20
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `researcher` agent from the previous 13-agent architecture. In the new 3-agent architecture (Tori, Specialist, Scribe), research is handled by the `specialist:researcher` persona.
 
 # Spec: Agent `researcher`
 

@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-03-31
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `gardener` agent from the previous 13-agent architecture. The new architecture uses 3 agent types (Tori, Specialist, Scribe) with personas/modes. Periodic maintenance and code drift detection are not covered by a dedicated agent in the new model.
 
 # Spec : Agent `gardener`
 

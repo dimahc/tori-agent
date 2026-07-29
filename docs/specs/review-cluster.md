@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-02
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the review cluster (review-manager, requirements-reviewer, code-reviewer, security-reviewer, architecture-reviewer) from the previous 13-agent architecture. These agents no longer exist as separate entities in the new 3-agent model (Tori, Specialist, Scribe). Review responsibilities are now handled by Tori's delegation and verification workflow.
 
 # Spec : Cluster `review`
 

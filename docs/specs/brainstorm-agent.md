@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-03
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `brainstorm` agent from the previous 13-agent architecture. The new architecture uses 3 agent types (Tori, Specialist, Scribe) with personas/modes. Discovery and articulation work is handled by Tori directly, using the conversation protocol rather than a dedicated brainstorming agent.
 
 # Spec : Agent `brainstorm`
 

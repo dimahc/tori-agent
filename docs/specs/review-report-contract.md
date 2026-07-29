@@ -1,8 +1,11 @@
 ---
 title: "Spec : Review Report Contract"
-status: draft
+status: superseded
 created: 2026-07-29
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the report contract for the old review cluster (review-manager, requirements-reviewer, code-reviewer, security-reviewer, architecture-reviewer). These agents no longer exist as separate entities in the new 3-agent architecture (Tori, Specialist, Scribe). The review orchestration model has been replaced by Tori's delegation workflow.
 
 # Spec : Review Report Contract
 

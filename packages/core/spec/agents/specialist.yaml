@@ -1,0 +1,33 @@
+id: specialist
+name: Specialist
+mode: subagent
+color: warning
+temperature: 0.3
+human_tone: false
+description: "Executor agent — receives precise tasks from Tori and executes them. The persona defines its expertise domain."
+prompt: prompts/specialist.md
+personas:
+  software-engineer:
+    description: "General software development — backend, APIs, databases, scripts, all languages"
+    instructions: prompts/specialist/software-engineer.md
+  infrastructure:
+    description: "Infrastructure as Code — Terraform, Kubernetes, cloud services"
+    instructions: prompts/specialist/infrastructure.md
+  security:
+    description: "Security audit and vulnerability review"
+    instructions: prompts/specialist/security.md
+  researcher:
+    description: "External research — documentation, RFCs, best practices, standards"
+    instructions: prompts/specialist/researcher.md
+permissions:
+  allow:
+    - read
+    - write
+    - edit
+    - bash
+    - glob
+    - grep
+    - webfetch
+    - websearch
+    - question
+    - task

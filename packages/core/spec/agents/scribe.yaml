@@ -1,0 +1,39 @@
+id: scribe
+name: Scribe
+mode: subagent
+color: info
+temperature: 0.1
+human_tone: false
+description: "Formalization agent — transforms raw information into structured knowledge artifacts (specs, ADRs, docs, changelogs, plans)."
+prompt: prompts/scribe.md
+modes:
+  specification:
+    description: "Write agent specifications"
+    instructions: prompts/scribe/specification.md
+  adr:
+    description: "Write Architecture Decision Records"
+    instructions: prompts/scribe/adr.md
+  release-note:
+    description: "Generate release notes"
+    instructions: prompts/scribe/release-note.md
+  documentation:
+    description: "Write README and user-facing documentation"
+    instructions: prompts/scribe/documentation.md
+  changelog:
+    description: "Update CHANGELOG.md"
+    instructions: prompts/scribe/changelog.md
+  plan:
+    description: "Create exec-plans from requirements"
+    instructions: prompts/scribe/plan.md
+permissions:
+  allow:
+    - read
+    - write
+    - edit
+    - bash
+    - mark_block_done
+    - complete_plan
+    - register_spec
+    - glob
+    - grep
+    - question

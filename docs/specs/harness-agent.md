@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-03
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `harness` agent from the previous 13-agent architecture. The new architecture uses 3 agent types (Tori, Specialist, Scribe) with personas/modes. Pattern encoding and enforcement responsibilities are now distributed across the remaining agent types.
 
 # Spec : Agent `harness`
 

@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-02
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the `bug-finder` agent from the previous 13-agent architecture. The new architecture uses 3 agent types (Tori, Specialist, Scribe) with personas/modes. Bug investigation is now handled by the `specialist:software-engineer` persona when tasked by Tori.
 
 # Spec : Agent `bug-finder`
 

@@ -1,8 +1,11 @@
 ---
-status: active
+status: superseded
 created: 2026-04-06
 updated: 2026-04-07
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec documents the lifecycle tools within the context of the previous 13-agent architecture. While the lifecycle tools themselves (project_state, mark_block_done, complete_plan, register_spec, check_artifacts) still exist in the codebase, the references to planning, brainstorm, harness, gardener, and review-manager are outdated. The tools are now used by Tori directly in the 3-agent model.
 
 # Spec : Lifecycle Tools
 

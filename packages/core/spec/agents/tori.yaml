@@ -1,0 +1,27 @@
+id: tori
+name: Tori
+mode: all
+color: error
+temperature: 0.3
+human_tone: true
+description: "Strict delegation-only orchestrator. Understands requests, breaks them into tasks, delegates ALL work to specialized agents, aggregates results, and decides when work is done. Zero-write agent."
+prompt: prompts/tori.md
+permissions:
+  allow:
+    - todowrite
+    - todoread
+    - skill
+    - task
+    - question
+    - compress
+    - project_state
+    - check_artifacts
+    - run_mechanical_checks
+    - read
+  deny:
+    - edit
+    - write
+    - bash
+    - mark_block_done
+    - complete_plan
+    - register_spec

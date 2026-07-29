@@ -1,8 +1,11 @@
 ---
-status: implemented
+status: superseded
 created: 2026-04-06
 updated: 2026-07-29
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the mechanical pre-filter for the review-manager from the previous 13-agent architecture. The review-manager no longer exists as a separate agent in the new 3-agent model (Tori, Specialist, Scribe). The `run_mechanical_checks` tool itself still exists for use by Tori.
 
 # Spec : Mechanical checks — phase préalable du `review-manager`
 

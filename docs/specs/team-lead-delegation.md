@@ -1,7 +1,10 @@
 ---
-status: implemented
+status: superseded
 created: 2025-01-01
+superseded: 2026-07-29
 ---
+
+> **OBSOLETE** — This spec describes the delegation workflow for the previous 13-agent architecture (brainstorm, planning, bug-finder, review-manager, harness). In the new 3-agent model (Tori, Specialist, Scribe), Tori delegates directly to the appropriate specialist or scribe persona without the intermediate orchestration agents.
 
 # The team-lead — Workflow de délégation
 
