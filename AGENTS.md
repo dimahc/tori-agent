@@ -303,7 +303,8 @@ For the principles behind these rules, see [`docs/guiding-principles.md`](docs/g
 | `.github/workflows/checks.yml` job `zero-deps` | No `dependencies` or `devDependencies` in `package.json` | Every push + PR |
 | `.github/workflows/checks.yml` job `changelog-unreleased` | `## [Unreleased]` section must exist in `CHANGELOG.md` | Every push + PR |
 | `.github/workflows/checks.yml` job `agent-write-dirs-exist` | Every `edit` permission target directory declared in `index.js` must exist in the repo | Every push + PR |
-| `.git-hooks/commit-msg` | Commit message is non-empty (guards against `git commit` without `-m`) | On commit (after `sh .git-hooks/install.sh`) |
+| `.git-hooks/commit-msg` | Commit message follows Conventional Commits format (`type(scope): description`) and is non-empty | On commit (after `sh .git-hooks/install.sh`) |
+| `.github/workflows/checks.yml` job `conventional-commits` | All PR commits follow Conventional Commits format | Every PR |
 | `docs/guiding-principles.md` | Non-interactive git, zero deps, user-facing CHANGELOG, default-deny permissions, external prompts, edit target dirs | Human + Gardener review |
 | `tests/lifecycle.test.js` + `npm test` | Correctness of the 5 lifecycle tool functions | Manually / pre-PR |
 
@@ -315,7 +316,10 @@ The commit-msg hook is tracked in `.git-hooks/` but must be linked manually (`.g
 sh .git-hooks/install.sh
 ```
 
-Run once after cloning. The hook will then reject empty commit messages — the symptom of running `git commit` without `-m`.
+Run once after cloning. The hook will then:
+- Reject empty commit messages — the symptom of running `git commit` without `-m`
+- Enforce the Conventional Commits format: `type(scope): description` or `type: description`
+- Allow merge commits, `fixup!`/`squash!` commits, and `release: vX.Y.Z` commits
 
 ### Running the lint check
 

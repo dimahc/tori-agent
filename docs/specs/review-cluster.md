@@ -5,12 +5,12 @@ created: 2026-04-02
 
 # Spec : Cluster `review`
 
-**Statut :** draft  
+**Statut :** implemented  
 **Mis à jour :** 2026-04-02
 
 ## Résumé
 
-Cluster de 4 agents qui analyse les changements selon trois dimensions orthogonales — conformité aux requirements, qualité du code, sécurité. Le `review-manager` orchestre, les trois reviewers spécialisés lisent directement via `read`, `glob`, `grep` et ne touchent jamais le code directement.
+Cluster de 5 agents qui analyse les changements selon quatre dimensions orthogonales — conformité aux requirements, qualité du code, sécurité, architecture/structure. Le `review-manager` orchestre, les quatre reviewers spécialisés lisent directement via `read`, `glob`, `grep` et ne touchent jamais le code directement.
 
 ---
 
@@ -21,7 +21,8 @@ The team-lead
   └── review-manager          (orchestrateur — mode: subagent)
         ├── requirements-reviewer   (conformité fonctionnelle)
         ├── code-reviewer           (correctness, maintenabilité)
-        └── security-reviewer       (menaces, vulnérabilités)
+        ├── security-reviewer       (menaces, vulnérabilités)
+        └── architecture-reviewer   (frontières de modules, couplage) — spawné conditionnellement
 ```
 
 | Agent | Rôle | Spawné par |
@@ -30,6 +31,7 @@ The team-lead
 | `requirements-reviewer` | Vérifie que l'implémentation couvre les requirements originaux | `review-manager` |
 | `code-reviewer` | Vérifie la correction logique, les contrats d'API, la maintenabilité | `review-manager` |
 | `security-reviewer` | Identifie les vulnérabilités et mauvaises configurations | `review-manager` |
+| `architecture-reviewer` | Vérifie les frontières de modules, le couplage, le placement des boundaries de service/package | `review-manager` (conditionnel — nouvelle frontière de module/service) |
 
 ---
 
@@ -59,6 +61,8 @@ The team-lead
 | Infra / CI / config | `security-reviewer` + `code-reviewer` |
 
 **Fast path :** Pour les changements triviaux à faible risque — un seul "combined reviewer" avec les trois lenses (fonctionnel + code + sécurité).
+
+**Déclencheur conditionnel — `architecture-reviewer` :** spawné en plus de la sélection ci-dessus dès que le changement introduit une nouvelle frontière de module/service — nouveau package/dossier top-level, nouvelle surface d'API publique exportée, nouveau microservice, ou restructuration significative des frontières existantes. Additif comme `requirements-reviewer` : mandatory-when-triggered, hors du cap des 3 reviewers techniques.
 
 ### Verdict thresholds
 
@@ -138,6 +142,34 @@ Verdict: APPROVED | CHANGES_REQUESTED | BLOCKED
 
 ---
 
+## architecture-reviewer
+
+**Stance :** Skepticism par défaut.
+
+**Spawné conditionnellement** — uniquement quand le changement introduit une nouvelle frontière de module/service (voir déclencheur conditionnel ci-dessus). Le `review-manager` décide uniquement *si* le spawner ; la logique de critique architecturale vit entièrement dans le prompt de `architecture-reviewer`.
+
+### Workflow
+
+| Étape | Action |
+|---|---|
+| 1. Identify | Quels fichiers introduisent/modifient une frontière de module, package, ou service |
+| 2. Review | Checklist exhaustive |
+| 3. Return | Verdict |
+
+### Checklist clé
+
+| Domaine | Points vérifiés |
+|---|---|
+| Module boundaries | Le nouveau code est-il placé dans le bon module/package ? |
+| Coupling | Direction des dépendances, couplage excessif entre modules |
+| Abstraction fit | Abstraction forcée à travers une frontière de module, fuite d'implémentation (le "god object" *intra-fichier* est du ressort de `code-reviewer`) |
+| Public API surface | Surface d'API minimale et cohérente |
+| Cyclic dependencies | Nouveau cycle de dépendance introduit |
+
+**Hors périmètre :** correction du code (logique, error handling), sécurité, conformité fonctionnelle. Si le finding concerne *ce fichier*, c'est `code-reviewer` ; si le finding concerne *où vit ce code* / *ce dont il dépend*, c'est `architecture-reviewer`.
+
+---
+
 ## security-reviewer
 
 **Stance :** Skepticism par défaut — cherche les vulnérabilités, pas les confirmations.
@@ -210,6 +242,7 @@ Chaque reviewer produit un verdict individuel : `APPROVED`, `CHANGES_REQUESTED`,
 | `requirements-reviewer` | — | — | allow | allow | allow | deny |
 | `code-reviewer` | — | — | allow | allow | allow | deny |
 | `security-reviewer` | — | — | allow | allow | allow | deny |
+| `architecture-reviewer` | — | — | allow | allow | allow | deny |
 
 ---
 
@@ -221,6 +254,7 @@ Chaque reviewer produit un verdict individuel : `APPROVED`, `CHANGES_REQUESTED`,
 | `requirements-reviewer` | `subagent` | 0.1 | `max` | `info` | `true` |
 | `code-reviewer` | `subagent` | 0.2 | `max` | `info` | `true` |
 | `security-reviewer` | `subagent` | 0.1 | `max` | `error` | `true` |
+| `architecture-reviewer` | `subagent` | 0.2 | `max` | `primary` | `true` |
 
 ---
 
@@ -229,3 +263,4 @@ Chaque reviewer produit un verdict individuel : `APPROVED`, `CHANGES_REQUESTED`,
 - [Index docs](../index.md)
 - [Spec : Délégation team-lead](./team-lead-delegation.md)
 - [Spec : Planning](./planning-agent.md)
+- [Spec : Review Report Contract](./review-report-contract.md)

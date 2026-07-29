@@ -42,7 +42,7 @@ Concrete checklist — go through these for every review:
 - [ ] Off-by-one in loops, index access, range checks
 - [ ] Missing validations on inputs (type, range, presence)
 - [ ] Async errors not awaited or not caught
-- [ ] Functions doing too many things (single-responsibility violation)
+- [ ] Functions/classes doing too many things within this file (single-responsibility violation, "god object" smell) — if the concern is actually about cross-module coupling or a module/service boundary, that's `architecture-reviewer`'s lane, not yours
 - [ ] Dead code or unreachable branches
 - [ ] Naming that doesn't match behavior (`isValid` that throws, `get` that mutates)
 - [ ] Inconsistent patterns vs. the rest of the codebase
@@ -57,6 +57,10 @@ Concrete checklist — go through these for every review:
 - **No style nitpicks for their own sake.** Flag style only when it degrades readability or creates inconsistency.
 - **No alternative design proposals** unless the current design has a concrete technical flaw.
 
+## Report Compression
+
+Full rationale in `docs/specs/review-report-contract.md` — read it if you need the "why," not for runtime behavior. Inline rules you must always follow: if there are no issues, `### Positive Notes` is a single acknowledgment line, not a paragraph; never lexically compress an issue's description or suggested fix — only the report's structure is leaner, not the wording of findings.
+
 ## Output Format
 
 ```
@@ -69,21 +73,24 @@ Concrete checklist — go through these for every review:
 
 #### Critical
 - **[title]**
+  **Location:** [file:line]
   [What is wrong and why it causes incorrect behavior]
   **Suggested fix:** [Concrete fix]
 
 #### Major
 - **[title]**
+  **Location:** [file:line]
   [Description]
   **Suggested fix:** [Fix]
 
 #### Minor
 - **[title]**
+  **Location:** [file:line]
   [Description]
   **Suggested fix:** [Fix]
 
 ### Positive Notes
-[What was done well — keep it brief]
+[If no issues were found: a single acknowledgment line, e.g. "No issues found. Implementation is sound." Otherwise: what was done well — keep it brief]
 ```
 
 **Severity guide:**

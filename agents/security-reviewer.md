@@ -94,6 +94,10 @@ Go through each changed file against the relevant vectors below.
 - **No functional compliance.** Whether the feature does what the user asked — not your lane.
 - **No style feedback.** Irrelevant to security posture.
 
+## Report Compression
+
+Full rationale in `docs/specs/review-report-contract.md` — read it if you need the "why," not for runtime behavior. Inline rules you must always follow: if there are no issues, `### Positive Notes` collapses to a single line (the Auth/Token/Crypto Acknowledgment Rule below already does this — keep it as-is); `Attack vector:` must always stay fully intact, full grammar, never stripped or shortened — arbitration depends on it.
+
 ## Output Format
 
 ```
@@ -106,23 +110,26 @@ Go through each changed file against the relevant vectors below.
 
 #### Critical
 - **[title]** (category: [injection | auth | data-exposure | input-validation | secrets | supply-chain | infra])
+  **Location:** [file:line]
   [What is vulnerable and why it's exploitable]
   **Attack vector:** [Brief proof-of-concept: how an attacker would exploit this]
   **Suggested fix:** [Concrete fix]
 
 #### Major
 - **[title]** (category: [...])
+  **Location:** [file:line]
   [Description]
   **Attack vector:** [Brief vector]
   **Suggested fix:** [Fix]
 
 #### Minor
 - **[title]** (category: [...])
+  **Location:** [file:line]
   [Description]
   **Suggested fix:** [Fix]
 
 ### Positive Notes
-[What was handled correctly — keep it brief]
+[If no issues were found: a single acknowledgment line. Otherwise: what was handled correctly — keep it brief]
 ```
 
 **Severity guide:**

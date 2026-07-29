@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation portal (`website/`) — VitePress static site with marketing homepage, per-agent pages, lifecycle tools reference, architecture, decisions, principles, and changelog. Deployed automatically to GitHub Pages on push to `main`.
 - Documentation website now generates LLM-friendly artifacts (`llms.txt`, `llms-full.txt`, per-page `.md` files) via `vitepress-plugin-llms`, making the docs easily ingested by AI agents.
 - The team-lead now proactively suggests the `gardener` agent after scope delivery, before releases, and when multiple doc files were touched in a session — rather than waiting for the user to ask. A dedicated Gardener Protocol section defines the triggers, rules, and how to handle its results (including escalation to `harness` when recurring patterns are detected).
+- A new architecture/design-quality reviewer now runs when a change introduces a new module or service boundary, catching coupling and boundary problems the review cluster previously had no mandate to flag.
 
 ### Changed
 - The team-lead's context management instructions now reference only `compress` — `distill` and `prune` were removed since they don't exist in OpenCode's toolset.
@@ -18,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `review-manager` now accesses files directly via `read`, `glob`, and `grep` instead of delegating to an `explore` sub-agent. Its `task` permission is constrained to `*-reviewer` agents only.
 - The `bug-finder` agent now investigates directly via `read`, `glob`, and `grep` — sub-agent delegation via `task` has been removed. The agent reports its findings back to the caller instead of applying fixes itself.
 - The `harness` and `planning` agents now require user confirmation before spawning any sub-agent (`task: ask`).
+- Review reports now stay flat across multi-round reviews instead of growing — resolved issues are referenced by ID instead of being re-printed, and clean "no issues" verdicts collapse to a single line.
+- Reviews now short-circuit to a requested-changes verdict on failing lint or tests before spawning any reviewers, saving the cost of a full review pass on changes that don't even build cleanly.
+- The team-lead's context-compression trigger is now a concrete rule (tied to review rounds and delegated-agent count) instead of a vague "when it feels heavy" instinct.
 
 ### Fixed
 - The `planning` and `brainstorm` agents no longer fail with permission errors when their target directories (`docs/exec-plans/`, `docs/briefs/`, `docs/specs/`) don't exist in the user's project — the plugin now creates them automatically on session start via a `session.created` event hook.

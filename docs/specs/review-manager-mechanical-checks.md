@@ -1,12 +1,13 @@
 ---
 status: implemented
 created: 2026-04-06
+updated: 2026-07-29
 ---
 
 # Spec : Mechanical checks — phase préalable du `review-manager`
 
-**Statut :** draft  
-**Mis à jour :** 2026-04-06 (rev. 2)
+**Statut :** implemented  
+**Mis à jour :** 2026-07-29 (rev. 3 — wired into `agents/review-manager.md` Phase 0 via the `run_mechanical_checks` lifecycle tool)
 
 ## Résumé
 

@@ -63,6 +63,10 @@ Scope creep is a real issue. If the user asked to change X and the implementatio
 - **No inferring requirements.** If it wasn't stated, don't invent it.
 - **No comparing alternatives.** You review against the spec as written, not against what you think the spec should have been.
 
+## Report Compression
+
+Full rationale in `docs/specs/review-report-contract.md` — read it if you need the "why," not for runtime behavior. Inline rules you must always follow: if there are no issues, `### Positive Notes` is a single acknowledgment line, not a paragraph; every row of the `Requirements Coverage` table must stay fully intact (full evidence, full grammar) — arbitration depends on it, never strip or shorten it.
+
 ## Output Format
 
 ```
@@ -95,7 +99,7 @@ Scope creep is a real issue. If the user asked to change X and the implementatio
   **Suggested fix:** [Fix]
 
 ### Positive Notes
-[What requirements were well addressed — keep it brief]
+[If no issues were found: a single acknowledgment line, e.g. "All requirements satisfied." Otherwise: what requirements were well addressed — keep it brief]
 ```
 
 **Severity guide:**

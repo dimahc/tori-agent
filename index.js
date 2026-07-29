@@ -11,6 +11,7 @@ import {
   completePlan,
   registerSpec,
   checkArtifacts,
+  runMechanicalChecks,
 } from "./tools/lifecycle.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -159,6 +160,7 @@ const SUBAGENT_DEFS = [
       read: "allow",
       glob: "allow",
       grep: "allow",
+      run_mechanical_checks: "allow",
     },
   },
   {
@@ -197,6 +199,20 @@ const SUBAGENT_DEFS = [
     variant: "max",
     mode: "subagent",
     color: "error",
+    silent: true,
+    permission: { "*": "deny", read: "allow", glob: "allow", grep: "allow" },
+  },
+  {
+    id: "architecture-reviewer",
+    file: "architecture-reviewer.md",
+    description:
+      "Structural design reviewer — evaluates module boundaries, coupling, abstraction fit, " +
+      "and service/package boundary placement. Does not cover code correctness, security, " +
+      "or functional compliance.",
+    temperature: 0.2,
+    variant: "max",
+    mode: "subagent",
+    color: "primary",
     silent: true,
     permission: { "*": "deny", read: "allow", glob: "allow", grep: "allow" },
   },
@@ -648,6 +664,22 @@ export const TeamLeadPlugin = async ({ directory, worktree }) => {
         async execute(_args) {
           try {
             return JSON.stringify(await checkArtifacts(projectRoot, paths));
+          } catch (err) {
+            return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+          }
+        },
+      },
+      run_mechanical_checks: {
+        description:
+          "Run the project's mechanical pre-filter (lint then tests) before spawning " +
+          "semantic reviewers. Discovers commands from AGENTS.md's '## Review Checks' " +
+          "section or toolchain auto-detection. Lint failure short-circuits before " +
+          "tests ever run. Call at the start of every review (Phase 0), before " +
+          "selecting or spawning any reviewer.",
+        args: {},
+        async execute(_args) {
+          try {
+            return JSON.stringify(await runMechanicalChecks(projectRoot));
           } catch (err) {
             return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
           }
