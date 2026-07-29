@@ -1,11 +1,8 @@
-// Conversation protocol — the central abstraction between the plugin and runtime SDKs
-export type { Conversation, Session, SessionOptions, PromptRequest, PromptResponse, SessionEvent } from './conversation/types.js';
-
 // Runtime detection (Seam 1)
 export { detectRuntime } from './runtime/detect.js';
 export type { Runtime } from './runtime/detect.js';
 
-// Plugin builder — creates a V1-style plugin function from a Conversation adapter
+// Plugin builder — creates a V2-style plugin function
 export { buildPlugin } from './plugin/index.js';
 
 // Lifecycle tools — deterministic bookkeeping operations for exec-plans, specs, briefs

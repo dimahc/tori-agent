@@ -1,5 +1,3 @@
-import type { Conversation } from '../conversation/types.js';
-import { getToolSchema } from './tool-schema.js';
 import {
   projectState,
   markBlockDone,
