@@ -15,6 +15,7 @@ export interface ArtifactPaths {
   specs: string;
   execPlans: string;
   briefs: string;
+  workflows: string;
 }
 
 export type CheckStatus = "PASSED" | "FAILED" | "ERROR" | "TIMEOUT" | "REJECTED";
