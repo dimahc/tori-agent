@@ -7,6 +7,9 @@ human_tone: false
 description: "Task executor. Receives a single task within a workflow stage, executes it with guards, and reports results. Does not delegate. Persona defines expertise."
 prompt: prompts/specialist.md
 personas:
+  software-architect:
+    description: "Software architecture, system design, technical strategy, scalability, and architectural decision-making"
+    instructions: prompts/specialist/software-architect.md
   software-engineer:
     description: "General software development — backend, APIs, databases, scripts, all languages"
     instructions: prompts/specialist/software-engineer.md

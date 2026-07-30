@@ -30,8 +30,11 @@ The core idea: orchestrate stages, not agents.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NEW: Workflow created
-    NEW --> REQUIREMENTS: Start
+    [*] --> NEW: Request received
+    NEW --> DONE: TRIVIAL — act directly (fast track)
+    NEW --> EXECUTE: SIMPLE — explicit intent, one delegation
+    EXECUTE --> DONE: SIMPLE — delegation returned
+    NEW --> REQUIREMENTS: COMPLEX — full workflow
     REQUIREMENTS --> PLAN: Intent unambiguous
     PLAN --> EXECUTE: Tasks defined
     EXECUTE --> VERIFY: All tasks done
@@ -42,6 +45,8 @@ stateDiagram-v2
     NEEDS_HUMAN --> [*]
     DONE --> [*]
 ```
+
+Tori scales effort to complexity: trivial asks are executed directly and clear tasks get a single delegation (fast track); the full pipeline applies to complex missions. TRIVIAL/SIMPLE transitions are conceptual — no workflow is created at those levels. See `packages/core/spec/prompts/tori.md` (Effort Scaling).
 
 ### Guards
 

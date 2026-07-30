@@ -4,28 +4,58 @@ mode: all
 color: error
 temperature: 0.3
 human_tone: true
-description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers."
+description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Executes trivial tasks directly (effort-scaling fast track)."
 prompt: prompts/tori.md
 permissions:
+  # SECURITY NOTE: the TRIVIAL/SIMPLE/COMPLEX scoping referenced in the rationales below is
+  # enforced by the system prompt ONLY — it is a behavioral convention, not a security boundary.
+  # The bash allowlist (allow_commands) is a FRICTION boundary, not a hard boundary. Accepted
+  # residuals:
+  # - `node -e` / `npm run <script>` ≈ arbitrary execution (package.json is editable via `edit`).
+  #   Accepted: `task` delegation to a specialist already grants unrestricted bash — the marginal
+  #   capability gained here is nil.
+  # - If the host does not split compound commands, `npm t && cat .env` matches `npm *`. The
+  #   plugin's evaluatePermission requires allow on ALL patterns only when the host splits them.
+  # - The .env hard deny is name-based: it covers neither symlinks nor copies of the file under
+  #   a different name.
+  # - Lifecycle artifacts under docs/ can still be forged via edit/write (no deny_paths in the
+  #   model). Accepted residual: tori already drives artifact state through the record_* tools.
+  # Hard boundaries: default-deny ("*": "deny") and the .env hard deny (name-based, see above).
   allow:
-    - todowrite
-    - todoread
-    - skill
-    - task
-    - question
-    - compress
-    - project_state
-    - check_artifacts
-    - run_mechanical_checks
-    - workflow_state
-    - transition_stage
-    - record_task_result
-    - record_check_result
-    - read
+    - todowrite # task tracking across delegations and compaction events
+    - todoread # resume task state after compaction
+    - skill # load skill instructions on demand
+    - task # primary tool: delegate work to specialized agents
+    - question # ask the user for clarification
+    - compress # only protection against context compaction
+    - project_state # read-only bookkeeping, called at complex-mission start
+    - check_artifacts # read-only cross-artifact consistency scan
+    - run_mechanical_checks # lint/tests at the start of verification stages
+    - workflow_state # read workflow stage/iteration/tasks/checks
+    - transition_stage # orchestration: drive the workflow state machine
+    - record_task_result # orchestration: record task outcomes in workflows
+    - record_check_result # orchestration: record verification check outcomes
+    - read # coordination reads (plans, configs) + TRIVIAL fast track; .env hard-denied at call time
+    - edit # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
+    - write # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
+  allow_commands:
+    # bash is NOT freely allowed — curated allowlist for the TRIVIAL fast track's verification
+    # workflow. Compiled to { "*": "deny", <cmd>: "allow" } ; any non-matching command is denied
+    # at call time (evaluatePermission fallback: deny). Matching: exact, or prefix when the
+    # pattern ends with "*".
+    bash:
+      - npm * # build/lint/test/install — prefix match covers all npm subcommands (npm run build, npm test, ...)
+      - node * # run scripts and one-off checks (node dist/x.js, node --eval ...)
+      - git status # read-only repo state check (bare command)
+      - git status * # read-only repo state check with flags (git status --short, ...)
+      - git diff # read-only change review (bare command)
+      - git diff * # read-only change review with flags (git diff --stat, git diff HEAD~1, ...)
+      - git log # read-only history inspection (bare command)
+      - git log * # read-only history inspection with flags (git log --oneline -5, ...)
+      - ls # directory listing (bare command)
+      - ls * # directory listing with flags/paths (ls -la, ls dist/, ...)
+      - pwd # print working directory (exact — no useful flags)
   deny:
-    - edit
-    - write
-    - bash
-    - mark_block_done
-    - complete_plan
-    - register_spec
+    - mark_block_done # lifecycle writes go through scribe delegation, never direct
+    - complete_plan # lifecycle writes go through scribe delegation, never direct
+    - register_spec # lifecycle writes go through scribe delegation, never direct

@@ -3,7 +3,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SKILL_BASE = join(__dirname, '..', '..', '..', 'skills', 'spec-writer');
+// From dist/plugin/ (or src/plugin/), two levels up lands in packages/core/,
+// then into spec/ — same resolution pattern as src/codegen/loader.ts.
+const SKILL_BASE = join(__dirname, '..', '..', 'spec', 'skills', 'spec-writer');
 
 export interface SkillRegistry {
   [name: string]: {
