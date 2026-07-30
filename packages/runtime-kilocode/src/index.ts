@@ -1,4 +1,4 @@
-import { buildPlugin } from '@tori-agent/core';
+import { buildPlugin } from '../../core/dist/index.js';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 

@@ -1,10 +1,17 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission } from './agents.js';
+import { appendFile } from 'node:fs/promises';
+import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, initSessionStore } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
-import { buildReadOnlyTools, buildWriteTools } from './tools.js';
+import { buildReadOnlyTools, buildWriteTools, type ToolRegistry } from './tools.js';
+import { loadSpecWriterSkill } from './skills.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const LOG = '/tmp/tori-debug.log';
+
+function log(...args: unknown[]): void {
+  appendFile(LOG, args.map(a => typeof a === 'string' ? a : JSON.stringify(a, null, 2)).join(' ') + '\n').catch(() => {});
+}
 
 export interface PluginInput {
   directory?: string;
@@ -30,6 +37,8 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
   const configPath = options.configPath ?? '';
 
   return async (input: PluginInput): Promise<PluginOutput> => {
+    log('[PLUGIN] buildPlugin called', { runtime, configPath, inputKeys: Object.keys(input) });
+
     const directory = input.directory ?? '.';
     const worktree = input.worktree;
     const projectRoot = (worktree && worktree !== '/') ? worktree : directory;
@@ -42,20 +51,52 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     };
 
     const allAgents = await loadAndCompileAllAgents();
+    log('[PLUGIN] agents loaded', allAgents.map(a => ({ id: a.id, mode: a.mode, permKeys: Object.keys(a.permission) })));
+
+    const configDir = configPath ? dirname(configPath) : join(directory, runtime === 'opencode' ? '.opencode' : '.kilocode');
+    initSessionStore(configDir);
+
+    try {
+      const skillRegistry = await loadSpecWriterSkill();
+      log('[PLUGIN] spec-writer skill loaded, resources:', Object.keys(skillRegistry['spec-writer']?.resources ?? {}));
+    } catch (err) {
+      log('[PLUGIN] spec-writer skill unavailable:', (err as Error).message);
+    }
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths);
     const writeTools = buildWriteTools(projectRoot, paths);
 
+    const pluginToolNames = new Set<string>();
+    for (const name of Object.keys(readOnlyTools)) pluginToolNames.add(name);
+    for (const name of Object.keys(writeTools)) pluginToolNames.add(name);
+    log('[PLUGIN] pluginToolNames', [...pluginToolNames]);
+
     return {
       config: async (input) => {
+        log('[CONFIG] hook called');
+        log('[CONFIG] existing agents in input', Object.keys((input.agent ?? {})));
         const userConfig = (input.agent ?? {}) as Record<string, unknown>;
-        await registerAgents(input as unknown as { agent?: Record<string, unknown> }, userConfig, allAgents, runtime, configPath);
+        await registerAgents(input as { agent?: Record<string, unknown> }, userConfig, allAgents, runtime, configPath, pluginToolNames);
+        log('[CONFIG] agents after registration', Object.keys((input.agent ?? {})));
+
+        const agents = input.agent as Record<string, Record<string, unknown>> | undefined;
+        if (agents) {
+          for (const [id, cfg] of Object.entries(agents)) {
+            if (id === 'tori' || id.startsWith('specialist') || id.startsWith('scribe')) {
+              log(`[CONFIG] ${id} config keys:`, Object.keys(cfg));
+              const c = cfg as { tools?: unknown; permission?: unknown };
+              if (c.tools) log(`[CONFIG] ${id} tools:`, c.tools);
+              if (c.permission) log(`[CONFIG] ${id} permission:`, c.permission);
+            }
+          }
+        }
       },
       tool: {
         ...readOnlyTools,
         ...writeTools,
       } as Record<string, unknown>,
       event: async ({ event }) => {
+        log('[EVENT] event received', { type: event.type, full: JSON.stringify(event) });
         if (event.type === 'session.created') {
           const { mkdir } = await import('node:fs/promises');
           await Promise.all([
@@ -67,16 +108,35 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         }
       },
       'chat.message': async ({ sessionID, agent }) => {
+        log('[CHAT.MESSAGE] called', { sessionID, agent });
         trackSessionAgent(sessionID, agent);
+        log('[CHAT.MESSAGE] tracked', { sessionID, agent });
       },
       'permission.ask': async (input, output) => {
-        // Only adjudicate for sessions running a tori agent — anything else
-        // keeps the host's default behavior.
         const agentId = agentForSession(input.sessionID);
-        if (!agentId) return;
+        log('[PERMISSION.ASK] called', { sessionID: input.sessionID, agentId, type: input.type, pattern: input.pattern });
+        if (!agentId) {
+          // Untracked session — let host decide (no override)
+          log('[PERMISSION.ASK] untracked session → no override');
+          return;
+        }
+        if (checkDoomLoop(input.sessionID, input.type, input.pattern)) {
+          log('[PERMISSION.ASK] doom loop detected — escalating to ask');
+          resetDoomLoop(input.sessionID, input.type);
+          output.status = 'ask';
+          return;
+        }
         const agent = allAgents.find((a) => a.id === agentId);
-        if (!agent) return;
-        output.status = evaluatePermission(agent.permission, input.type, input.pattern);
+        if (!agent) {
+          log('[PERMISSION.ASK] agent not found → no override');
+          return;
+        }
+        const result = evaluatePermission(agent.permission, input.type, input.pattern);
+        log('[PERMISSION.ASK] evaluated', { agentId, tool: input.type, result, agentPermKeys: Object.keys(agent.permission) });
+        output.status = result;
+        if (result === 'allow') {
+          resetDoomLoop(input.sessionID, input.type);
+        }
       },
     };
   };

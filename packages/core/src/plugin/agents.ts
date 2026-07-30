@@ -1,23 +1,42 @@
 import type { CompiledAgent } from '../codegen/types.js';
-import { loadAndCompileAllAgents, loadHumanTone, compileAgent, loadAgentSpecs } from '../codegen/loader.js';
+import { loadHumanTone } from '../codegen/loader.js';
+import { trackSessionAgent as storeTrack, agentForSession as storeLookup } from '../runtime/session-store.js';
+export { initSessionStore } from '../runtime/session-store.js';
 
 export type { CompiledAgent };
 
-/**
- * Tracks which tori agent owns each session so the permission.ask hook can
- * resolve the right compiled permission set at call time.
- */
-const sessionAgents = new Map<string, string>();
+const doomLoopCounters = new Map<string, { tool: string; args: string; count: number }>();
+const MAX_DOOM_ENTRIES = 100;
+
+export function checkDoomLoop(sessionID: string, tool: string, pattern?: string | string[]): boolean {
+  if (doomLoopCounters.size >= MAX_DOOM_ENTRIES) {
+    doomLoopCounters.clear();
+  }
+  const key = `${sessionID}:${tool}`;
+  const args = JSON.stringify(pattern ?? []);
+  const current = doomLoopCounters.get(key);
+  if (current && current.args === args) {
+    current.count++;
+    if (current.count >= 3) return true;
+  } else {
+    doomLoopCounters.set(key, { tool, args, count: 1 });
+  }
+  return false;
+}
+
+export function resetDoomLoop(sessionID: string, tool: string): void {
+  doomLoopCounters.delete(`${sessionID}:${tool}`);
+}
 
 export function trackSessionAgent(sessionID: string, agent?: string): void {
-  if (agent) sessionAgents.set(sessionID, agent);
+  if (agent) storeTrack(sessionID, agent);
 }
 
 export function agentForSession(sessionID: string): string | undefined {
-  return sessionAgents.get(sessionID);
+  return storeLookup(sessionID);
 }
 
-function mergePermissions(
+function mergeCompiledPermissions(
   defaults: Record<string, unknown>,
   overrides: Record<string, unknown> | null | undefined
 ): Record<string, unknown> {
@@ -53,91 +72,58 @@ export function buildPermissionContext(
   if (!agent) {
     return { "*": "deny" };
   }
-  return mergePermissions(agent.permission, overrides ?? null);
+  return mergeCompiledPermissions(agent.permission, overrides ?? null);
 }
 
-/**
- * Tools whose caller-side wildcard denies the host force-inherits into
- * subagent sessions (TaskTool child permission derivation), where they
- * override the subagent's own allows. The `write` tool rides along because
- * the host gates file writing under the `edit` permission.
- *
- * Never advertise wildcard denies for these in the host-facing config:
- * doing so strips them from every spawned subagent. Call-time enforcement
- * via the permission.ask hook keeps the spec's deny intent intact.
- */
-const HOST_INHERITABLE_DENY_TOOLS = new Set(["edit", "write", "bash", "notebook_edit", "notebook_execute"]);
-
-function isWildcardDeny(value: unknown): boolean {
-  if (value === "deny") return true;
-  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-    return (value as Record<string, unknown>)["*"] === "deny";
-  }
-  return false;
-}
-
-/**
- * Convert a compiled tori permission record into the host-native `tools`
- * boolean map (AgentConfig.tools). `true` == allow all patterns, `false` ==
- * deny. This is what actually controls tool availability in the spawned
- * agent's tool list — a bare `"*": "deny"` in a custom-shaped permission
- * object strips built-in tools (write/edit/bash) from subagents.
- */
-export function buildToolsMap(permission: Record<string, unknown>): Record<string, boolean> {
+export function buildToolsMap(permission: Record<string, unknown>, pluginToolNames?: Set<string>): Record<string, boolean> {
   const tools: Record<string, boolean> = {};
   for (const [key, value] of Object.entries(permission)) {
     if (key === "*") continue;
     if (value === "allow") {
       tools[key] = true;
     } else if (value === "deny") {
-      // Omit host-inheritable denies — see HOST_INHERITABLE_DENY_TOOLS.
-      if (HOST_INHERITABLE_DENY_TOOLS.has(key)) continue;
-      tools[key] = false;
-    } else if (value !== null && typeof value === "object") {
-      // Pattern-scoped rule (allow_paths / allow_commands): the tool itself
-      // stays available; individual patterns are gated at call time via the
-      // permission.ask hook.
-      tools[key] = true;
+      if (pluginToolNames && pluginToolNames.has(key)) {
+        tools[key] = false;
+      }
     }
   }
   return tools;
 }
 
-/**
- * Reshape a compiled tori permission record into the host's AgentConfig
- * permission schema (edit / bash / webfetch / doom_loop / external_directory)
- * while keeping tori-specific tool keys for plugin tools. The `"*": "deny"`
- * catch-all is intentionally dropped: default-deny is enforced at call time
- * by the permission.ask hook instead of by stripping tools from the agent.
- */
-export function buildHostPermission(permission: Record<string, unknown>): Record<string, unknown> {
+export function buildHostPermission(permission: Record<string, unknown>, pluginToolNames?: Set<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(permission)) {
-    if (key === "*") continue;
-    // Omit host-inheritable wildcard denies — see HOST_INHERITABLE_DENY_TOOLS.
-    if (HOST_INHERITABLE_DENY_TOOLS.has(key) && isWildcardDeny(value)) continue;
+    if (key === "*") {
+      result[key] = value;
+      continue;
+    }
+    if (typeof value === "string" && value === "deny" && pluginToolNames && !pluginToolNames.has(key)) {
+      continue;
+    }
     result[key] = value;
   }
-  // The host gates its file-writing built-ins under the `edit` permission —
-  // honoring tori specs that allow `write` but don't mention `edit`.
   if (result.edit === undefined && result.write === "allow") {
     result.edit = "allow";
+  }
+  if (result.external_directory === undefined) {
+    result.external_directory = "deny";
   }
   return result;
 }
 
-/**
- * Evaluate a permission request at call time (permission.ask hook).
- * Default-deny: tools not explicitly allowed by the agent's compiled
- * permission record are denied. Pattern-scoped rules (allow_paths /
- * allow_commands) are matched against the request pattern; `"write"` counts
- * as allowed when the host reports the request under the `edit` type.
- */
 export function evaluatePermission(
   permission: Record<string, unknown>,
   tool: string,
   pattern?: string | string[]
 ): "allow" | "deny" {
+  if ((tool === "read" || tool === "edit" || tool === "write") && pattern) {
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    for (const p of patterns) {
+      if (typeof p === "string" && /(^|\/|\\)\.env($|\.(?!example($|\/|\\)))/i.test(p)) {
+        return "deny";
+      }
+    }
+  }
   let rule = permission[tool];
   if (rule === undefined && tool === "edit") {
     rule = permission.write;
@@ -158,7 +144,6 @@ export function evaluatePermission(
 }
 
 function matchPattern(entries: [string, string][], value: string): string | undefined {
-  // Last match wins, mirroring host rule evaluation.
   let action: string | undefined;
   for (const [pattern, act] of entries) {
     if (pattern === "*") {
@@ -181,7 +166,8 @@ export async function registerAgents(
   userConfig: Record<string, unknown>,
   allAgents: CompiledAgent[],
   runtime: 'opencode' | 'kilocode',
-  configPath: string
+  configPath: string,
+  pluginToolNames?: Set<string>
 ): Promise<void> {
   const humanTone = await loadHumanTone();
   const userAgents = (input.agent ?? {}) as Record<string, unknown>;
@@ -195,7 +181,7 @@ export async function registerAgents(
       ? `${agent.prompt}\n\nInstructions from: ${configPath}\n${humanTone}`
       : agent.prompt;
 
-    const mergedPermission = mergePermissions(
+    const mergedPermission = mergeCompiledPermissions(
       agent.permission,
       (userCfgRest.permission as Record<string, unknown>) ?? null
     );
@@ -208,8 +194,8 @@ export async function registerAgents(
       color: agent.color,
       ...userCfgRest,
       prompt: finalPrompt,
-      tools: { ...buildToolsMap(mergedPermission), ...userTools },
-      permission: buildHostPermission(mergedPermission),
+      tools: { ...buildToolsMap(mergedPermission, pluginToolNames), ...userTools },
+      permission: buildHostPermission(mergedPermission, pluginToolNames),
     } as never;
   }
 }

@@ -1,8 +1,8 @@
 {
-  "$schema": "https://opencode.ai/config",
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "tori",
   "plugin": [
     "@tori-agent/core",
     "@tori-agent/runtime-opencode"
-  ],
-  "default_agent": "tori"
+  ]
 }
