@@ -4,7 +4,7 @@ mode: subagent
 color: info
 temperature: 0.1
 human_tone: false
-description: "Formalization agent — transforms raw information into structured knowledge artifacts (specs, ADRs, docs, changelogs, plans)."
+description: "Stage artifact generator. Produces structured knowledge artifacts at each workflow stage (specs, plans, summaries). Handles write operations when delegated by Tori."
 prompt: prompts/scribe.md
 modes:
   specification:

@@ -4,7 +4,7 @@ mode: all
 color: error
 temperature: 0.3
 human_tone: true
-description: "Strict delegation-only orchestrator. Understands requests, breaks them into tasks, delegates ALL work to specialized agents, aggregates results, and decides when work is done. Zero-write agent."
+description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers."
 prompt: prompts/tori.md
 permissions:
   allow:
@@ -17,6 +17,10 @@ permissions:
     - project_state
     - check_artifacts
     - run_mechanical_checks
+    - workflow_state
+    - transition_stage
+    - record_task_result
+    - record_check_result
     - read
   deny:
     - edit

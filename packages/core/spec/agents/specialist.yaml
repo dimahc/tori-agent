@@ -4,7 +4,7 @@ mode: subagent
 color: warning
 temperature: 0.3
 human_tone: false
-description: "Executor agent — receives precise tasks from Tori and executes them. The persona defines its expertise domain."
+description: "Task executor. Receives a single task within a workflow stage, executes it with guards, and reports results. Does not delegate. Persona defines expertise."
 prompt: prompts/specialist.md
 personas:
   software-engineer:
@@ -31,3 +31,5 @@ permissions:
     - websearch
     - question
     - task
+    - git
+    - bash
