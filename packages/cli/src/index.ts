@@ -1,4 +1,4 @@
-import { loadAndCompileAllAgents, detectRuntime } from '@tori-agent/core';
+import { loadAndCompileAllAgents, detectRuntime, buildToolsMap, buildHostPermission } from '@tori-agent/core';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -64,7 +64,12 @@ async function handleGenerate(outputDir: string, format: string): Promise<void> 
     const ext = extForFormat(format);
     const filename = `${agent.id}${ext}`;
     const filePath = join(targetDir, filename);
-    await writeFile(filePath, serializeAgent(agent, format));
+    const hostAgent = {
+      ...agent,
+      tools: buildToolsMap(agent.permission),
+      permission: buildHostPermission(agent.permission),
+    };
+    await writeFile(filePath, serializeAgent(hostAgent, format));
     manifest.push({
       id: agent.id,
       mode: agent.mode,

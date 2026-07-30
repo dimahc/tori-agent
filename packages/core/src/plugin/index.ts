@@ -1,6 +1,6 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerAgents, buildPermissionContext } from './agents.js';
+import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
 import { buildReadOnlyTools, buildWriteTools } from './tools.js';
 
@@ -18,7 +18,11 @@ export interface PluginOutput {
   config?: (input: Record<string, unknown>) => Promise<void>;
   tool?: Record<string, unknown>;
   event?: (input: { event: { type: string } }) => Promise<void>;
-  permissionInjector?: (input: { agentId: string; overrides?: Record<string, unknown> }) => Promise<Record<string, unknown>>;
+  'chat.message'?: (input: { sessionID: string; agent?: string }) => Promise<void>;
+  'permission.ask'?: (
+    input: { type: string; pattern?: string | string[]; sessionID: string },
+    output: { status: 'ask' | 'deny' | 'allow' }
+  ) => Promise<void>;
 }
 
 export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; configPath?: string } = {}) {
@@ -62,8 +66,17 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
           ]).catch(() => {});
         }
       },
-      permissionInjector: async ({ agentId, overrides }) => {
-        return buildPermissionContext(agentId, overrides, allAgents);
+      'chat.message': async ({ sessionID, agent }) => {
+        trackSessionAgent(sessionID, agent);
+      },
+      'permission.ask': async (input, output) => {
+        // Only adjudicate for sessions running a tori agent — anything else
+        // keeps the host's default behavior.
+        const agentId = agentForSession(input.sessionID);
+        if (!agentId) return;
+        const agent = allAgents.find((a) => a.id === agentId);
+        if (!agent) return;
+        output.status = evaluatePermission(agent.permission, input.type, input.pattern);
       },
     };
   };
