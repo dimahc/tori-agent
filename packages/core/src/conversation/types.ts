@@ -1,6 +1,8 @@
 export interface SessionOptions {
   directory: string;
   parentId?: string;
+  agent?: string;
+  permissionOverrides?: Record<string, unknown>;
 }
 
 export interface Session {

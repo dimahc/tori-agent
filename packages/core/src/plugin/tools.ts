@@ -6,7 +6,15 @@ import {
   checkArtifacts,
   runMechanicalChecks,
 } from '../tools/lifecycle.js';
+import {
+  createWorkflow,
+  getWorkflowState,
+  transitionStage,
+  recordTaskResult,
+  recordCheckResult,
+} from '../tools/workflow.js';
 import type { ArtifactPaths } from '../tools/lifecycle.js';
+import type { WorkflowPaths } from '../tools/workflow.js';
 
 export interface ToolRegistry {
   [name: string]: {
@@ -20,11 +28,13 @@ export function buildReadOnlyTools(
   projectRoot: string,
   paths: ArtifactPaths
 ): ToolRegistry {
+  const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
+
   return {
     project_state: {
       description:
         'Return a structured report of the current state of all management artifacts ' +
-        '(exec-plans, specs, briefs) in the project. Call at the start of every mission.',
+        '(exec-plans, specs, briefs, workflows) in the project. Call at the start of every mission.',
       args: {},
       async execute() {
         try {
@@ -60,6 +70,19 @@ export function buildReadOnlyTools(
         }
       },
     },
+    workflow_state: {
+      description:
+        'Return the current state of a workflow (stage, iteration, tasks, checks). ' +
+        'Call at the start of each stage transition.',
+      args: { workflow_id: {} },
+      async execute({ workflow_id }: { workflow_id?: string }) {
+        try {
+          return JSON.stringify(await getWorkflowState(projectRoot, workflowPaths, workflow_id!));
+        } catch (err) {
+          return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+        }
+      },
+    },
   };
 }
 
@@ -67,6 +90,8 @@ export function buildWriteTools(
   projectRoot: string,
   paths: ArtifactPaths
 ): ToolRegistry {
+  const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
+
   return {
     mark_block_done: {
       description: 'Check a specific block in an exec-plan ([ ] → [x]). Call after each validated delivery.',
@@ -103,6 +128,41 @@ export function buildWriteTools(
       async execute({ spec_file, title }: { spec_file?: string; title?: string }) {
         try {
           return JSON.stringify(await registerSpecImpl(projectRoot, paths, spec_file!, title!));
+        } catch (err) {
+          return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+        }
+      },
+    },
+    transition_stage: {
+      description: 'Transition a workflow to a new stage. Validates the transition against the state machine.',
+      args: { workflow_id: {}, to_stage: {} },
+      async execute({ workflow_id, to_stage }: { workflow_id?: string; to_stage?: string }) {
+        try {
+          return JSON.stringify(await transitionStage(projectRoot, workflowPaths, workflow_id!, to_stage!));
+        } catch (err) {
+          return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+        }
+      },
+    },
+    record_task_result: {
+      description: 'Record a task result in a workflow file.',
+      args: { workflow_id: {}, task_id: {}, agent: {}, status: {} },
+      async execute({ workflow_id, task_id, agent, status }: { workflow_id?: string; task_id?: string; agent?: string; status?: string }) {
+        try {
+          await recordTaskResult(projectRoot, workflowPaths, workflow_id!, task_id!, agent!, status as 'done' | 'failed' | 'running' | 'pending');
+          return JSON.stringify({ success: true });
+        } catch (err) {
+          return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+        }
+      },
+    },
+    record_check_result: {
+      description: 'Record a verification check result in a workflow file.',
+      args: { workflow_id: {}, check_name: {}, status: {}, detail: {} },
+      async execute({ workflow_id, check_name, status, detail }: { workflow_id?: string; check_name?: string; status?: string; detail?: string }) {
+        try {
+          await recordCheckResult(projectRoot, workflowPaths, workflow_id!, check_name!, status as 'PASS' | 'FAIL' | 'SKIP', detail);
+          return JSON.stringify({ success: true });
         } catch (err) {
           return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
         }

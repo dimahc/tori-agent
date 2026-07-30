@@ -30,10 +30,24 @@ function mergePermissions(
   return result;
 }
 
+export function buildPermissionContext(
+  agentId: string,
+  overrides: Record<string, unknown> | null | undefined,
+  allAgents: CompiledAgent[]
+): Record<string, unknown> {
+  const agent = allAgents.find((a) => a.id === agentId);
+  if (!agent) {
+    return { "*": "deny" };
+  }
+  return mergePermissions(agent.permission, overrides ?? null);
+}
+
 export async function registerAgents(
   input: { agent?: Record<string, unknown> },
   userConfig: Record<string, unknown>,
-  allAgents: CompiledAgent[]
+  allAgents: CompiledAgent[],
+  runtime: 'opencode' | 'kilocode',
+  configPath: string
 ): Promise<void> {
   const humanTone = await loadHumanTone();
   const userAgents = (input.agent ?? {}) as Record<string, unknown>;
@@ -44,7 +58,7 @@ export async function registerAgents(
     const { soul, ...userCfgRest } = userCfg;
 
     const finalPrompt = agent.mode === 'all' && soul !== false && humanTone
-      ? `${agent.prompt}\n\nInstructions from: ~/.config/opencode/AGENTS.md\n${humanTone}`
+      ? `${agent.prompt}\n\nInstructions from: ${configPath}\n${humanTone}`
       : agent.prompt;
 
     input.agent[agent.id] = {
