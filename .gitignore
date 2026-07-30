@@ -3,3 +3,11 @@ dist/
 .opencode/
 !.opencode/agents/
 !.opencode/tools/
+.kilo/
+!.kilo/agents/
+!.kilo/tools/
+.kilocode/
+!.kilocode/agents/
+!.kilocode/tools/
+docs
+tmp

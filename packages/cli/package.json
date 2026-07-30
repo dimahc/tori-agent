@@ -10,7 +10,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@tori-agent/core": "^0.1.0"
+    "@tori-agent/core": "^0.1.0",
+    "js-yaml": "^4.1.0"
   },
   "engines": {
     "node": ">=18.0.0"

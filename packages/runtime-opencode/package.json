@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist/"],
+  "files": ["dist/", "opencode.json"],
   "scripts": {
     "build": "tsc",
     "test": "node --test dist/tests/*.test.js"
