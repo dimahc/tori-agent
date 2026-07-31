@@ -7,6 +7,7 @@ export { createConversationClient } from './runtime/sdk-adapter.js';
 
 // Plugin builder — creates a V2-style plugin function
 export { buildPlugin } from './plugin/index.js';
+export type { PluginInput, PluginOutput } from './plugin/index.js';
 
 // Standalone default export — allows @tori-agent/core to be loaded directly
 // as an opencode plugin without going through a runtime adapter.

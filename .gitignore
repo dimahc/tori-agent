@@ -1,5 +1,8 @@
 node_modules/
 dist/
+
+# TypeScript incremental build cache — must not be committed
+*.tsbuildinfo
 .opencode/
 !.opencode/agents/
 !.opencode/tools/
