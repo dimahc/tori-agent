@@ -18,9 +18,19 @@ permissions:
   #   plugin's evaluatePermission requires allow on ALL patterns only when the host splits them.
   # - The .env hard deny is name-based: it covers neither symlinks nor copies of the file under
   #   a different name.
-  # - Lifecycle artifacts under docs/ can still be forged via edit/write (no deny_paths in the
-  #   model). Accepted residual: tori already drives artifact state through the record_* tools.
-  # Hard boundaries: default-deny ("*": "deny") and the .env hard deny (name-based, see above).
+  #   - Lifecycle artifacts under docs/ can still be forged via edit/write (no deny_paths in the
+  #     model). Accepted residual: tori already drives artifact state through the record_* tools.
+  #   - `git commit *` prefix-matches `--amend` and `--no-verify` (hook bypass). Accepted: the
+  #     prompt restricts amend to the just-made commit and forbids --no-verify; commits are
+  #     tori's own orchestration checkpoints, and the commit-msg hook is the last line of defense.
+  #   - `git add *` can stage any name-addressable file; the .env deny is name-based and does not
+  #     cover copies. Accepted: the prompt's staging discipline (explicit paths only, `git status`
+  #     before staging) is the compensating control.
+  #   - `git branch *` prefix-matches `git branch -d/-D` (delete) and `-m` (rename). Accepted: the
+  #     prompt never mentions branch deletion/rename and `git switch -c` is the only branch
+  #     operation the Git Hygiene section instructs.
+  # Hard boundaries: default-deny ("*": "deny"), the .env hard deny (name-based, see above), and
+  # `git push` — never allowlisted; pushing is always manual.
   allow:
     - todowrite # task tracking across delegations and compaction events
     - todoread # resume task state after compaction
@@ -52,6 +62,11 @@ permissions:
       - git diff * # read-only change review with flags (git diff --stat, git diff HEAD~1, ...)
       - git log # read-only history inspection (bare command)
       - git log * # read-only history inspection with flags (git log --oneline -5, ...)
+      - git branch # list/inspect branches (read-only, bare command)
+      - git branch * # list/inspect branches with flags (git branch --show-current, git branch -a, ...); prefix also matches destructive forms (`-d/-D` delete, `-m` rename) — accepted residual, see SECURITY NOTE
+      - git switch -c * # create+switch branches only — prefix matches `git switch -c <branch>` (create+switch); destructive forms (`git switch --detach`, `git switch --orphan`) no longer reachable
+      - git add * # staging — prompt rule: explicit paths only, never `-A`/`.`
+      - git commit * # committing — prefix covers `-m`; `--amend` reachable but prompt-discouraged (except fixing the just-made commit), `--no-verify` prompt-forbidden
       - ls # directory listing (bare command)
       - ls * # directory listing with flags/paths (ls -la, ls dist/, ...)
       - pwd # print working directory (exact — no useful flags)

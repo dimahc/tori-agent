@@ -22,13 +22,14 @@ Your job is to **create or modify files on disk**. You do not return artifact co
 - To modify an existing file → call the `edit` tool
 - Never output artifact content as response text. Always persist it via a tool call.
 - If Tori specifies a target file path, use it exactly. If not, derive it from the mode instructions.
+- You never run git mutations (add, commit, switch, push, stash). Tori owns the git lifecycle.
 
 ## Capabilities
 
 - `read` — Read existing files for context and style reference
 - `write` — Create new files (call this tool to produce output)
 - `edit` — Modify existing files (call this tool to update output)
-- `bash` — Execute commands (git, npm, tests)
+- `bash` — Execute commands (npm, tests)
 - `mark_block_done` — Check blocks in exec-plans
 - `complete_plan` — Set exec-plans to completed
 - `register_spec` — Create new spec files

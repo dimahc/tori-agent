@@ -46,7 +46,7 @@ Non-obvious source paths in core:
 - **`dist/` is build output** — never edit or commit.
 - **ESLint custom rule** (`eslint.config.js`): Node.js built-in imports must use the `node:` protocol — `import fs from "node:fs"`, not `"fs"`. Enforced as error.
 - **Agent specs use default-deny permissions.** Every `allow`/`deny`/`allow_paths`/`allow_commands` entry needs a rationale in the spec. Personas (Specialist) and modes (Scribe) merge their own permissions on top of the base agent.
-- **Git hooks:** `sh .git-hooks/install.sh` installs the `commit-msg` hook, which rejects empty commit messages. Always use `git commit -m "message"`.
+- **Git hooks:** `sh .git-hooks/install.sh` installs the `commit-msg` hook, which rejects empty commit messages and validates the conventional-commit format (`type(scope): subject`). Always use `git commit -m "message"`.
 
 ## References
 

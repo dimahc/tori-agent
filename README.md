@@ -54,6 +54,7 @@ Tori scales effort to complexity: trivial asks are executed directly and clear t
 - Task budget: **250k tokens** or **20 tool calls**
 - Task timeout: **20 minutes**
 - Max delegation depth: **1** (Tori → Specialist)
+- Git lifecycle: tori owns it — a `wip--<scope>` branch per mission, conventional commits at stage boundaries, push stays manual
 
 ## Built-in agents
 
