@@ -36,3 +36,4 @@ permissions:
     - task
     - git
     - bash
+    - external_directory
