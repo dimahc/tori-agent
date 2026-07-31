@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20.x, 22.x]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4 11d5960
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # actions/setup-node@v4 49933ea
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core and runtimes
+        run: npm run build
+
+      - name: Build CLI
+        run: npm run build -w packages/cli
+
+      - name: Lint
+        run: npm run lint
+
+      # Real verification gate: imports from dist/, so it must run after the build.
+      # The script fails hard on a non-zero exit on its own — do not wrap it.
+      - name: Verify agent expansion
+        run: node packages/core/tests/verify-expansion.mjs
+
+      # Smoke test the full agent-compilation chain on a clean checkout.
+      # Expands agent specs + personas and syncs builtin skills into .opencode/
+      # and .kilo/ (committed dirs).
+      - name: Smoke test CLI generate
+        run: node packages/cli/dist/cli.js generate
+
+      # The generate smoke test rewrites the committed .opencode/ and .kilo/
+      # dirs; on a clean checkout it must reproduce them exactly. Any drift
+      # means generated output is out of sync with the specs — fail CI.
+      - name: Check generated agents are committed
+        run: git diff --exit-code
+
+      # NOTE: `npm test` is intentionally omitted. The root test script globs
+      # `packages/*/tests/*.test.js` which matches nothing (no .test.js files
+      # exist yet), so it fails. See AGENTS.md "No unit tests yet".

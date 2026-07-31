@@ -38,6 +38,8 @@ const preferNodeProtocol = {
   },
 };
 
+import tsParser from "@typescript-eslint/parser";
+
 export default [
   {
     files: ["packages/*/src/**/*.{js,ts}"],
@@ -52,6 +54,16 @@ export default [
     },
     rules: {
       "local/prefer-node-protocol": "error",
+    },
+  },
+  {
+    // TypeScript sources: espree (ESLint's default parser) chokes on TS syntax.
+    // @typescript-eslint/parser accepts eslint ^10 as a peer (^8.57.0 || ^9.0.0 || ^10.0.0).
+    // Only the parser is wired in here — no typescript-eslint recommended rulesets —
+    // so the only rule in effect for TS files remains the shared local/prefer-node-protocol.
+    files: ["packages/*/src/**/*.ts"],
+    languageOptions: {
+      parser: tsParser,
     },
   },
 ];
