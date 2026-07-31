@@ -1,4 +1,4 @@
-import { buildPlugin } from '@tori-agent/core';
+import { buildPlugin, type PluginInput, type PluginOutput } from '@tori-agent/core';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 
@@ -11,4 +11,6 @@ const localCandidates = [
 const detectedDir = localCandidates.find((d) => existsSync(d)) ?? localCandidates[localCandidates.length - 1];
 const configPath = `${detectedDir}/AGENTS.md`;
 
-export default buildPlugin({ runtime, configPath });
+const plugin: (input: PluginInput) => Promise<PluginOutput> = buildPlugin({ runtime, configPath });
+
+export default plugin;
