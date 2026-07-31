@@ -1,137 +1,257 @@
-# opencode-team-lead
+# tori-agent
 
-[![npm version](https://img.shields.io/npm/v/opencode-team-lead)](https://www.npmjs.com/package/opencode-team-lead)
-[![license](https://img.shields.io/npm/l/opencode-team-lead)](https://github.com/azrod/opencode-team-lead/blob/main/LICENSE)
+`tori-agent` is a deterministic agent stack for [OpenCode](https://opencode.ai) and Kilo Code.
+It orchestrates work through a workflow/state-machine model: Requirements → Planning → Execution → Verification → Delivery.
 
-An [OpenCode](https://opencode.ai) plugin that installs a **team-lead** orchestrator and a full suite of specialized sub-agents. The team-lead plans work, delegates everything to sub-agents, reviews results, and reports back. It never reads or writes files directly.
+Instead of chaining agents ad-hoc, tori runs deterministic pipelines where agents are interchangeable workers and the workflow stays stable, observable, and bounded.
 
-## What it does
+“tori” means frog in Bambara, my native language. The project started from [`opencode-team-lead`](https://github.com/azrod/opencode-team-lead) by azrod, then was adapted into something portable and easy to customize for day-to-day use in OpenCode and Kilo Code.
 
-One hook powers the plugin:
+## The workflow model
 
-- **`config`** — registers all agents into OpenCode's config, merging your overrides from `opencode.json` on top of plugin defaults
+The core idea: orchestrate stages, not agents.
 
-## Agents
+| Concept | Role |
+| --------- | ------ |
+| **Workflow** | A recipe — which stages run, in what order, with what guards |
+| **Stage** | A fixed phase in the pipeline (Requirements, Planning, Execution, Verification, Delivery) |
+| **Task** | A unit of work within a stage. Tasks in the same stage run in parallel |
+| **Agent** | A worker that executes exactly one task. Never receives a full workflow |
 
-| Agent | Role |
-|-------|------|
-| `team-lead` | Pure orchestrator — understands, plans, delegates, reviews, synthesizes. Never touches code. |
-| `review-manager` | Spawns specialized reviewers in parallel, arbitrates disagreements, returns a single structured verdict |
-| `requirements-reviewer` | Verifies implementation matches the original requirements |
-| `code-reviewer` | Evaluates correctness, logic, error handling, and maintainability |
-| `security-reviewer` | Identifies vulnerabilities, misconfigurations, and data exposure risks |
-| `bug-finder` | Structured bug investigation — forces root-cause analysis before any fix |
-| `brainstorm` | Phase 0 thinking partner — helps articulate what you want to build before planning starts |
-| `harness` | Encodes recurring patterns as mechanical artifacts (lint rules, CI checks, AGENTS.md entries) |
-| `planning` | Transforms complex or ambiguous requests into structured exec-plans written to disk |
-| `gardener` | Periodic maintenance — fixes stale docs, detects code drift, escalates patterns to harness |
+### Built-in workflows
 
-### The team-lead's workflow
+- **Implement feature** — Requirements → Planning → Execution → Verification → Delivery
+- **Bug fix** — Requirements → Execution → Verification → Delivery
+- **Code review** — Requirements → Verification → Delivery
+- **Documentation** — Requirements → Execution → Delivery
+- **Architecture proposal** — Requirements → Planning → Delivery
 
-1. **Understand** — asks clarifying questions if the request is ambiguous
-2. **Plan** — breaks work into tasks using `todowrite`
-3. **Delegate** — dispatches sub-agents (`explore`, `general`, or specialized personas)
-4. **Review** — every code change goes through the `review-manager`, which spawns reviewers in parallel
-5. **Synthesize** — consolidates results and reports back
+### State machine
 
-### Review cluster
+```mermaid
+stateDiagram-v2
+    [*] --> NEW: Request received
+    NEW --> DONE: TRIVIAL — act directly (fast track)
+    NEW --> EXECUTE: SIMPLE — explicit intent, one delegation
+    EXECUTE --> DONE: SIMPLE — delegation returned
+    NEW --> REQUIREMENTS: COMPLEX — full workflow
+    REQUIREMENTS --> PLAN: Intent unambiguous
+    PLAN --> EXECUTE: Tasks defined
+    EXECUTE --> VERIFY: All tasks done
+    VERIFY --> DONE: All checks PASS
+    VERIFY --> EXECUTE: Checks FAIL, iterations < max
+    VERIFY --> NEEDS_HUMAN: Checks FAIL, iterations >= max
+    EXECUTE --> NEEDS_HUMAN: Budget / timeout
+    NEEDS_HUMAN --> [*]
+    DONE --> [*]
+```
 
-`review-manager`, `requirements-reviewer`, `code-reviewer`, and `security-reviewer` work together. The team-lead delegates to `review-manager`, which selects the relevant reviewers based on what changed, runs them in parallel, and returns a single verdict. None of these agents are visible in the main agent list — they're only reachable via `task`.
+Tori scales effort to complexity: trivial asks are executed directly and clear tasks get a single delegation (fast track); the full pipeline applies to complex missions. TRIVIAL/SIMPLE transitions are conceptual — no workflow is created at those levels. See `packages/core/spec/prompts/tori.md` (Effort Scaling).
 
-### bug-finder
+### Guards
 
-Enforces a structured investigation workflow: frames the symptom vs. root cause, investigates via `explore` sub-agents, evaluates fix alternatives, then delegates the actual fix to a `general` sub-agent with full analysis context. Cardinal rule: never apply a workaround that masks the root cause.
+- Max verify iterations: **2**
+- Task budget: **250k tokens** or **20 tool calls**
+- Task timeout: **20 minutes**
+- Max delegation depth: **1** (Tori → Specialist)
+- Git lifecycle: tori owns it — an `<type>/<description>` branch per mission, conventional commits at stage boundaries, push stays manual
 
-### brainstorm
+## Built-in agents
 
-Run before the team-lead when you have a vague idea. Runs a 3-phase conversational flow (discovery → deep dive → draft) and produces a product brief at `docs/briefs/{project-name}.md`. Hand it to `planning` or directly to the team-lead as mission input.
+- `Tori` — orchestrates workflows and manages stage transitions
+- `Specialist` — executes single tasks with guards (budget, time, depth)
+- `Scribe` — generates artifacts at each stage (specs, plans, summaries)
 
-### harness
+`Specialist` is set up through personas for focused domains such as TypeScript, Terraform, Security, or Performance.
 
-When a pattern recurs (a mistake that keeps happening, a convention that keeps being missed), harness codifies it as a mechanical check — an ESLint rule, a CI job, an AGENTS.md entry — so humans and agents stop relying on memory to enforce it.
+## What tori does
 
-### planning
+- keeps agent specs and prompts in one source of truth
+- uses `tori` as the workflow orchestrator for running deterministic pipelines
+- adds specialized personas through `Specialist` for task execution
+- ships thin runtime wrappers for OpenCode and Kilo Code
 
-Takes a complex or ambiguous request and writes a structured exec-plan to `docs/exec-plans/`. Useful before handing a large task to the team-lead, or when you want a reviewable plan before any work starts.
+```
+core specs/prompts → tori orchestrator → Specialist personas → OpenCode | Kilo Code
+```
 
-### gardener
+## What's in the repo
 
-Periodic hygiene agent. Reads docs and code, spots drift (docs that describe deleted features, patterns that have evolved, stale TODOs), fixes what it can, and escalates recurring issues to harness.
+- `packages/core` — shared source of truth for agent specs, prompts, and core logic
+- `packages/runtime-opencode` — OpenCode runtime wrapper
+- `packages/runtime-kilocode` — Kilo Code runtime wrapper
+- `packages/cli` — CLI package (`generate` command implemented, `serve`/`doctor` pending)
+- `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` — repo artifacts
 
-## Installation
+## Architecture
+
+`tori-agent` is a shared agent stack with thin runtime wrappers.
+`packages/core` owns the shared behavior, while OpenCode and Kilo Code only adapt that core plugin to their host SDKs.
+
+```mermaid
+flowchart LR
+  Host1[OpenCode host]
+  OpW[runtime-opencode]
+  Host1 --> OpW
+  OpW --> Core[packages/core]
+
+  Host2[Kilo Code host]
+  KiW[runtime-kilocode]
+  Host2 --> KiW
+  KiW --> Core
+
+  Core --> Agents[agent loader]
+  Core --> Tools[lifecycle + workflow tools]
+  Agents --> Plugin[plugin config]
+  Tools --> Plugin
+  Core --> Plugin
+  Plugin --> Docs[managed docs]
+  Plugin --> Docs
+```
+
+### Components and responsibilities
+
+- `packages/core` — source of truth for shared logic, agent specs, prompts, and plugin assembly.
+- `packages/core/src/plugin/index.ts` — builds the plugin object via `buildPlugin()`.
+- `packages/core/src/codegen/loader.ts` — loads YAML agent specs from `packages/core/spec/agents/*.yaml` and prompt files from `packages/core/spec/prompts/**`.
+- `packages/core/src/tools/lifecycle.ts` — provides lifecycle functions for artifact management (specs, exec-plans, briefs).
+- `packages/core/src/tools/workflow.ts` — provides workflow state management (stage transitions, task/check recording).
+- `packages/core/src/plugin/tools.ts` — wraps lifecycle and workflow functions as runtime-callable tools.
+- `packages/core/src/plugin/agents.ts` — injects compiled agents into host config.
+- `packages/runtime-opencode/src/index.ts` and `packages/runtime-kilocode/src/index.ts` — thin wrappers that export `buildPlugin()` from core.
+- `packages/runtime-opencode/src/sdk-adapter.ts` and `packages/runtime-kilocode/src/sdk-adapter.ts` — normalize `serverUrl` into `{ baseUrl: new URL(serverUrl) }`.
+- `packages/cli` — currently a stub, not a production runtime path.
+- `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` — managed repo artifacts.
+
+### Startup and runtime flow
+
+1. A host runtime loads either runtime wrapper package.
+2. The wrapper passes control to `buildPlugin()` in `packages/core`.
+3. `buildPlugin()` resolves the project root, loads agents and tools, and assembles the plugin object.
+4. The loader reads agent YAML and prompt files from the core spec directories.
+5. Lifecycle and workflow tooling is wrapped into runtime-callable tools, and compiled agents are injected into host config.
+6. On `session.created`, the plugin bootstraps the managed docs artifact directories.
+
+### Constraints and gotchas
+
+- `packages/core` is authoritative for shared behavior.
+- Runtime packages should remain thin adapters.
+- `packages/cli` is not a production entrypoint.
+- Do not edit generated `dist/` output.
+- Managed docs artifacts live under `docs/specs`, `docs/exec-plans`, `docs/briefs`, and `docs/workflows`.
+
+## Project structure
+
+```
+packages/
+  core/                    # Source of truth for shared logic, specs, prompts
+    spec/
+      agents/*.yaml        # Agent definitions (permissions, personas, modes)
+      prompts/             # System prompts for Tori, Scribe, Specialist personas
+      skills/              # Bundled builtin skills
+    src/
+      codegen/             # Agent spec loader and compiler
+      plugin/              # Plugin assembly (agents, tools, events)
+      tools/               # Lifecycle + workflow state management
+  runtime-opencode/        # OpenCode adapter (thin wrapper)
+  runtime-kilocode/        # Kilo Code adapter (thin wrapper)
+  cli/                     # CLI stub (not yet production-ready)
+docs/
+  specs/                   # Agent specification artifacts
+  exec-plans/              # Execution plan artifacts
+  briefs/                  # Project brief artifacts
+  workflows/               # Workflow state artifacts
+```
+
+## Requirements
+
+- Node.js 18+
+- ESM / NodeNext
+
+## Install
 
 ```bash
-npm install -g opencode-team-lead
+npm install
 ```
 
-Add to your `opencode.json`:
+## Development
 
-```json
-{
-  "plugin": ["opencode-team-lead"]
-}
+- make changes in `packages/core` first; it owns shared agent behavior
+- update the runtime wrapper you need after changing shared logic
+- keep generated files out of version control; `dist/` is build output
+
+## Build
+
+```bash
+npm run build
 ```
 
-Use `opencode-team-lead@beta` to track the beta channel.
+Note: `packages/cli` builds separately.
 
-Restart OpenCode — the plugin loads and registers all agents automatically.
-
-## Lifecycle Tools
-
-The team-lead has direct access to five bookkeeping tools that enforce consistency at zero LLM cost — no delegation, no sub-agent:
-
-| Tool | When the team-lead calls it |
-|------|---------------------|
-| `project_state()` | At the start of every mission — full view of exec-plans, specs, and briefs |
-| `check_artifacts()` | At mission start and after completing each scope — cross-artifact consistency scan |
-| `mark_block_done(plan, block)` | After each validated delivery — marks a block complete in an exec-plan |
-| `complete_plan(plan)` | When all blocks are checked and the final review is APPROVED |
-| `register_spec(file, title)` | When a new spec needs to exist on disk |
-
-These are not visible in the OpenCode UI. They run automatically as part of the team-lead's internal workflow.
-
-## Permissions
-
-| Agent | Permissions |
-|-------|-------------|
-| `team-lead` | `task`, `todowrite`, `todoread`, `skill`, `question`, `compress`, `bash` (git + ls + head + echo), `read` (all), `edit`/`write` (`docs/**` only) |
-| `review-manager` | `task` (`*-reviewer` only), `question`, `read`, `glob`, `grep` |
-| `requirements-reviewer` / `code-reviewer` / `security-reviewer` | `read`, `glob`, `grep` |
-| `bug-finder` | `read`, `glob`, `grep`, `question` |
-| `brainstorm` | `task`, `question`, `webfetch`, `read` (all), `edit` (`docs/briefs/**` only) |
-| `harness` | `task` (ask), `question`, `todowrite`, `todoread`, `glob`, `grep`, `bash` (unrestricted), `read` (all), `edit` (all) |
-| `planning` | `task` (ask), `question`, `read` (all), `glob`, `grep`, `edit` (`docs/exec-plans/**` only) |
-| `gardener` | `question`, `bash` (git log/diff/status/show/blame/shortlog, gh pr create), `read` (all), `edit` (`QUALITY_SCORE.md` only) |
-| `researcher` | `read`, `webfetch`, `websearch`, `grep` |
-
-Everything not listed is denied.
-
-## Customization
-
-You can override `temperature`, `color`, `variant`, `mode`, and add permissions for any agent. The system prompt is always provided by the plugin and cannot be overridden.
-
-```json
-{
-  "plugin": ["opencode-team-lead"],
-  "agents": {
-    "team-lead": {
-      "temperature": 0.2
-    }
-  }
-}
+```bash
+npm run build -w packages/cli
 ```
 
-Your overrides are merged on top of plugin defaults — anything you don't specify keeps its default value.
+## Test and lint
 
-To start sessions in the team-lead agent by default:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "default_agent": "team-lead"
-}
+```bash
+npm test
+npm run lint
 ```
 
-## License
+## Contribution rules
 
-MIT
+### Where to make changes
+
+1. **Shared behavior** — always start in `packages/core`
+2. **Runtime adapters** — update after core changes are validated
+3. **Agent specs and prompts** — live in `packages/core/spec/agents/*.yaml` and `packages/core/spec/prompts/**`
+4. **Repo artifacts** — managed under `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows`
+
+### What not to touch
+
+- `dist/` — generated build output, never edit directly
+- Generated artifacts in `docs/` that are managed by workflow tools
+
+### Permissions model
+
+Agent specs use a default-deny permissions model. Every permission needs a "why" in the spec:
+
+- `allow` — explicitly granted tools
+- `deny` — explicitly blocked tools
+- `allow_paths` — tool + path restrictions
+- `allow_commands` — tool + command restrictions
+
+When adding a new permission to an agent, document the rationale in the agent's YAML description or spec file.
+
+### Prompt conventions
+
+- Prompts are markdown files loaded at runtime
+- Use the delegation template for all subagent prompts
+- Keep prompts deterministic: avoid open-ended instructions that could drift
+- Reference the workflow model (stages, tasks, agents) rather than ad-hoc phase names
+
+## PR checklist
+
+Before opening a PR:
+
+1. [ ] Changes are limited to the smallest sane scope
+2. [ ] `packages/core` changes are made first, runtime wrappers updated after
+3. [ ] `npm run build` passes
+4. [ ] `npm test` passes
+5. [ ] `npm run lint` passes
+6. [ ] `node packages/core/tests/verify-expansion.mjs` confirms all agents compile
+7. [ ] README and ARCHITECTURE are updated if behavior changed
+8. [ ] Agent specs/prompts are consistent with the workflow model
+
+## Git hooks
+
+Install the tracked hooks:
+
+```bash
+.git-hooks/install.sh
+```
+
+## Questions
+
+Open an issue or reach out directly. The project is maintained by [dimahc](https://github.com/dimahc).

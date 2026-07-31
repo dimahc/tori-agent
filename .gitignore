@@ -1,4 +1,14 @@
 node_modules/
+dist/
 .opencode/
 !.opencode/agents/
 !.opencode/tools/
+.kilo/
+!.kilo/agents/
+!.kilo/tools/
+.kilocode/
+!.kilocode/agents/
+!.kilocode/tools/
+.agents/
+docs
+tmp

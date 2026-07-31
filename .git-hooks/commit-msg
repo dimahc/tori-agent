@@ -1,12 +1,18 @@
 #!/bin/sh
 # .git-hooks/commit-msg
 #
-# Enforces that commit messages are non-empty and not the default editor template.
+# Enforces that commit messages are non-empty, not the default editor template, and
+# follow the conventional commit format: type(scope): subject
 #
 # Pattern encoded: agents and bots must always pass -m to `git commit`. Without -m,
 # git opens $EDITOR and hangs in non-interactive contexts. This hook is the last line
 # of defense: if something slips through and produces an empty or template-only message,
 # the commit is rejected rather than creating a garbage commit object.
+#
+# The conventional-format check applies to every commit in this repo, humans included:
+#   types: feat, fix, docs, chore, refactor, test, perf, style, build, ci, revert
+#   scope: optional, lowercase ([a-z0-9./_-]+); append ! for breaking changes
+#   subject: imperative, 1-72 chars
 #
 # Install: run .git-hooks/install.sh once after cloning.
 # chmod +x .git-hooks/commit-msg  (already set if you used install.sh)
@@ -23,6 +29,27 @@ MSG=$(grep -v '^#' "$COMMIT_MSG_FILE" | tr -d '[:space:]')
 
 if [ -z "$MSG" ]; then
   echo "commit-msg: commit message is empty. Use 'git commit -m \"your message\"'." >&2
+  exit 1
+fi
+
+# Conventional commit validation on the subject (first non-comment, non-blank line).
+SUBJECT=$(grep -Ev '^#|^[[:space:]]*$' "$COMMIT_MSG_FILE" | head -n 1)
+
+# Skip validation for auto-generated subjects — mirrors commitlint's default ignores:
+# git merge / git pull produce "Merge branch 'x'", git revert produces 'Revert "feat(...): x"',
+# neither of which is a conventional-format subject.
+case "$SUBJECT" in
+  Merge\ *|Revert\ *) exit 0 ;;
+esac
+PATTERN='^(feat|fix|docs|chore|refactor|test|perf|style|build|ci|revert)(\([a-z0-9./_-]+\))?!?: [^.[:space:]](.{0,70}[^.[:space:]])?$'
+
+if ! printf '%s' "$SUBJECT" | grep -qE "$PATTERN"; then
+  echo "commit-msg: subject does not follow conventional commits: \"$SUBJECT\"" >&2
+  echo "commit-msg: expected format: type(scope): subject" >&2
+  echo "commit-msg:   types: feat, fix, docs, chore, refactor, test, perf, style, build, ci, revert" >&2
+  echo "commit-msg:   scope: optional, lowercase (e.g. core, cli); append ! for breaking changes" >&2
+  echo "commit-msg:   subject: imperative, 1-72 chars, no trailing period" >&2
+  echo "commit-msg: example: feat(core): add session persistence" >&2
   exit 1
 fi
 
