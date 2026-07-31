@@ -4,7 +4,6 @@ import { appendFile } from 'node:fs/promises';
 import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, initSessionStore } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
 import { buildReadOnlyTools, buildWriteTools, type ToolRegistry } from './tools.js';
-import { loadSpecWriterSkill } from './skills.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG = '/tmp/tori-debug.log';
@@ -55,13 +54,6 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
 
     const configDir = configPath ? dirname(configPath) : join(directory, runtime === 'opencode' ? '.opencode' : '.kilocode');
     initSessionStore(configDir);
-
-    try {
-      const skillRegistry = await loadSpecWriterSkill();
-      log('[PLUGIN] spec-writer skill loaded, resources:', Object.keys(skillRegistry['spec-writer']?.resources ?? {}));
-    } catch (err) {
-      log('[PLUGIN] spec-writer skill unavailable:', (err as Error).message);
-    }
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths);
     const writeTools = buildWriteTools(projectRoot, paths);

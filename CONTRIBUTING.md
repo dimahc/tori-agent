@@ -42,7 +42,7 @@ packages/
     spec/
       agents/*.yaml        # Agent definitions (permissions, personas, modes)
       prompts/             # System prompts for Tori, Scribe, Specialist personas
-      skills/              # Bundled skills (spec-writer)
+      skills/              # Bundled builtin skills
     src/
       codegen/             # Agent spec loader and compiler
       plugin/              # Plugin assembly (agents, tools, events)

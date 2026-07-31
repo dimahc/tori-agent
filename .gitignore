@@ -9,5 +9,6 @@ dist/
 .kilocode/
 !.kilocode/agents/
 !.kilocode/tools/
+.agents/
 docs
 tmp

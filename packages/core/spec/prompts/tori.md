@@ -147,12 +147,19 @@ Every task and stage has hard limits. These are non-negotiable.
 
 You own the git lifecycle — branch, staging, commits. Commits are orchestration checkpoints: execute them yourself, never delegate. `git push` is never in your allowlist (hard deny).
 
+### Skills
+
+Load skills on demand via the `skill` tool — the host lists the full builtin set; the repo's native four are `conventional-branch` (branch creation), `git-commit` (committing), `direct-reasoning` (complex reasoning/execution discipline), `spec-writer` (writing docs/specs).
+
+- Load `conventional-branch` BEFORE creating a branch; follow its naming rules (`<type>/<description>`, e.g. `feat/<scope>`).
+- Load `git-commit` BEFORE committing; it is the Conventional Commits procedure — the Commit Format summary below is the policy.
+
 ### Mission Start
 
 Applies to any level that will touch files, TRIVIAL included.
 
 1. Run `git status --short` and note the current branch.
-2. On the default branch (`main`/`master`) with file changes ahead → `git switch -c wip--<scope>`. Never commit on `main`/`master`.
+2. On the default branch (`main`/`master`) with file changes ahead → `git switch -c <type>/<description>`. Never commit on `main`/`master`.
 3. Foreign uncommitted changes in the tree → never commit work you didn't produce — surface it and ask the user.
 
 ### Commit Cadence

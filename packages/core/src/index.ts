@@ -39,5 +39,9 @@ export type { ArtifactPaths } from './tools/lifecycle.js';
 // Codegen — YAML-based agent spec loading and compilation
 export { loadAndCompileAllAgents } from './codegen/index.js';
 
+// Codegen — builtin skill discovery and syncing into a host runtime
+export { listBuiltinSkills, syncBuiltinSkills } from './codegen/index.js';
+export type { BuiltinSkill, SyncedSkill } from './codegen/index.js';
+
 // Session persistence — JSON-file-backed session→agent tracking
 export { initSessionStore, trackSessionAgent, agentForSession, clearSession } from './runtime/session-store.js';

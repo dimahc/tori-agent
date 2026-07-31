@@ -42,6 +42,18 @@
       "sourceType": "github",
       "skillPath": "skills/caveman-stats/SKILL.md",
       "computedHash": "47ce2de3d6cb39a75047b5c962e4eb3da15594e7397c94103e9a104d42626553"
+    },
+    "conventional-branch": {
+      "source": "conventional-branch/conventional-branch",
+      "sourceType": "github",
+      "skillPath": "skills/conventional-branch/SKILL.md",
+      "computedHash": "938fe090002af01c21e8aafb98d28cf82bbbc3645baf17719c48c859cb12b0c8"
+    },
+    "git-commit": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/git-commit/SKILL.md",
+      "computedHash": "42cdbe0ebc90b9c288dccdeaa2b73e66d15e04fe2b22b972ce556798119b5b9a"
     }
   }
 }

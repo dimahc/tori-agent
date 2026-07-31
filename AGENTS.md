@@ -12,8 +12,8 @@ Compact guide for agents working in this repo.
 | Lint | `npm run lint` | `eslint packages/*/src/` |
 | Test | `npm test` | Currently fails — no `.test.js` files exist yet |
 | Verify agents | `node packages/core/tests/verify-expansion.mjs` | Requires `npm run build` first (imports from `dist/`) |
-| Generate agents | `node packages/cli/dist/cli.js generate` | Expands all agent specs + personas, prints list; output to `.opencode/agents/` or `.kilo/agents/` based on runtime |
-| Generate (format) | `node packages/cli/dist/cli.js generate --format json|yaml|md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json` |
+| Generate agents | `node packages/cli/dist/cli.js generate` | Expands all agent specs + personas, prints list; output to `.opencode/agents/` or `.kilo/agents/` based on runtime. Also syncs builtin skills to `.opencode/skills/` or `.kilo/skills/` |
+| Generate (format) | `node packages/cli/dist/cli.js generate --format json|yaml|md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json`; builtin skills synced in all formats |
 
 **Build order matters.** Runtime packages depend on `@tori-agent/core`. `npm run build` compiles core first, then the runtimes. If you build a runtime in isolation, core's `dist/` must already exist.
 

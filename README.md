@@ -12,7 +12,7 @@ Instead of chaining agents ad-hoc, tori runs deterministic pipelines where agent
 The core idea: orchestrate stages, not agents.
 
 | Concept | Role |
-|---------|------|
+| --------- | ------ |
 | **Workflow** | A recipe — which stages run, in what order, with what guards |
 | **Stage** | A fixed phase in the pipeline (Requirements, Planning, Execution, Verification, Delivery) |
 | **Task** | A unit of work within a stage. Tasks in the same stage run in parallel |
@@ -54,7 +54,7 @@ Tori scales effort to complexity: trivial asks are executed directly and clear t
 - Task budget: **250k tokens** or **20 tool calls**
 - Task timeout: **20 minutes**
 - Max delegation depth: **1** (Tori → Specialist)
-- Git lifecycle: tori owns it — a `wip--<scope>` branch per mission, conventional commits at stage boundaries, push stays manual
+- Git lifecycle: tori owns it — an `<type>/<description>` branch per mission, conventional commits at stage boundaries, push stays manual
 
 ## Built-in agents
 
@@ -148,7 +148,7 @@ packages/
     spec/
       agents/*.yaml        # Agent definitions (permissions, personas, modes)
       prompts/             # System prompts for Tori, Scribe, Specialist personas
-      skills/              # Bundled skills (spec-writer)
+      skills/              # Bundled builtin skills
     src/
       codegen/             # Agent spec loader and compiler
       plugin/              # Plugin assembly (agents, tools, events)

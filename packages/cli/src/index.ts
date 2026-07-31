@@ -1,4 +1,4 @@
-import { loadAndCompileAllAgents, detectRuntime, buildToolsMap, buildHostPermission } from '@tori-agent/core';
+import { loadAndCompileAllAgents, detectRuntime, buildToolsMap, buildHostPermission, syncBuiltinSkills } from '@tori-agent/core';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -86,6 +86,13 @@ async function handleGenerate(outputDir: string, format: string): Promise<void> 
     console.log(`  ${entry.id} — mode: ${entry.mode}, prompt: ${entry.promptLength} chars → ${entry.file}`);
   }
   console.log(`  Manifest: ${indexName()}`);
+
+  const skillsDir = join(dirname(outputDir), 'skills');
+  const synced = await syncBuiltinSkills(skillsDir);
+  console.log(`Synced ${synced.length} builtin skill(s) to ${skillsDir}/`);
+  for (const skill of synced) {
+    console.log(`  ${skill.name} — ${skill.files.length} file(s)`);
+  }
 }
 
 async function handleConfig(): Promise<void> {
