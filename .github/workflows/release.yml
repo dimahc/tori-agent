@@ -92,4 +92,4 @@ jobs:
       - name: Publish to npmjs
         run: npm publish --workspaces --access public --provenance
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_SECRET }}
+          NPM_SECRET: ${{ secrets.NPM_SECRET }}
