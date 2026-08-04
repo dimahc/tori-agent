@@ -1,8 +1,9 @@
 name: Changelog
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -15,9 +16,10 @@ concurrency:
 jobs:
   changelog:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
 
