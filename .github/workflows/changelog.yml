@@ -10,13 +10,16 @@ permissions:
 
 concurrency:
   group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   changelog:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check out repository
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -28,94 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          node <<'EOF'
-          const { execSync } = require('child_process');
-          const fs = require('fs');
-
-          const categories = {
-            feat: 'Added',
-            fix: 'Fixed',
-            perf: 'Changed',
-            refactor: 'Changed',
-            docs: 'Changed',
-            style: 'Changed',
-            chore: 'Changed',
-            ci: 'Changed',
-            test: 'Changed',
-            build: 'Changed',
-            revert: 'Changed',
-          };
-
-          const entries = {};
-
-          try {
-            const log = execSync('git log --oneline --no-merges --grep="^[a-z]" --format="%h %s"', { encoding: 'utf8' });
-            const lines = log.trim().split('\n');
-
-            for (const line of lines) {
-              const match = line.match(/^[a-f0-9]+ (\w+)(\(([^)]+)\))?: (.+)$/);
-              if (!match) continue;
-
-              const [, type, , scope, message] = match;
-              const section = categories[type] || 'Changed';
-
-              if (!entries[section]) entries[section] = [];
-
-              let entry = `- ${message}`;
-              if (scope) entry += ` (\`${scope}\`)`;
-              entries[section].push(entry);
-            }
-          } catch (err) {
-            console.error('No conventional commits found or git log failed.');
-          }
-
-          const order = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
-          let changelog = '# Changelog\n\n## [Unreleased]\n\n';
-
-          let hasChanges = false;
-          for (const section of order) {
-            if (entries[section] && entries[section].length > 0) {
-              hasChanges = true;
-              changelog += `### ${section}\n\n`;
-              for (const entry of entries[section]) {
-                changelog += `${entry}\n`;
-              }
-              changelog += '\n';
-            }
-          }
-
-          if (!hasChanges) {
-            changelog += 'No changes yet.\n';
-          }
-
-          const existing = fs.existsSync('CHANGELOG.md') ? fs.readFileSync('CHANGELOG.md', 'utf8') : '';
-
-          if (existing === changelog) {
-            console.log('CHANGELOG.md is up to date.');
-            fs.writeFileSync('/tmp/changelog_updated', 'false');
-          } else {
-            fs.writeFileSync('CHANGELOG.md', changelog);
-            console.log('CHANGELOG.md updated.');
-            fs.writeFileSync('/tmp/changelog_updated', 'true');
-          }
-          EOF
-
-          if [ -f /tmp/changelog_updated ] && [ "$(cat /tmp/changelog_updated)" = "true" ]; then
-            echo "updated=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "updated=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Commit and push changelog
-        if: steps.changelog.outputs.updated == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git diff --cached --quiet && echo "No changes to commit" || git commit -m "docs: update CHANGELOG.md" && git push
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
