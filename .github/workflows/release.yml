@@ -19,6 +19,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: npm
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
@@ -89,4 +90,4 @@ jobs:
       - name: Publish to npmjs
         run: npm publish --workspaces --access public --provenance
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_SECRET }}
