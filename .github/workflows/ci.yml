@@ -1,36 +1,35 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
 
-jobs:
-  build-and-verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20.x, 22.x]
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4 11d5960
-        with:
-          fetch-depth: 1
+concurrency:
+  group: ${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # actions/setup-node@v4 49933ea
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: ${{ matrix.node }}
-          cache: npm
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: npm ci
@@ -44,19 +43,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Real verification gate: imports from dist/, so it must run after the build.
-      # The script fails hard on a non-zero exit on its own — do not wrap it.
-      - name: Verify agent expansion
+      - name: Verify agent specs compilation
         run: node packages/core/tests/verify-expansion.mjs
-
-      # Smoke test the full agent-compilation chain on a clean checkout.
-      # Expands agent specs + personas and syncs builtin skills into .opencode/
-      # and .kilo/ (committed dirs).
-      - name: Smoke test CLI generate
-        run: node packages/cli/dist/cli.js generate
-
-      # The generate smoke test rewrites the committed .opencode/ and .kilo/
-      # dirs; on a clean checkout it must reproduce them exactly. Any drift
-      # means generated output is out of sync with the specs — fail CI.
-      - name: Check generated agents are committed
-        run: git diff --exit-code

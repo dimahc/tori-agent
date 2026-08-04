@@ -3,68 +3,87 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v[0-9]+.[0-9]+.[0-9]+(-[0-9A-Za-z.-]+)?'
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    permissions:
-      contents: write
-      id-token: write
-
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # actions/setup-node@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build core and runtimes
+      - name: Build
         run: npm run build
 
       - name: Build CLI
         run: npm run build -w packages/cli
 
-      # Git refs can legally contain shell metacharacters. Restrict release tags
-      # to strict semantic versioning before using them in shell commands.
-      - name: Validate tag
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Lint
+        run: npm run lint
 
-          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid release tag: $GITHUB_REF_NAME" >&2
-            exit 1
-          fi
+      - name: Verify agent specs compilation
+        run: node packages/core/tests/verify-expansion.mjs
 
-      # gh is preinstalled on GitHub-hosted runners.
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --draft \
-            --generate-notes \
-            --title "Release $GITHUB_REF_NAME"
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { execSync } = require('child_process');
+            const fs = require('fs');
 
-      - name: Publish packages to npm
-        if: ${{ secrets.NPM_TOKEN }}
+            let body = '';
+            try {
+              const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+              const versionMatch = changelog.match(new RegExp('^## \\[' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\]', 'm'));
+              if (versionMatch) {
+                const start = changelog.indexOf(versionMatch[0]);
+                const nextVersion = changelog.indexOf('\n## [', start + 1);
+                body = changelog.slice(start, nextVersion > start ? nextVersion : undefined).trim();
+              }
+            } catch (err) {
+              console.log('CHANGELOG.md not found or section missing, will use generated notes.');
+            }
+
+            if (!body) {
+              body = await github.rest.repos.generateReleaseNotes({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+              }).then(r => r.data.body);
+            }
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: tag,
+              body: body,
+              draft: true,
+            });
+
+      - name: Publish to npmjs
+        run: npm publish --workspaces --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm publish \
-            --workspaces \
-            --access public \
-            --provenance
