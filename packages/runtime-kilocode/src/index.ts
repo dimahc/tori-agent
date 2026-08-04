@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 
 const runtime = 'kilocode';
-const projectRoot = new URL('../../', import.meta.url).pathname;
+const projectRoot = new URL('../../../', import.meta.url).pathname;
 const localCandidates = [
   `${projectRoot}.kilo`,
   `${projectRoot}.kilocode`,

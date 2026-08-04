@@ -1,4 +1,5 @@
 import { isAbsolute, join, resolve, sep } from "node:path";
+import { readFile } from "node:fs/promises";
 import type { ArtifactPaths } from "../tools/lifecycle.js";
 import {
   checkArtifacts,
@@ -29,6 +30,7 @@ export interface ToolRegistry {
 export function buildReadOnlyTools(
   projectRoot: string,
   paths: ArtifactPaths,
+  skillsDir: string,
 ): ToolRegistry {
   const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
 
@@ -88,6 +90,24 @@ export function buildReadOnlyTools(
           return JSON.stringify(
             await getWorkflowState(projectRoot, workflowPaths, workflow_id!),
           );
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    skill: {
+      description:
+        "Load and return the instructions for a builtin skill by name. " +
+        "Use when the agent needs to apply a specific skill (e.g. caveman, spec-writer).",
+      args: { name: {} },
+      async execute({ name }: { name?: string }) {
+        try {
+          if (!name) return JSON.stringify({ error: 'Missing required argument: name' });
+          const skillPath = join(skillsDir, name, 'SKILL.md');
+          const content = await readFile(skillPath, 'utf-8');
+          return content;
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),

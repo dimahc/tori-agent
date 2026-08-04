@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { appendFile } from 'node:fs/promises';
 import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, initSessionStore } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
+import { syncBuiltinSkills } from '../codegen/skills.js';
 import { buildReadOnlyTools, buildWriteTools, type ToolRegistry } from './tools.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +56,9 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const configDir = configPath ? dirname(configPath) : join(directory, runtime === 'opencode' ? '.opencode' : '.kilocode');
     initSessionStore(configDir);
 
-    const readOnlyTools = buildReadOnlyTools(projectRoot, paths);
+    await syncBuiltinSkills(join(configDir, 'skills'));
+
+    const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
     const writeTools = buildWriteTools(projectRoot, paths);
 
     const pluginToolNames = new Set<string>();

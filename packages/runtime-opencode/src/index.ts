@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 
 const runtime = 'opencode';
-const projectRoot = new URL('../../', import.meta.url).pathname;
+const projectRoot = new URL('../../../', import.meta.url).pathname;
 const localCandidates = [
   `${projectRoot}.opencode`,
   `${homedir()}/.config/${runtime}`,
