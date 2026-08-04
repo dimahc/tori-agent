@@ -95,6 +95,11 @@ export interface RegisterSpecResult {
   file: string;
 }
 
+export interface WriteAppendResult {
+  file: string;
+  bytes: number;
+}
+
 export interface Problem {
   type: string;
   file: string;
@@ -395,6 +400,27 @@ export async function registerSpec(projectRoot: string, paths: { specs: string }
     created: true as const,
     file: relPath,
   };
+}
+
+// ── write_append ──────────────────────────────────────────────────────────────
+
+export async function writeAppend(projectRoot: string, relPath: string, content: string): Promise<WriteAppendResult> {
+  const absPath = resolveArtifact(projectRoot, relPath);
+  const dir = dirname(absPath);
+  await mkdir(dir, { recursive: true });
+
+  let existing = "";
+  try {
+    existing = await readFile(absPath, "utf-8");
+  } catch {
+    // File doesn't exist yet — that's fine, we'll create it
+  }
+
+  const separator = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+  const updated = existing + separator + content;
+  await writeFile(absPath, updated, "utf-8");
+
+  return { file: relPath, bytes: Buffer.byteLength(updated, "utf-8") };
 }
 
 // ── check_artifacts ──────────────────────────────────────────────────────────

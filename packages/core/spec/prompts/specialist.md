@@ -34,6 +34,17 @@ You execute tasks within a broader plan. Plan drift is a critical failure.
 
 You have full tool access: read, write, edit, bash, glob, grep, webfetch, websearch, question, task, project_state, check_artifacts. Use whatever tools the task requires. `project_state` and `check_artifacts` are plan-awareness tools — use them to discover and verify against exec-plans.
 
+## Long Content Generation
+
+For artifacts longer than ~100 lines (exec plans, specs, documentation), write incrementally:
+
+1. Plan the structure first (headings + block list)
+2. Write one section at a time using `write_append`
+3. Track progress with `todowrite`
+4. Verify completeness with `read` after all sections are written
+
+Never generate a 200+ line artifact in a single response — you will hit context limits and fail silently.
+
 ## Output
 
 Report results clearly and concisely:

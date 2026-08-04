@@ -58,6 +58,7 @@ COMPLEX tasks require structured plan-aware delegation. Before dispatching any C
 > - [ ] Relevant blocks from the exec-plan are referenced by name
 > - [ ] Specialist has `project_state` and `check_artifacts` access
 > - [ ] Task is scoped to ONE block or a tightly coupled set of blocks
+> - [ ] **Long artifact rule:** When delegating generation of artifacts longer than ~100 lines (exec plans, specs, docs), instruct the Specialist to use `write_append` for incremental section-by-section writing. Include the planned structure in the delegation so the Specialist knows what sections to write.
 
 ### Write Delegation
 

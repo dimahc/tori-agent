@@ -7,6 +7,7 @@ import {
   projectState,
   registerSpec as registerSpecImpl,
   runMechanicalChecks,
+  writeAppend,
 } from "../tools/lifecycle.js";
 import type { WorkflowPaths } from "../tools/workflow.js";
 import {
@@ -169,6 +170,22 @@ export function buildWriteTools(
           return JSON.stringify(
             await registerSpecImpl(projectRoot, paths, spec_file!, title!),
           );
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    write_append: {
+      description:
+        "Append content to a file (creates the file if it doesn't exist). " +
+        "Use for incremental generation of long artifacts — write section by section " +
+        "instead of generating everything in one shot.",
+      args: { file: {}, content: {} },
+      async execute({ file, content }: { file?: string; content?: string }) {
+        try {
+          return JSON.stringify(await writeAppend(projectRoot, file!, content!));
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),
