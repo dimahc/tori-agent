@@ -3,24 +3,30 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
 
 jobs:
-  build-and-verify:
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4 11d5960
-        with:
-          fetch-depth: 1
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # actions/setup-node@v4 49933ea
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
@@ -31,60 +37,34 @@ jobs:
       - name: Build CLI
         run: npm run build -w packages/cli
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Verify agent expansion
-        run: node packages/core/tests/verify-expansion.mjs
-
-      - name: Smoke test CLI generate
-        run: node packages/cli/dist/cli.js generate
-
-      # The generate smoke test rewrites the committed .opencode/ and .kilo/
-      # dirs; on a clean checkout it must reproduce them exactly. Any drift
-      # means generated output is out of sync with the specs — fail CI.
-      - name: Check generated agents are committed
-        run: git diff --exit-code
-
-  release:
-    needs: build-and-verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    # NODE_AUTH_TOKEN is declared at job level (not on the publish step) so the
-    # step's own `if: env.NODE_AUTH_TOKEN != ''` can see it — step-level env is
-    # not visible to that step's `if` condition.
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4 11d5960
-
-      # Git refs can legally contain $, backticks, parens, etc. A tag like
-      # `v$(<payload>)` could inject shell commands into the gh call below,
-      # which runs with a `contents: write` token. Reject anything that is not
-      # strict vMAJOR.MINOR.PATCH (this also rejects non-semver tags like `vfoo`).
+      # Git refs can legally contain shell metacharacters. Restrict release tags
+      # to strict semantic versioning before using them in shell commands.
       - name: Validate tag
+        shell: bash
         run: |
-          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          set -euo pipefail
+
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release tag: $GITHUB_REF_NAME" >&2
             exit 1
           fi
 
-      # gh CLI is preinstalled on runners; no third-party action needed.
-      # Use $GITHUB_REF_NAME verbatim — the tag already includes the `v`
-      # prefix. Do NOT prepend/strip `v` (the predecessor project hit a
-      # "double-v prefix" bug from doing exactly that).
+      # gh is preinstalled on GitHub-hosted runners.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --generate-notes --draft --title "Release $GITHUB_REF_NAME"
+          gh release create "$GITHUB_REF_NAME" \
+            --draft \
+            --generate-notes \
+            --title "Release $GITHUB_REF_NAME"
 
-      # Publishing is disabled until the owner configures the NPM_TOKEN
-      # secret — this step no-ops without it (NODE_AUTH_TOKEN stays empty at
-      # the job level). The root package.json is private: true, but the
-      # workspace packages are publishable.
       - name: Publish packages to npm
-        if: env.NODE_AUTH_TOKEN != ''
-        run: npm publish --workspaces
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish \
+            --workspaces \
+            --access public \
+            --provenance

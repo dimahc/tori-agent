@@ -60,7 +60,3 @@ jobs:
       # means generated output is out of sync with the specs — fail CI.
       - name: Check generated agents are committed
         run: git diff --exit-code
-
-      # NOTE: `npm test` is intentionally omitted. The root test script globs
-      # `packages/*/tests/*.test.js` which matches nothing (no .test.js files
-      # exist yet), so it fails. See AGENTS.md "No unit tests yet".
