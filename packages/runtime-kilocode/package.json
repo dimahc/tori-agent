@@ -1,6 +1,6 @@
 {
   "name": "@tori-agent/runtime-kilocode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kilo Code runtime adapter for tori-agent",
   "type": "module",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     "test": "node --test dist/tests/*.test.js"
   },
   "dependencies": {
-    "@tori-agent/core": "^0.1.0"
+    "@tori-agent/core": "^0.2.0"
   },
   "engines": {
     "node": ">=20.19.0"

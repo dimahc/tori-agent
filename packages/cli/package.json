@@ -1,6 +1,6 @@
 {
   "name": "@tori-agent/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI tools for tori-agent (generate, serve, doctor)",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@tori-agent/core": "^0.1.0",
+    "@tori-agent/core": "^0.2.0",
     "js-yaml": "^4.1.0"
   },
   "engines": {
