@@ -100,6 +100,11 @@ export interface WriteAppendResult {
   bytes: number;
 }
 
+export interface CheckpointResult {
+  file: string;
+  bytes: number;
+}
+
 export interface Problem {
   type: string;
   file: string;
@@ -421,6 +426,31 @@ export async function writeAppend(projectRoot: string, relPath: string, content:
   await writeFile(absPath, updated, "utf-8");
 
   return { file: relPath, bytes: Buffer.byteLength(updated, "utf-8") };
+}
+
+// ── save_checkpoint ─────────────────────────────────────────────────────────────
+
+export async function saveCheckpoint(projectRoot: string, relPath: string, summary: string, remainingWork: string): Promise<CheckpointResult> {
+  const absPath = resolveArtifact(projectRoot, relPath);
+  const dir = dirname(absPath);
+  await mkdir(dir, { recursive: true });
+
+  const timestamp = new Date().toISOString();
+  const content = `# Checkpoint — ${timestamp}
+
+## Summary
+${summary}
+
+## Remaining Work
+${remainingWork}
+
+## Resume Instructions
+Spawn a fresh agent with this file path as context. The agent should read this checkpoint and continue from where the previous agent left off.
+`;
+
+  await writeFile(absPath, content, "utf-8");
+
+  return { file: relPath, bytes: Buffer.byteLength(content, "utf-8") };
 }
 
 // ── check_artifacts ──────────────────────────────────────────────────────────

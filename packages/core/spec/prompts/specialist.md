@@ -45,6 +45,17 @@ For artifacts longer than ~100 lines (exec plans, specs, documentation), write i
 
 Never generate a 200+ line artifact in a single response — you will hit context limits and fail silently.
 
+## Context Limit Recovery
+
+If you approach your budget (250k tokens / 20 tool calls / 20 minutes):
+
+1. Call `save_checkpoint` with:
+   - `file`: path under `docs/checkpoints/` (e.g., `docs/checkpoints/exec-plan-resume.md`)
+   - `summary`: what you completed, files changed, decisions made
+   - `remaining_work`: exactly what remains to be done
+2. Report to Tori: "Context limit approaching. Checkpoint saved at `<file>`. Request continuation."
+3. Do NOT continue blindly — you will fail silently and lose all progress.
+
 ## Output
 
 Report results clearly and concisely:

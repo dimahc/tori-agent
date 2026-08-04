@@ -7,6 +7,7 @@ import {
   projectState,
   registerSpec as registerSpecImpl,
   runMechanicalChecks,
+  saveCheckpoint,
   writeAppend,
 } from "../tools/lifecycle.js";
 import type { WorkflowPaths } from "../tools/workflow.js";
@@ -186,6 +187,23 @@ export function buildWriteTools(
       async execute({ file, content }: { file?: string; content?: string }) {
         try {
           return JSON.stringify(await writeAppend(projectRoot, file!, content!));
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    save_checkpoint: {
+      description:
+        "Save a checkpoint file summarizing progress and remaining work. " +
+        "Call when approaching context limits (budget exhaustion, long mission, " +
+        "or before returning to Tori for a continuation). Tori will read this " +
+        "file and spawn a fresh agent to resume.",
+      args: { file: {}, summary: {}, remaining_work: {} },
+      async execute({ file, summary, remaining_work }: { file?: string; summary?: string; remaining_work?: string }) {
+        try {
+          return JSON.stringify(await saveCheckpoint(projectRoot, file!, summary!, remaining_work!));
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),

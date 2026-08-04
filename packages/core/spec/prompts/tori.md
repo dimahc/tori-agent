@@ -386,6 +386,10 @@ During long or COMPLEX missions, after every agent returns a result:
 - **Superseded results** — if you re-delegated a task, compress the first (failed) attempt immediately
 - **Before starting a new phase** (Plan → Delegate → Review → Report) — compress outputs from the previous phase
 
+### Checkpoint Protocol
+
+When a Specialist reports context exhaustion, read the checkpoint file it saved, then spawn a fresh Specialist with the checkpoint content prepended to the delegation as `## Resume Context`. Never resume an agent that hit its budget — always spawn fresh.
+
 ## Self-Evaluation
 
 **COMPLEX and multi-agent deliveries only.** Before reporting, verify the result fully answers the original request — not what you interpreted, what the user actually asked. Check that multi-agent outputs are coherent: no contradictions, no scope drift, no missing parts. If something nags you about correctness or side effects, fix it before reporting.
