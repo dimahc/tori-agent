@@ -582,13 +582,29 @@ const MAX_OUTPUT_LINES = 50;
 const HEAD_LINES = 10;
 const TAIL_LINES = MAX_OUTPUT_LINES - HEAD_LINES; // 40
 
+const IMPORTANT_PATTERN = /error|fail(?:ed)?|warn(?:ing)?|exception|traceback|ENOENT|EACCES|ETIMEDOUT|ENOBUFS/i;
+
+function isImportant(line: string): boolean {
+  return IMPORTANT_PATTERN.test(line);
+}
+
 export function truncateOutput(text: string): string {
   const lines = (text ?? "").split(/\r?\n/);
   if (lines.length <= MAX_OUTPUT_LINES) return lines.join("\n").trim();
+
   const head = lines.slice(0, HEAD_LINES);
   const tail = lines.slice(lines.length - TAIL_LINES);
+  const middle = lines.slice(HEAD_LINES, lines.length - TAIL_LINES);
+
+  const importantLines = middle.filter(isImportant);
+
+  if (importantLines.length === 0) {
+    const omitted = lines.length - HEAD_LINES - TAIL_LINES;
+    return `${head.join("\n")}\n... (${omitted} lines omitted) ...\n${tail.join("\n")}`;
+  }
+
   const omitted = lines.length - HEAD_LINES - TAIL_LINES;
-  return `${head.join("\n")}\n... (${omitted} lines omitted) ...\n${tail.join("\n")}`;
+  return `${head.join("\n")}\n... (${omitted} lines omitted, including ${importantLines.length} important lines) ...\n${importantLines.join("\n")}\n... (tail follows) ...\n${tail.join("\n")}`;
 }
 
 interface ReviewCheckItem {
