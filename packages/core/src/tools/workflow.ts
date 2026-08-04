@@ -6,6 +6,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname, isAbsolute, resolve, sep } from 'node:path';
 import { existsSync } from 'node:fs';
+import { markBlockDone } from '../tools/lifecycle.js';
 
 export interface WorkflowPaths {
   workflows: string;
@@ -218,7 +219,7 @@ export async function transitionStage(projectRoot: string, paths: WorkflowPaths,
   return state;
 }
 
-export async function recordTaskResult(projectRoot: string, paths: WorkflowPaths, workflowId: string, taskId: string, agent: string, status: 'done' | 'failed' | 'running' | 'pending'): Promise<void> {
+export async function recordTaskResult(projectRoot: string, paths: WorkflowPaths, workflowId: string, taskId: string, agent: string, status: 'done' | 'failed' | 'running' | 'pending', planFile?: string, blockName?: string): Promise<void> {
   const relPath = join(paths.workflows, `${workflowId}.md`);
   const absPath = resolveArtifact(projectRoot, relPath);
 
@@ -251,6 +252,10 @@ export async function recordTaskResult(projectRoot: string, paths: WorkflowPaths
   }
 
   await writeFile(absPath, updated, 'utf-8');
+
+  if (status === 'done' && planFile && blockName) {
+    await markBlockDone(projectRoot, planFile, blockName);
+  }
 }
 
 export async function recordCheckResult(projectRoot: string, paths: WorkflowPaths, workflowId: string, checkName: string, status: 'PASS' | 'FAIL' | 'SKIP', detail?: string): Promise<void> {

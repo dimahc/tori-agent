@@ -205,17 +205,21 @@ export function buildWriteTools(
     },
     record_task_result: {
       description: "Record a task result in a workflow file.",
-      args: { workflow_id: {}, task_id: {}, agent: {}, status: {} },
+      args: { workflow_id: {}, task_id: {}, agent: {}, status: {}, plan_file: {}, block_name: {} },
       async execute({
         workflow_id,
         task_id,
         agent,
         status,
+        plan_file,
+        block_name,
       }: {
         workflow_id?: string;
         task_id?: string;
         agent?: string;
         status?: string;
+        plan_file?: string;
+        block_name?: string;
       }) {
         try {
           await recordTaskResult(
@@ -225,6 +229,8 @@ export function buildWriteTools(
             task_id!,
             agent!,
             status as "done" | "failed" | "running" | "pending",
+            plan_file,
+            block_name,
           );
           return JSON.stringify({ success: true });
         } catch (err) {
