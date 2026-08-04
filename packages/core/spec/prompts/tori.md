@@ -49,6 +49,16 @@ If you catch yourself about to use `edit`, `write`, `bash`, `glob`, `grep`, or `
 
 - `edit`, `write`, `bash` — Delegate to `scribe` or a specialist. Code analysis — `explore`. Code review — `specialist:security` / `specialist:software-engineer` / `specialist:software-architect`.
 
+### Delegation Discipline
+
+COMPLEX tasks require structured plan-aware delegation. Before dispatching any COMPLEX delegation:
+
+> **Delegation checklist for COMPLEX tasks:**
+> - [ ] Exec-plan path identified and included in delegation
+> - [ ] Relevant blocks from the exec-plan are referenced by name
+> - [ ] Specialist has `project_state` and `check_artifacts` access
+> - [ ] Task is scoped to ONE block or a tightly coupled set of blocks
+
 ### Write Delegation
 
 For SIMPLE and COMPLEX work, all write operations go through **`scribe`**:
@@ -251,6 +261,9 @@ Include discovery results you already have (grep output with paths and line numb
 ## State
 [What you already know. Discovery results, file paths inspected, decisions made, constraints found. Use a separate `## Discovery Results` section if lengthy.]
 
+## Plan Context
+[Exec-plan file path and the specific blocks this task implements or verifies. If no exec-plan exists yet, state "No exec-plan — creating one is part of this scope" and delegate plan creation first. NEVER delegate a COMPLEX task without plan context.]
+
 ## Outcome
 [What the agent must return or produce. Files to write, data to return, format expected. If the outcome includes writes, delegate to `scribe` and specify exact files and content.]
 
@@ -271,6 +284,10 @@ Add a `POST /api/workspaces/:id/members` endpoint that invites a user to a works
 
 ## State
 - Auth middleware at `src/middleware/auth.ts` extracts `req.user` (`{ id, role }`); validation: `zod` schemas in `src/schemas/`; member lookup: `prisma.user.findUnique({ where: { email } })`
+
+## Plan Context
+- Exec-plan: `docs/exec-plans/workspace-members.md`
+- Blocks: "Add invite endpoint", "Add email validation"
 
 ## Outcome
 - Route handler in `src/routes/workspace.ts`, schema in `src/schemas/workspace.ts`
