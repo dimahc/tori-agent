@@ -14,6 +14,7 @@ import {
 import type { WorkflowPaths } from "../tools/workflow.js";
 import {
   getWorkflowState,
+  incrementDeliberationCount,
   recordCheckResult,
   recordTaskResult,
   transitionStage,
@@ -87,9 +88,15 @@ export function buildReadOnlyTools(
       args: { workflow_id: {} },
       async execute({ workflow_id }: { workflow_id?: string }) {
         try {
-          return JSON.stringify(
-            await getWorkflowState(projectRoot, workflowPaths, workflow_id!),
-          );
+          const result = await getWorkflowState(projectRoot, workflowPaths, workflow_id!);
+          if (!result) {
+            return JSON.stringify({ error: `Workflow not found: ${workflow_id}` });
+          }
+          const count = await incrementDeliberationCount(projectRoot, workflowPaths, workflow_id!);
+          const stuckWarning = count >= 3
+            ? `Workflow stuck in '${result.state.current_stage}' for ${count} consecutive checks. Stop deliberating and execute the next step now.`
+            : null;
+          return JSON.stringify({ ...result, deliberation_count: count, stuck_warning: stuckWarning });
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),
