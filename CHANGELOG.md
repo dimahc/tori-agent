@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add deliberation-loop detection (#5)
+
+### Changed
+
+- Update CHANGELOG.md
+
 ### Fixed
 
 - Run jobs on tag
