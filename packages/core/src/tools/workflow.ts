@@ -20,6 +20,7 @@ export interface WorkflowState {
   max_iterations: number;
   status: 'active' | 'done' | 'needs_human';
   created: string;
+  deliberation_count: number;
 }
 
 export interface WorkflowTask {
@@ -109,9 +110,10 @@ export async function createWorkflow(projectRoot: string, paths: WorkflowPaths, 
     max_iterations: definition.max_iterations ?? 2,
     status: definition.status ?? 'active',
     created: now,
+    deliberation_count: 0,
   };
 
-  const frontmatter = `---\nid: ${state.id}\nworkflow: ${state.workflow}\ncurrent_stage: ${state.current_stage}\niteration: ${state.iteration}\nmax_iterations: ${state.max_iterations}\nstatus: ${state.status}\ncreated: ${state.created}\n---\n\n# Workflow: ${state.workflow}\n\n## Tasks\n\n## Checks\n`;
+  const frontmatter = `---\nid: ${state.id}\nworkflow: ${state.workflow}\ncurrent_stage: ${state.current_stage}\niteration: ${state.iteration}\nmax_iterations: ${state.max_iterations}\nstatus: ${state.status}\ncreated: ${state.created}\ndeliberation_count: ${state.deliberation_count}\n---\n\n# Workflow: ${state.workflow}\n\n## Tasks\n\n## Checks\n`;
 
   await writeFile(absPath, frontmatter, 'utf-8');
   return workflowId;
@@ -133,6 +135,7 @@ export async function getWorkflowState(projectRoot: string, paths: WorkflowPaths
       max_iterations: Number(fm.max_iterations ?? 2),
       status: (fm.status as WorkflowState['status']) ?? 'active',
       created: fm.created ?? new Date().toISOString().slice(0, 10),
+      deliberation_count: Number(fm.deliberation_count ?? 0),
     };
 
     const tasks: WorkflowTask[] = [];
@@ -169,6 +172,24 @@ export async function getWorkflowState(projectRoot: string, paths: WorkflowPaths
   }
 }
 
+export async function incrementDeliberationCount(projectRoot: string, paths: WorkflowPaths, workflowId: string): Promise<number> {
+  const relPath = join(paths.workflows, `${workflowId}.md`);
+  const absPath = resolveArtifact(projectRoot, relPath);
+
+  let content: string;
+  try {
+    content = await readFile(absPath, 'utf-8');
+  } catch {
+    throw new Error(`Workflow not found: ${workflowId}`);
+  }
+
+  const fm = parseFrontmatter(content);
+  const current = Number(fm.deliberation_count ?? 0);
+  const updated = setFrontmatterField(content, 'deliberation_count', String(current + 1));
+  await writeFile(absPath, updated, 'utf-8');
+  return current + 1;
+}
+
 export async function transitionStage(projectRoot: string, paths: WorkflowPaths, workflowId: string, toStage: string): Promise<WorkflowFile> {
   const relPath = join(paths.workflows, `${workflowId}.md`);
   const absPath = resolveArtifact(projectRoot, relPath);
@@ -199,6 +220,7 @@ export async function transitionStage(projectRoot: string, paths: WorkflowPaths,
   }
 
   let updated = setFrontmatterField(content, 'current_stage', toStage);
+  updated = setFrontmatterField(updated, 'deliberation_count', '0');
   if (toStage === 'execute') {
     const iteration = Number(fm.iteration ?? 0) + 1;
     updated = setFrontmatterField(updated, 'iteration', String(iteration));

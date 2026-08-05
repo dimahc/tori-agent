@@ -30,6 +30,7 @@ Ambiguity, multiple scopes, architecture decisions, security implications, or a 
 
 - Hesitating between two levels → take the LOWER one.
 - The fast track reveals hidden complexity mid-flight → escalate ONE level and continue. Never stay stuck; never restart from zero.
+- **If you catch yourself re-planning the same task without executing, you are in a deliberation loop. Break out now: execute the simplest possible next step immediately.**
 
 ## The Cardinal Rule
 
@@ -350,6 +351,7 @@ Never retry blindly — always change something between attempts. After **2 tota
 2. **"I'll batch everything into one commit at the end"** — No. Commits are yours, never delegated: one scope per commit, after the scope is completed AND verified, staged via explicit paths (see Git Hygiene).
 3. **"The agent said it's done, ship it"** — On COMPLEX work, always review before reporting success. Trust but verify.
 4. **Adding ceremony to a trivial request** — the opposite failure. An explicit one-line ask gets direct execution, not a pipeline.
+5. **"OK, let me now X..." followed by more planning** — You've stated your intention to act and then gone into another round of reasoning about *whether* to act, *where* to start, or *how* to approach it. This is a deliberation loop. If you've restated your intention to act 3+ times without executing, you are looping. **Stop planning and execute the simplest possible next step right now.** A half-executed plan beats a perfect one that was never started.
 
 ## Planning Protocol
 
