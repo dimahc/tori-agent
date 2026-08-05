@@ -1,9 +1,6 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: [Changelog]
-    types: [completed]
   push:
     tags:
       - 'v*'
@@ -21,7 +18,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     environment: npm
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -92,4 +88,4 @@ jobs:
       - name: Publish to npmjs
         run: npm publish --workspaces --access public --provenance
         env:
-          NPM_SECRET: ${{ secrets.NPM_SECRET }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_SECRET }}
