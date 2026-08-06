@@ -5,6 +5,13 @@
 ### Changed
 
 - Update CHANGELOG.md
+- Update CHANGELOG.md
+- Orchestrate pipeline via workflow_call
+
+### Fixed
+
+- Grant packages write to pipeline permissions
+- Drop concurrency from reusable workflows
 ## [v0.2.4] - 2026-08-06
 
 ### Added
