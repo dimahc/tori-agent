@@ -1,0 +1,39 @@
+{
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "description": "Core types, interfaces, and shared logic for tori-agent orchestrator",
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "spec/"
+  ],
+  "main": "dist/index.js",
+  "name": "@tori-agent/core",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dimahc/tori-agent.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/tests/*.test.js"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "version": "0.1.0"
+}
