@@ -1,9 +1,9 @@
 {
   "name": "@tori-agent/runtime-opencode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dimahc/tori-agent.git"
+    "url": "git+https://github.com/dimahc/tori-agent.git"
   },
   "description": "OpenCode runtime adapter for tori-agent",
   "type": "module",
