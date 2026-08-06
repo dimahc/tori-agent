@@ -1,6 +1,10 @@
 {
   "name": "@tori-agent/core",
   "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dimahc/tori-agent.git"
+  },
   "description": "Core types, interfaces, and shared logic for tori-agent orchestrator",
   "type": "module",
   "main": "dist/index.js",
