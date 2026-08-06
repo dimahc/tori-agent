@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Add prettier config and license fields (#12)
+## [v0.1.6] - 2026-08-06
+
 ### Fixed
 
 - Add npm publish provenance
