@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Remove npm auth token
+## [v0.1.2] - 2026-08-06
+
+### Fixed
+
 - Set NODE_AUTH_TOKEN on publish step (#10)
 ## [v0.1.1] - 2026-08-06
 
