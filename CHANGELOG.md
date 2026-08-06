@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Add npm publish provenance
+## [v0.1.5] - 2026-08-06
+
 ### Changed
 
 - Publish via npm OIDC trusted publishing (#11)
