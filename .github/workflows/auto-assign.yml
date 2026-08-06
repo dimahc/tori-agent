@@ -12,6 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Assign PR to author
-        uses: actions/assign@v2
+        uses: peter-evans/auto-assign@v5
         with:
           assignees: ${{ github.actor }}
