@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+
+- Sync package versions from release tag
+
+### Fixed
+
+- Remove stale workflow_run event guards (#7)
+- Push changelog from detached HEAD
+## [v0.2.3] - 2026-08-06
+
+### Added
+
+- Chain workflows via workflow_run (#6)
+## [v0.2.2] - 2026-08-06
+
+### Changed
+
+- Update CHANGELOG.md
+
 ### Fixed
 
 - Publish via trusted publishing
