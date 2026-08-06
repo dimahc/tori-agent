@@ -1,10 +1,9 @@
 name: Changelog
 
 on:
-  push:
-    branches: [main]
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: [Security]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -17,10 +16,12 @@ concurrency:
 jobs:
   changelog:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.actor.login != 'github-actions[bot]') }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Setup Node.js 22

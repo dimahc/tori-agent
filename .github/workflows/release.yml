@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: [Changelog]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -15,8 +15,28 @@ concurrency:
   group: ${{ github.ref }}
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
   release:
     runs-on: ubuntu-latest
+    needs: [resolve]
+    if: ${{ needs.resolve.outputs.tag != '' }}
     environment: npm
     steps:
       - name: Checkout
@@ -51,7 +71,7 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           script: |
-            const tag = context.ref.replace('refs/tags/', '');
+            const tag = '${{ needs.resolve.outputs.tag }}';
             const { execSync } = require('child_process');
             const fs = require('fs');
 
