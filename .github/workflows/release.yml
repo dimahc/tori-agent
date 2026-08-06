@@ -45,8 +45,8 @@ jobs:
 
       - name: Upgrade npm for OIDC trusted publishing
         # OIDC trusted publishing requires npm >= 11.5.1 (and Node >= 22.14.0).
-        # The runner's bundled npm can be older, so pin a version that supports it.
-        run: npm install -g npm@11.5.1
+        # Pin to a modern version to avoid known OIDC bugs in older npm releases.
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -120,6 +120,6 @@ jobs:
           "
 
       - name: Publish to npmjs
-        run: npm publish --workspaces --provenance --access public
+        run: npm publish --workspaces --access public
         env:
           NPM_CONFIG_PROVENANCE: true

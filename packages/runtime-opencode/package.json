@@ -14,12 +14,11 @@
   "main": "dist/index.js",
   "name": "@tori-agent/runtime-opencode",
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dimahc/tori-agent.git"
+    "url": "https://github.com/dimahc/tori-agent"
   },
   "scripts": {
     "build": "tsc",
