@@ -25,6 +25,7 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 commit_parsers = [
+    { message = "^docs: update CHANGELOG\\.md$", skip = true },
     { message = "^feat", group = "Added" },
     { message = "^fix", group = "Fixed" },
     { message = "^perf", group = "Changed" },
