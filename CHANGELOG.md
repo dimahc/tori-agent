@@ -4,8 +4,11 @@
 
 ### Changed
 
-- Update CHANGELOG.md
-- Update CHANGELOG.md
+- Skip changelog-only commits in git-cliff
+## [v0.2.5] - 2026-08-06
+
+### Changed
+
 - Orchestrate pipeline via workflow_call
 
 ### Fixed
@@ -29,10 +32,6 @@
 - Chain workflows via workflow_run (#6)
 ## [v0.2.2] - 2026-08-06
 
-### Changed
-
-- Update CHANGELOG.md
-
 ### Fixed
 
 - Publish via trusted publishing
@@ -41,11 +40,6 @@
 ### Added
 
 - Add deliberation-loop detection (#5)
-
-### Changed
-
-- Update CHANGELOG.md
-- Update CHANGELOG.md
 
 ### Fixed
 
@@ -70,7 +64,6 @@
 - Bump version to 0.2.0 for release
 - Fix release workflow and clean up CI comments
 - Fix NPM_TOKEN conditional syntax in release workflow
-- Update CHANGELOG.md
 - Update tags pattern
 
 ### Fixed
