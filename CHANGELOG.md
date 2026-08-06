@@ -4,27 +4,19 @@
 
 ### Changed
 
-- Add prettier config and license fields (#12)
-## [v0.1.6] - 2026-08-06
-
-### Fixed
-
-- Add npm publish provenance
-## [v0.1.5] - 2026-08-06
+- Use Node 24 in all GitHub Actions workflows
+## [v0.1.2] - 2026-08-06
 
 ### Changed
 
 - Publish via npm OIDC trusted publishing (#11)
-## [v0.1.3] - 2026-08-06
-
-### Fixed
-
-- Remove npm auth token
-## [v0.1.2] - 2026-08-06
+- Add prettier config and license fields (#12)
 
 ### Fixed
 
 - Set NODE_AUTH_TOKEN on publish step (#10)
+- Remove npm auth token
+- Add npm publish provenance
 ## [v0.1.1] - 2026-08-06
 
 ### Fixed
