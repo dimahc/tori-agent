@@ -1,10 +1,11 @@
 name: Changelog
 
 on:
-  workflow_run:
-    workflows: [Security]
-    types: [completed]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,12 +17,11 @@ concurrency:
 jobs:
   changelog:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.actor.login != 'github-actions[bot]') }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js 22
@@ -44,8 +44,8 @@ jobs:
           GITHUB_REPO: ${{ github.repository }}
 
       - name: Commit and push CHANGELOG.md
+        if: github.ref == 'refs/heads/main'
         run: |
-          git merge-base --is-ancestor HEAD origin/main || exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
