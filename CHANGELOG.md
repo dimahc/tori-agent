@@ -2,12 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Publish via trusted publishing
+## [v0.2.1] - 2026-08-05
+
 ### Added
 
 - Add deliberation-loop detection (#5)
 
 ### Changed
 
+- Update CHANGELOG.md
 - Update CHANGELOG.md
 
 ### Fixed
