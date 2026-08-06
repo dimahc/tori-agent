@@ -10,6 +10,7 @@
     "dist/",
     "opencode.json"
   ],
+  "license": "MIT",
   "main": "dist/index.js",
   "name": "@tori-agent/runtime-opencode",
   "publishConfig": {

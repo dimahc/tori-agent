@@ -20,6 +20,7 @@
     "dist/",
     "spec/"
   ],
+  "license": "MIT",
   "main": "dist/index.js",
   "name": "@tori-agent/core",
   "publishConfig": {
