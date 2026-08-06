@@ -1,6 +1,10 @@
 {
   "name": "@tori-agent/cli",
   "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dimahc/tori-agent.git"
+  },
   "description": "CLI tools for tori-agent (generate, serve, doctor)",
   "type": "module",
   "main": "dist/index.js",
