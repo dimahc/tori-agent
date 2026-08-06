@@ -44,3 +44,4 @@ jobs:
     with:
       ref: ${{ github.sha }}
       tag: ${{ github.ref_name }}
+    secrets: inherit
