@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Publish via npm OIDC trusted publishing (#11)
+## [v0.1.3] - 2026-08-06
+
 ### Fixed
 
 - Remove npm auth token
