@@ -2,6 +2,7 @@
   "bin": {
     "tori": "./dist/cli.js"
   },
+  "license": "MIT",
   "dependencies": {
     "@tori-agent/core": "^0.1.0",
     "js-yaml": "^4.1.0"
