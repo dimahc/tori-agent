@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Update CHANGELOG.md
+## [v0.2.4] - 2026-08-06
+
 ### Added
 
 - Sync package versions from release tag
