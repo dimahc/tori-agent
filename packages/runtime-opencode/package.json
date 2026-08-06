@@ -1,26 +1,30 @@
 {
+  "dependencies": {
+    "@tori-agent/core": "^0.1.0"
+  },
+  "description": "OpenCode runtime adapter for tori-agent",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "files": [
+    "dist/",
+    "opencode.json"
+  ],
+  "main": "dist/index.js",
   "name": "@tori-agent/runtime-opencode",
-  "version": "0.1.1",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dimahc/tori-agent.git"
   },
-  "description": "OpenCode runtime adapter for tori-agent",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": ["dist/", "opencode.json"],
   "scripts": {
     "build": "tsc",
     "test": "node --test dist/tests/*.test.js"
   },
-  "dependencies": {
-    "@tori-agent/core": "^0.1.0"
-  },
-  "engines": {
-    "node": ">=20.19.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "version": "0.1.1"
 }

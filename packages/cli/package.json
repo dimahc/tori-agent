@@ -1,29 +1,32 @@
 {
-  "name": "@tori-agent/cli",
-  "version": "0.1.1",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/dimahc/tori-agent.git"
-  },
-  "description": "CLI tools for tori-agent (generate, serve, doctor)",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": ["dist/"],
-  "scripts": {
-    "build": "tsc"
+  "bin": {
+    "tori": "./dist/cli.js"
   },
   "dependencies": {
     "@tori-agent/core": "^0.1.0",
     "js-yaml": "^4.1.0"
   },
+  "description": "CLI tools for tori-agent (generate, serve, doctor)",
   "engines": {
     "node": ">=20.19.0"
   },
+  "files": [
+    "dist/"
+  ],
+  "main": "dist/index.js",
+  "name": "@tori-agent/cli",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
-  "bin": {
-    "tori": "./dist/cli.js"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dimahc/tori-agent.git"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "version": "0.1.1"
 }

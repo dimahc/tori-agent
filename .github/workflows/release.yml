@@ -121,3 +121,5 @@ jobs:
 
       - name: Publish to npmjs
         run: npm publish --workspaces
+        env:
+          NPM_CONFIG_PROVENANCE: true
