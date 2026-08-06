@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# TypeScript incremental build cache — must not be committed
+*.tsbuildinfo
+.opencode/
+!.opencode/agents/
+!.opencode/tools/
+.kilo/
+!.kilo/agents/
+!.kilo/tools/
+.kilocode/
+!.kilocode/agents/
+!.kilocode/tools/
+.agents/
+docs
+tmp

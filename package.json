@@ -1,0 +1,25 @@
+{
+  "name": "tori-agent-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build -w packages/core && npm run build -w packages/runtime-opencode && npm run build -w packages/runtime-kilocode",
+    "test": "node --test packages/*/tests/*.test.js",
+    "lint": "eslint packages/*/src/"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/runtime-opencode",
+    "packages/runtime-kilocode",
+    "packages/cli"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^10.8.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
