@@ -10,9 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.head_ref || github.ref }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
