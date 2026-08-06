@@ -2,15 +2,16 @@
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- Use Node 24 in all GitHub Actions workflows
+- Resolve npm OIDC publish 404 and clean up provenance config
 ## [v0.1.2] - 2026-08-06
 
 ### Changed
 
 - Publish via npm OIDC trusted publishing (#11)
 - Add prettier config and license fields (#12)
+- Use Node 24 in all GitHub Actions workflows
 
 ### Fixed
 
