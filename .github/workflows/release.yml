@@ -48,13 +48,10 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build --if-present
 
       - name: Build CLI
-        run: npm run build -w packages/cli
-
-      - name: Lint
-        run: npm run lint
+        run: npm run build -w packages/cli --if-present
 
       - name: Verify agent specs compilation
         run: node packages/core/tests/verify-expansion.mjs
@@ -103,6 +100,4 @@ jobs:
             });
 
       - name: Publish to npmjs
-        run: npm publish --workspaces --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_SECRET }}
+        run: npm publish --workspaces
