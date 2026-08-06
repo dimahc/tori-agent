@@ -1,0 +1,17 @@
+name: Auto-assign PR
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign PR to author
+        uses: actions/assign@v2
+        with:
+          assignees: ${{ github.actor }}
