@@ -54,4 +54,4 @@ jobs:
             exit 0
           fi
           git commit -m "docs: update CHANGELOG.md"
-          git push
+          git push origin HEAD:main
