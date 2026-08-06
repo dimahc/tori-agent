@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate release tag
+        run: |
+          if ! printf '%s' "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Invalid release tag format: $TAG (expected vX.Y.Z)"
+            exit 1
+          fi
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Build CLI
+        run: npm run build -w packages/cli
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify agent specs compilation
+        run: node packages/core/tests/verify-expansion.mjs
+
+      - name: Sync package versions to tag
+        run: npm version "${TAG#v}" --workspaces --no-git-tag-version --allow-same-version
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - name: Create GitHub Release
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          script: |
+            const tag = '${{ inputs.tag }}';
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+
+            let body = '';
+            try {
+              const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+              const versionMatch = changelog.match(new RegExp('^## \\[' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\]', 'm'));
+              if (versionMatch) {
+                const start = changelog.indexOf(versionMatch[0]);
+                const nextVersion = changelog.indexOf('\n## [', start + 1);
+                body = changelog.slice(start, nextVersion > start ? nextVersion : undefined).trim();
+              }
+            } catch (err) {
+              console.log('CHANGELOG.md not found or section missing, will use generated notes.');
+            }
+
+            if (!body) {
+              body = await github.rest.repos.generateReleaseNotes({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+              }).then(r => r.data.body);
+            }
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: tag,
+              body: body,
+              draft: true,
+            });
+
+      - name: Publish to npmjs
+        run: npm publish --workspaces --access public

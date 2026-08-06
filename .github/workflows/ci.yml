@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core and runtimes
+        run: npm run build
+
+      - name: Build CLI
+        run: npm run build -w packages/cli
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify agent specs compilation
+        run: node packages/core/tests/verify-expansion.mjs
