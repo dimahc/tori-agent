@@ -45,4 +45,4 @@ export { listBuiltinSkills, syncBuiltinSkills } from './codegen/index.js';
 export type { BuiltinSkill, SyncedSkill } from './codegen/index.js';
 
 // Session persistence — JSON-file-backed session→agent tracking
-export { initSessionStore, trackSessionAgent, agentForSession, clearSession } from './runtime/session-store.js';
+export { initSessionStore, trackSessionAgent, agentForSession, clearSession, setProjectRoot, setBudget, getBudget, clearBudget, updateSessionBudget, checkSessionBudget } from './runtime/session-store.js';

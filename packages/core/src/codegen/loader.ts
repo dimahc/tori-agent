@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentPermissions, AgentSpec, CompiledAgent } from "./types.js";
+import { mergePermissionSets } from "../runtime/permissions.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -138,6 +139,8 @@ export function mergePermissions(
 ): AgentPermissions {
   return { ...base, ...override };
 }
+
+export { mergePermissionSets } from "../runtime/permissions.js";
 
 export async function expandPersonas(
   spec: AgentSpec,

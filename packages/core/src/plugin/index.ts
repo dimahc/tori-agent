@@ -5,6 +5,8 @@ import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission,
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
 import { syncBuiltinSkills } from '../codegen/skills.js';
 import { buildReadOnlyTools, buildWriteTools, type ToolRegistry } from './tools.js';
+import { createBudgetAwareToolExecutor } from '../runtime/sdk-adapter.js';
+import type { Checkpoint } from '../types/checkpoint.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG = '/tmp/tori-debug.log';
@@ -61,6 +63,29 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
     const writeTools = buildWriteTools(projectRoot, paths);
 
+    const makeCheckpoint = (sessionId: string): Checkpoint => {
+      const agent = agentForSession(sessionId);
+      return {
+        version: '1.0',
+        created_at: new Date().toISOString(),
+        trigger: 'budget',
+        parent: { task_id: sessionId, agent: agent ?? 'unknown', depth: 0 },
+        state: {
+          todowrite: [],
+          workflow_stage: 'unknown',
+          iteration: 0,
+          artifacts_modified: [],
+          decisions: [],
+        },
+        context_summary: `Automatic checkpoint for session ${sessionId}`,
+        resume_instructions: `Resume work for session ${sessionId}. Read this checkpoint and continue.`,
+        child_tasks: [],
+      };
+    };
+
+    const baseTools = { ...readOnlyTools, ...writeTools };
+    const budgetAwareTools = createBudgetAwareToolExecutor(baseTools, projectRoot, makeCheckpoint);
+
     const pluginToolNames = new Set<string>();
     for (const name of Object.keys(readOnlyTools)) pluginToolNames.add(name);
     for (const name of Object.keys(writeTools)) pluginToolNames.add(name);
@@ -87,8 +112,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         }
       },
       tool: {
-        ...readOnlyTools,
-        ...writeTools,
+        ...budgetAwareTools,
       } as Record<string, unknown>,
       event: async ({ event }) => {
         log('[EVENT] event received', { type: event.type, full: JSON.stringify(event) });

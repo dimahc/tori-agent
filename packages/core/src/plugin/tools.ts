@@ -11,6 +11,7 @@ import {
   saveCheckpoint,
   writeAppend,
 } from "../tools/lifecycle.js";
+import type { VerificationPolicy } from "../types/verification.js";
 import type { WorkflowPaths } from "../tools/workflow.js";
 import {
   getWorkflowState,
@@ -241,21 +242,32 @@ export function buildWriteTools(
     transition_stage: {
       description:
         "Transition a workflow to a new stage. Validates the transition against the state machine.",
-      args: { workflow_id: {}, to_stage: {} },
+      args: { workflow_id: {}, to_stage: {}, policy: {} },
       async execute({
         workflow_id,
         to_stage,
+        policy,
       }: {
         workflow_id?: string;
         to_stage?: string;
+        policy?: string;
       }) {
         try {
+          let parsedPolicy: VerificationPolicy | undefined;
+          if (policy) {
+            try {
+              parsedPolicy = JSON.parse(policy) as VerificationPolicy;
+            } catch {
+              // ignore invalid policy JSON
+            }
+          }
           return JSON.stringify(
             await transitionStage(
               projectRoot,
               workflowPaths,
               workflow_id!,
               to_stage!,
+              parsedPolicy ? { policy: parsedPolicy } : undefined,
             ),
           );
         } catch (err) {
@@ -304,17 +316,19 @@ export function buildWriteTools(
     },
     record_check_result: {
       description: "Record a verification check result in a workflow file.",
-      args: { workflow_id: {}, check_name: {}, status: {}, detail: {} },
+      args: { workflow_id: {}, check_name: {}, status: {}, detail: {}, max_iterations: {} },
       async execute({
         workflow_id,
         check_name,
         status,
         detail,
+        max_iterations,
       }: {
         workflow_id?: string;
         check_name?: string;
         status?: string;
         detail?: string;
+        max_iterations?: string;
       }) {
         try {
           await recordCheckResult(
@@ -324,6 +338,9 @@ export function buildWriteTools(
             check_name!,
             status as "PASS" | "FAIL" | "SKIP",
             detail,
+            0.5,
+            true,
+            max_iterations ? Number(max_iterations) : undefined,
           );
           return JSON.stringify({ success: true });
         } catch (err) {

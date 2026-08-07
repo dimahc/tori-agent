@@ -45,6 +45,7 @@ permissions:
     - transition_stage # orchestration: drive the workflow state machine
     - record_task_result # orchestration: record task outcomes in workflows
     - record_check_result # orchestration: record verification check outcomes
+    - write_checkpoint # orchestration: persist structured checkpoint files for resume/compaction/budget boundaries
     - read # coordination reads (plans, configs) + TRIVIAL fast track; .env hard-denied at call time
     - edit # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
     - write # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
