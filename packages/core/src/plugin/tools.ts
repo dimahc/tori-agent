@@ -20,6 +20,10 @@ import {
   recordTaskResult,
   transitionStage,
 } from "../tools/workflow.js";
+import { task } from "../tools/task.js";
+import type { PersonaMatch } from "../types/persona.js";
+import type { CIConfig } from "../types/ci.js";
+import { trigger_ci_check } from "../tools/ci-hook.js";
 
 export interface ToolRegistry {
   [name: string]: {
@@ -343,6 +347,78 @@ export function buildWriteTools(
             max_iterations ? Number(max_iterations) : undefined,
           );
           return JSON.stringify({ success: true });
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    trigger_ci_check: {
+      description:
+        "Run a CI command and record the result as a workflow check. " +
+        "Used automatically on verify stage entry when ci_config is present in workflow frontmatter.",
+      args: { workflow_id: {}, config: {} },
+      async execute({
+        workflow_id,
+        config,
+      }: {
+        workflow_id?: string;
+        config?: string;
+      }) {
+        try {
+          if (!workflow_id || !config) {
+            return JSON.stringify({ error: 'Missing required arguments: workflow_id, config' });
+          }
+          const parsed = JSON.parse(config) as CIConfig;
+          const result = await trigger_ci_check(projectRoot, parsed, workflow_id!);
+          return JSON.stringify(result);
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    task: {
+      description:
+        "Delegate a task to a specialist agent. Provide `persona` for expertise-based routing " +
+        "(resolved via registry with confidence threshold 0.6) or `agent` for direct agent selection.",
+      args: {
+        workflow_id: {},
+        task_id: {},
+        scope: {},
+        persona: {},
+        agent: {},
+        parent_checkpoint_ref: {},
+      },
+      async execute({
+        workflow_id,
+        task_id,
+        scope,
+        persona,
+        agent,
+        parent_checkpoint_ref,
+      }: {
+        workflow_id?: string;
+        task_id?: string;
+        scope?: string;
+        persona?: string;
+        agent?: string;
+        parent_checkpoint_ref?: string;
+      }) {
+        try {
+          const result = await task(
+            projectRoot,
+            workflowPaths,
+            workflow_id!,
+            task_id!,
+            scope!,
+            persona,
+            agent,
+            parent_checkpoint_ref,
+          );
+          return JSON.stringify(result);
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),

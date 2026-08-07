@@ -2,9 +2,11 @@ import { readFileSync, existsSync } from 'node:fs';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { TaskBudget } from '../types/budget.js';
+import type { TaskClassification } from '../types/classification.js';
 import { updateBudgetConsumption, shouldCheckpoint, advanceCheckpoint } from '../tools/budget.js';
 import { writeCheckpoint } from '../tools/checkpoint.js';
 import type { Checkpoint } from '../types/checkpoint.js';
+import { createCancellationToken, clearCancellation } from './feedback.js';
 
 const DEBOUNCE_MS = 200;
 
@@ -16,6 +18,20 @@ let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
 const budgets = new Map<string, TaskBudget>();
 const timeoutTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const cancellationToken = createCancellationToken();
+const classifications = new Map<string, TaskClassification>();
+
+export function setClassification(taskId: string, classification: TaskClassification): void {
+  classifications.set(taskId, classification);
+}
+
+export function getClassification(taskId: string): TaskClassification | undefined {
+  return classifications.get(taskId);
+}
+
+export function clearClassification(taskId: string): void {
+  classifications.delete(taskId);
+}
 
 export function setProjectRoot(root: string): void {
   projectRoot = root;
@@ -64,7 +80,16 @@ export function agentForSession(sessionID: string): string | undefined {
 
 export function clearSession(sessionID: string): void {
   delete data[sessionID];
+  clearCancellation(sessionID);
   scheduleWrite();
+}
+
+export function cancelSession(sessionID: string): void {
+  cancellationToken.cancel(sessionID);
+}
+
+export function isSessionCancelled(sessionID: string): boolean {
+  return cancellationToken.isCancelled(sessionID);
 }
 
 export function persistNow(): Promise<void> {

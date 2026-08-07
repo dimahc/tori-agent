@@ -9,7 +9,16 @@ import { existsSync } from 'node:fs';
 import { markBlockDone } from '../tools/lifecycle.js';
 import type { DelegationTree } from '../types/delegation.js';
 import type { VerificationPolicy } from '../types/verification.js';
+import type { GitDeliveryState } from '../types/git.js';
+import type { ADR } from '../types/adr.js';
+import type { RollbackPlan } from '../types/rollback.js';
+import type { WritePolicy, WriteTier } from '../types/write-path.js';
+import type { CIConfig } from '../types/ci.js';
+import { trigger_ci_check } from './ci-hook.js';
 import { DepthExceededError } from '../types/delegation.js';
+import { emitProgress } from '../runtime/feedback.js';
+import { isSessionCancelled } from '../runtime/session-store.js';
+import { CancelledError } from '../types/feedback.js';
 
 export interface WorkflowPaths {
   workflows: string;
@@ -45,6 +54,11 @@ export interface WorkflowFile {
     max_iterations?: number;
   }>;
   delegation_tree?: DelegationTree;
+  adrs: string[];
+  git_delivery_state?: GitDeliveryState;
+  write_policy?: WritePolicy;
+  rollback_plan?: RollbackPlan;
+  ci_config?: CIConfig;
 }
 
 // ── Path helpers ─────────────────────────────────────────────────────────────
@@ -106,6 +120,76 @@ function serializeDelegationTree(tree: DelegationTree): string {
   return JSON.stringify(tree);
 }
 
+function parseGitDeliveryState(fm: Record<string, string>): GitDeliveryState | undefined {
+  const raw = fm.git_delivery_state;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as GitDeliveryState;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseAdrs(fm: Record<string, string>): string[] {
+  const raw = fm.adrs;
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function serializeADRs(adrs: string[]): string {
+  return JSON.stringify(adrs);
+}
+
+function serializeGitDeliveryState(state: GitDeliveryState): string {
+  return JSON.stringify(state);
+}
+
+function parseRollbackPlan(fm: Record<string, string>): RollbackPlan | undefined {
+  const raw = fm.rollback_plan;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as RollbackPlan;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeRollbackPlan(plan: RollbackPlan): string {
+  return JSON.stringify(plan);
+}
+
+function parseWritePolicy(fm: Record<string, string>): WritePolicy | undefined {
+  const raw = fm.write_policy;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as WritePolicy;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeWritePolicy(policy: WritePolicy): string {
+  return JSON.stringify(policy);
+}
+
+function parseCIConfig(fm: Record<string, string>): CIConfig | undefined {
+  const raw = fm.ci_config;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as CIConfig;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeCIConfig(config: CIConfig): string {
+  return JSON.stringify(config);
+}
+
 export function getDelegationTree(workflowFile: WorkflowFile): DelegationTree | undefined {
   return workflowFile.delegation_tree;
 }
@@ -115,6 +199,87 @@ export function updateDelegationTree(workflowFile: WorkflowFile, tree: Delegatio
     ...workflowFile,
     delegation_tree: tree,
   };
+}
+
+export function getGitDeliveryState(workflowFile: WorkflowFile): GitDeliveryState | undefined {
+  return workflowFile.git_delivery_state;
+}
+
+export function updateGitDeliveryState(workflowFile: WorkflowFile, state: GitDeliveryState): WorkflowFile {
+  return {
+    ...workflowFile,
+    git_delivery_state: state,
+  };
+}
+
+export function getADRs(workflowFile: WorkflowFile): string[] {
+  return workflowFile.adrs;
+}
+
+export function updateADRs(workflowFile: WorkflowFile, adrs: string[]): WorkflowFile {
+  return {
+    ...workflowFile,
+    adrs,
+  };
+}
+
+export function getWritePolicy(workflowFile: WorkflowFile): WritePolicy | undefined {
+  return workflowFile.write_policy;
+}
+
+export function updateWritePolicy(workflowFile: WorkflowFile, policy: WritePolicy): WorkflowFile {
+  return {
+    ...workflowFile,
+    write_policy: policy,
+  };
+}
+
+export function getRollbackPlan(workflowFile: WorkflowFile): RollbackPlan | undefined {
+  return workflowFile.rollback_plan;
+}
+
+export function updateRollbackPlan(workflowFile: WorkflowFile, plan: RollbackPlan): WorkflowFile {
+  return {
+    ...workflowFile,
+    rollback_plan: plan,
+  };
+}
+
+export async function setWritePolicy(
+  projectRoot: string,
+  paths: WorkflowPaths,
+  workflowId: string,
+  tier: WriteTier,
+  taskScope?: string,
+): Promise<WritePolicy> {
+  const { getWritePolicyForTier } = await import('../runtime/write-guard.js');
+  const policy = getWritePolicyForTier(tier, taskScope);
+
+  const relPath = join(paths.workflows, `${workflowId}.md`);
+  const absPath = resolveArtifact(projectRoot, relPath);
+
+  let content: string;
+  try {
+    content = await readFile(absPath, 'utf-8');
+  } catch {
+    throw new Error(`Workflow not found: ${workflowId}`);
+  }
+
+  const updated = setFrontmatterField(content, 'write_policy', JSON.stringify(policy));
+  await writeFile(absPath, updated, 'utf-8');
+
+  return policy;
+}
+
+export function linkADR(workflowFile: WorkflowFile, adrId: string): WorkflowFile {
+  const existing = workflowFile.adrs ?? [];
+  if (existing.includes(adrId)) return workflowFile;
+  return updateADRs(workflowFile, [...existing, adrId]);
+}
+
+export function unlinkADR(workflowFile: WorkflowFile, adrId: string): WorkflowFile {
+  const existing = workflowFile.adrs ?? [];
+  return updateADRs(workflowFile, existing.filter((id) => id !== adrId));
 }
 
 function countCheckboxes(content: string, section: string): { total: number; checked: number } {
@@ -150,7 +315,8 @@ export async function createWorkflow(projectRoot: string, paths: WorkflowPaths, 
     deliberation_count: 0,
   };
 
-  const frontmatter = `---\nid: ${state.id}\nworkflow: ${state.workflow}\ncurrent_stage: ${state.current_stage}\niteration: ${state.iteration}\nmax_iterations: ${state.max_iterations}\nstatus: ${state.status}\ncreated: ${state.created}\ndeliberation_count: ${state.deliberation_count}\n---\n\n# Workflow: ${state.workflow}\n\n## Tasks\n\n## Checks\n`;
+  const defaultWritePolicy = JSON.stringify({ tier: 'standard', allow_paths: ['src/**', 'packages/**', 'docs/**', 'spec/**'], deny_paths: ['*.env', '**/.env', 'config/production/**'] });
+  const frontmatter = `---\nid: ${state.id}\nworkflow: ${state.workflow}\ncurrent_stage: ${state.current_stage}\niteration: ${state.iteration}\nmax_iterations: ${state.max_iterations}\nstatus: ${state.status}\ncreated: ${state.created}\ndeliberation_count: ${state.deliberation_count}\ngit_delivery_state: ${JSON.stringify({ rollback_level: 'commit', push_boundary: 'manual', last_commit_sha: '' })}\nadrs: []\nwrite_policy: ${defaultWritePolicy}\nci_config: null\n---\n\n# Workflow: ${state.workflow}\n\n## Tasks\n\n## Checks\n`;
 
   await writeFile(absPath, frontmatter, 'utf-8');
   return workflowId;
@@ -254,8 +420,13 @@ export async function getWorkflowState(projectRoot: string, paths: WorkflowPaths
     }
 
     const delegationTree = parseDelegationTree(fm);
+    const gitDeliveryState = parseGitDeliveryState(fm);
+    const adrs = parseAdrs(fm);
+    const writePolicy = parseWritePolicy(fm);
+    const rollbackPlan = parseRollbackPlan(fm);
+    const ciConfig = parseCIConfig(fm);
 
-    return { state, tasks, checks, delegation_tree: delegationTree };
+    return { state, tasks, checks, delegation_tree: delegationTree, adrs, git_delivery_state: gitDeliveryState, write_policy: writePolicy, rollback_plan: rollbackPlan, ci_config: ciConfig };
   } catch {
     return null;
   }
@@ -365,6 +536,38 @@ export async function transitionStage(
   if (!state) {
     throw new Error(`Workflow state lost after transition: ${workflowId}`);
   }
+
+  const stagePercent: Record<string, number> = {
+    new: 0,
+    requirements: 20,
+    plan: 40,
+    execute: 60,
+    verify: 80,
+    done: 100,
+    needs_human: 100,
+  };
+
+  emitProgress({
+    session_id: workflowId,
+    stage: toStage,
+    percent: stagePercent[toStage] ?? 0,
+    message: `Transitioned to ${toStage}`,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (toStage === 'verify') {
+    const ciConfig = parseCIConfig(fm);
+    if (ciConfig) {
+      try {
+        const ciResult = await trigger_ci_check(projectRoot, ciConfig, workflowId);
+        const checkStatus = ciResult.status === 'passed' ? 'PASS' : ciResult.status === 'timeout' ? 'FAIL' : 'FAIL';
+        await recordCheckResult(projectRoot, paths, workflowId, 'ci_check', checkStatus, ciResult.output, 0.8, false);
+      } catch {
+        await recordCheckResult(projectRoot, paths, workflowId, 'ci_check', 'FAIL', 'CI trigger failed', 0.5, false);
+      }
+    }
+  }
+
   return state;
 }
 
@@ -385,6 +588,10 @@ export async function recordTaskResult(projectRoot: string, paths: WorkflowPaths
     if (delegationTree && depth > delegationTree.max_depth) {
       throw new DepthExceededError(depth, delegationTree.max_depth, workflowId);
     }
+  }
+
+  if (isSessionCancelled(workflowId)) {
+    throw new CancelledError(workflowId);
   }
 
   const taskLine = `- [${status === 'done' ? 'x' : ' '}] ${taskId} (${agent}) — status: ${status}`;

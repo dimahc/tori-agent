@@ -2,6 +2,9 @@ export interface PersonaEntry {
   description: string;
   instructions: string;
   permissions?: AgentPermissions;
+  expertise_tags?: string[];
+  parent_id?: string;
+  weight?: number;
 }
 
 export interface AgentSpec {
@@ -35,3 +38,5 @@ export interface CompiledAgent {
   permission: Record<string, unknown>;
   humanTone?: boolean;
 }
+
+export type { PersonaHierarchy, PersonaMatch } from '../types/persona.js';

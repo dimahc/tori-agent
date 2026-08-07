@@ -46,3 +46,7 @@ export type { BuiltinSkill, SyncedSkill } from './codegen/index.js';
 
 // Session persistence — JSON-file-backed session→agent tracking
 export { initSessionStore, trackSessionAgent, agentForSession, clearSession, setProjectRoot, setBudget, getBudget, clearBudget, updateSessionBudget, checkSessionBudget } from './runtime/session-store.js';
+
+// Persona system — composable expertise model with hierarchy and matching
+export { buildHierarchy, matchPersona, buildPersonaHierarchy, matchPersonaForTask } from './codegen/index.js';
+export type { PersonaDefinition, PersonaHierarchy, PersonaMatch } from './types/persona.js';
