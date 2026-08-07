@@ -1,8 +1,24 @@
 {
+  "name": "@tori-agent/runtime-kilocode",
+  "version": "0.1.1",
+  "description": "Kilo Code runtime adapter for tori-agent",
+  "author": "@dimahc <dev@dimahc.com>",
+  "keywords": [
+    "agent",
+    "orchestrator",
+    "ai",
+    "automation",
+    "workflow",
+    "typescript",
+    "node",
+    "monorepo"
+  ],
+  "homepage": "https://github.com/dimahc/tori-agent",
+  "bugs": "https://github.com/dimahc/tori-agent/issues",
+  "license": "MIT",
   "dependencies": {
     "@tori-agent/core": "^0.1.0"
   },
-  "description": "Kilo Code runtime adapter for tori-agent",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -10,9 +26,7 @@
     "dist/",
     "kilo.json"
   ],
-  "license": "MIT",
   "main": "dist/index.js",
-  "name": "@tori-agent/runtime-kilocode",
   "publishConfig": {
     "access": "public"
   },
@@ -25,6 +39,5 @@
     "test": "node --test dist/tests/*.test.js"
   },
   "type": "module",
-  "types": "dist/index.d.ts",
-  "version": "0.1.1"
+  "types": "dist/index.d.ts"
 }

@@ -1,13 +1,28 @@
 {
+  "name": "@tori-agent/cli",
+  "version": "0.1.1",
+  "description": "CLI tools for tori-agent (generate, serve, doctor)",
+  "author": "@dimahc <dev@dimahc.com>",
+  "keywords": [
+    "agent",
+    "orchestrator",
+    "ai",
+    "automation",
+    "workflow",
+    "typescript",
+    "node",
+    "monorepo"
+  ],
+  "homepage": "https://github.com/dimahc/tori-agent",
+  "bugs": "https://github.com/dimahc/tori-agent/issues",
+  "license": "MIT",
   "bin": {
     "tori": "./dist/cli.js"
   },
-  "license": "MIT",
   "dependencies": {
     "@tori-agent/core": "^0.1.0",
     "js-yaml": "^4.1.0"
   },
-  "description": "CLI tools for tori-agent (generate, serve, doctor)",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -15,7 +30,6 @@
     "dist/"
   ],
   "main": "dist/index.js",
-  "name": "@tori-agent/cli",
   "publishConfig": {
     "access": "public"
   },
@@ -27,6 +41,5 @@
     "build": "tsc"
   },
   "type": "module",
-  "types": "dist/index.d.ts",
-  "version": "0.1.1"
+  "types": "dist/index.d.ts"
 }
