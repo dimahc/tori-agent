@@ -775,6 +775,75 @@ export async function checkNonFunctionalRequirements(
   return problems;
 }
 
+// ── check_requirements_qualified ─────────────────────────────────────────────
+// Validates that a brief has been properly qualified before work begins.
+// A qualified brief must contain these sections (case-insensitive heading match):
+//
+//   ## Context
+//   ## Goals
+//   ## Non-goals
+//   ## Acceptance Criteria
+//
+// Returns Problem[] (severity: blocking for missing required sections).
+// Designed to be called from the REQUIREMENTS stage before transitioning to PLAN.
+
+const REQUIRED_BRIEF_SECTIONS = [
+  "Context",
+  "Goals",
+  "Non-goals",
+  "Acceptance Criteria",
+];
+
+export async function checkRequirementsQualified(
+  projectRoot: string,
+  briefPath: string,
+): Promise<Problem[]> {
+  const problems: Problem[] = [];
+  const absBrief = isAbsolute(briefPath) ? briefPath : join(projectRoot, briefPath);
+
+  let content: string;
+  try {
+    content = await readFile(absBrief, "utf-8");
+  } catch {
+    problems.push({
+      type: "brief_unreadable",
+      file: absBrief,
+      severity: "blocking",
+      detail: "brief file cannot be read",
+      suggestion: "create or fix the brief file",
+    });
+    return problems;
+  }
+
+  const lines = content.split(/\r?\n/);
+  const foundSections = new Set<string>();
+
+  for (const line of lines) {
+    const match = line.match(/^##\s+(.+?)\s*$/);
+    if (!match) continue;
+    const heading = match[1].trim().toLowerCase();
+    for (const required of REQUIRED_BRIEF_SECTIONS) {
+      if (heading === required.toLowerCase()) {
+        foundSections.add(required);
+      }
+    }
+  }
+
+  for (const required of REQUIRED_BRIEF_SECTIONS) {
+    if (!foundSections.has(required)) {
+      problems.push({
+        type: "brief_missing_section",
+        file: absBrief,
+        severity: "blocking",
+        detail: `missing required section: '## ${required}'`,
+        suggestion: `add the '## ${required}' section to the brief before proceeding`,
+      });
+    }
+  }
+
+  return problems;
+}
+
 // ── run_mechanical_checks ────────────────────────────────────────────────────
 // Implements the mechanical pre-filter pipeline:
 // command discovery (AGENTS.md `## Review Checks` section, then toolchain
