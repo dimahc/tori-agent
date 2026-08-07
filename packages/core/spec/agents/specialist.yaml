@@ -70,4 +70,4 @@ permissions:
     - external_directory
     - project_state
     - check_artifacts
-    - write_checkpoint # persist structured checkpoint files for resume/compaction/budget boundaries
+    - write_checkpoint

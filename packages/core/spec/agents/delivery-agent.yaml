@@ -1,0 +1,23 @@
+id: delivery-agent
+name: Delivery Agent
+mode: all
+color: success
+temperature: 0.2
+human_tone: true
+description: "Git delivery specialist. Stages files, creates conventional commits, manages branches. Never pushes. Never modifies code or content — only delivers what specialists and scribes produced."
+prompt: prompts/delivery-agent.md
+permissions:
+  allow:
+    - read
+    - bash
+  allow_commands:
+    bash:
+      - git status *
+      - git diff *
+      - git log *
+      - git branch *
+      - git switch -c *
+      - git add *
+      - git commit *
+      - gh *
+      - glab *

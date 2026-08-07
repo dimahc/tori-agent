@@ -4,33 +4,12 @@ mode: all
 color: error
 temperature: 0.3
 human_tone: true
-description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Executes trivial tasks directly (effort-scaling fast track)."
+description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Pure orchestrator — does not perform substantive work directly."
 prompt: prompts/tori.md
 permissions:
-  # SECURITY NOTE: the TRIVIAL/SIMPLE/COMPLEX scoping referenced in the rationales below is
-  # enforced by the system prompt ONLY — it is a behavioral convention, not a security boundary.
-  # The bash allowlist (allow_commands) is a FRICTION boundary, not a hard boundary. Accepted
-  # residuals:
-  # - `node -e` / `npm run <script>` ≈ arbitrary execution (package.json is editable via `edit`).
-  #   Accepted: `task` delegation to a specialist already grants unrestricted bash — the marginal
-  #   capability gained here is nil.
-  # - If the host does not split compound commands, `npm t && cat .env` matches `npm *`. The
-  #   plugin's evaluatePermission requires allow on ALL patterns only when the host splits them.
-  # - The .env hard deny is name-based: it covers neither symlinks nor copies of the file under
-  #   a different name.
-  #   - Lifecycle artifacts under docs/ can still be forged via edit/write (no deny_paths in the
-  #     model). Accepted residual: tori already drives artifact state through the record_* tools.
-  #   - `git commit *` prefix-matches `--amend` and `--no-verify` (hook bypass). Accepted: the
-  #     prompt restricts amend to the just-made commit and forbids --no-verify; commits are
-  #     tori's own orchestration checkpoints, and the commit-msg hook is the last line of defense.
-  #   - `git add *` can stage any name-addressable file; the .env deny is name-based and does not
-  #     cover copies. Accepted: the prompt's staging discipline (explicit paths only, `git status`
-  #     before staging) is the compensating control.
-  #   - `git branch *` prefix-matches `git branch -d/-D` (delete) and `-m` (rename). Accepted: the
-  #     prompt never mentions branch deletion/rename and `git switch -c` is the only branch
-  #     operation the Git Hygiene section instructs.
-  # Hard boundaries: default-deny ("*": "deny"), the .env hard deny (name-based, see above), and
-  # `git push` — never allowlisted; pushing is always manual.
+  # Tori is a pure orchestrator with read-only direct access.
+  # All mutations are delegated. Bash allowlist is for coordination only.
+  # Hard boundaries: default-deny, .env hard deny, git push never allowlisted.
   allow:
     - todowrite # task tracking across delegations and compaction events
     - todoread # resume task state after compaction
@@ -51,12 +30,10 @@ permissions:
     - rollback # orchestration: systematic revert workflow with commit/stage/workflow levels
     - report_progress # orchestration: emit progress events for streaming updates
     - trigger_ci_check # orchestration: run CI command on verify stage entry
-    - read # coordination reads (plans, configs) + TRIVIAL fast track; .env hard-denied at call time
-    - edit # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
-    - write # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
+    - read # coordination reads (plans, configs); .env hard-denied at call time
   allow_commands:
-    # bash is NOT freely allowed — curated allowlist for the TRIVIAL fast track's verification
-    # workflow. Compiled to { "*": "deny", <cmd>: "allow" } ; any non-matching command is denied
+    # bash is NOT freely allowed — curated allowlist for read-only coordination.
+    # Compiled to { "*": "deny", <cmd>: "allow" } ; any non-matching command is denied
     # at call time (evaluatePermission fallback: deny). Matching: exact, or prefix when the
     # pattern ends with "*".
     # Push boundary: `git push` is NEVER allowlisted — hard boundary, see Git Hygiene in prompt.
@@ -70,10 +47,7 @@ permissions:
       - git log # read-only history inspection (bare command)
       - git log * # read-only history inspection with flags (git log --oneline -5, ...)
       - git branch # list/inspect branches (read-only, bare command)
-      - git branch * # list/inspect branches with flags (git branch --show-current, git branch -a, ...); prefix also matches destructive forms (`-d/-D` delete, `-m` rename) — accepted residual, see SECURITY NOTE
-      - git switch -c * # create+switch branches only — prefix matches `git switch -c <branch>` (create+switch); destructive forms (`git switch --detach`, `git switch --orphan`) no longer reachable
-      - git add * # staging — prompt rule: explicit paths only, never `-A`/`.`
-      - git commit * # committing — prefix covers `-m`; `--amend` reachable but prompt-discouraged (except fixing the just-made commit), `--no-verify` prompt-forbidden
+      - git branch * # list/inspect branches with flags (git branch --show-current, git branch -a, ...)
       - ls # directory listing (bare command)
       - ls * # directory listing with flags/paths (ls -la, ls dist/, ...)
       - pwd # print working directory (exact — no useful flags)
