@@ -573,6 +573,208 @@ export async function checkArtifacts(projectRoot: string, paths: ArtifactPaths):
   return { problems, summary };
 }
 
+// ── check_non_functional_requirements ────────────────────────────────────────
+// Parses a `## Non-functional Requirements` section from a brief and verifies
+// each criterion. Two formats are supported:
+//
+//   pattern: <regex> in <glob>
+//     → finds files matching <glob>, fails if <regex> matches any line
+//
+//   command: <shell command>
+//     → runs the command, fails if exit code !== 0
+//
+// Returns Problem[] (severity: blocking for pattern matches, warning for command
+// failures). Designed to be called from the verify stage alongside
+// checkArtifacts() and runMechanicalChecks().
+
+interface NfrPattern {
+  type: "pattern";
+  regex: RegExp;
+  glob: string;
+  raw: string;
+}
+
+interface NfrCommand {
+  type: "command";
+  command: string;
+  raw: string;
+}
+
+type NfrCriterion = NfrPattern | NfrCommand;
+
+function parseNfrSection(content: string): NfrCriterion[] {
+  const lines = content.split(/\r?\n/);
+  const sectionStart = lines.findIndex((l) => /^##\s+Non-functional Requirements\s*$/i.test(l));
+  if (sectionStart === -1) return [];
+
+  let sectionEnd = lines.length;
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    if (/^##\s+\S/.test(lines[i])) {
+      sectionEnd = i;
+      break;
+    }
+  }
+  const sectionLines = lines.slice(sectionStart + 1, sectionEnd);
+
+  const criteria: NfrCriterion[] = [];
+  for (const line of sectionLines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("- ")) continue;
+
+    const value = trimmed.slice(2).trim();
+
+    if (value.startsWith("pattern: ")) {
+      const rest = value.slice("pattern: ".length);
+      const match = rest.match(/^(.+?)\s+in\s+(.+)$/);
+      if (!match) continue;
+      const [, regexStr, glob] = match;
+      try {
+        const regex = new RegExp(regexStr);
+        criteria.push({ type: "pattern", regex, glob: glob.trim(), raw: value });
+      } catch {
+        // skip invalid regex
+      }
+    } else if (value.startsWith("command: ")) {
+      const command = value.slice("command: ".length).trim();
+      if (command) {
+        criteria.push({ type: "command", command, raw: value });
+      }
+    }
+  }
+  return criteria;
+}
+
+async function findFilesByGlob(projectRoot: string, glob: string): Promise<string[]> {
+  // Minimal glob support: ** for recursive, * for single-segment wildcard
+  const results: string[] = [];
+  const segments = glob.split("/").filter((s) => s !== "");
+  const hasRecursive = segments.includes("**");
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const rel = join(dir, entry.name).replace(projectRoot, "").replace(/^[/\\]+/, "");
+      if (entry.isDirectory()) {
+        if (hasRecursive && depth < 50) {
+          await walk(join(dir, entry.name), depth + 1);
+        }
+      } else if (entry.isFile()) {
+        if (matchesGlob(rel, segments, hasRecursive)) {
+          results.push(join(dir, entry.name));
+        }
+      }
+    }
+  }
+
+  const startDir = hasRecursive ? projectRoot : join(projectRoot, segments.slice(0, -1).join("/") || ".");
+  await walk(startDir, 0);
+  return results;
+}
+
+function matchesGlob(relPath: string, segments: string[], hasRecursive: boolean): boolean {
+  const pathParts = relPath.split(/[/\\]+/).filter((s) => s !== "");
+
+  if (hasRecursive) {
+    // ** can match any number of segments (including 0)
+    const nonRecursive = segments.filter((s) => s !== "**");
+    if (nonRecursive.length === 0) return true;
+    if (pathParts.length < nonRecursive.length) return false;
+
+    // Check suffix match
+    const suffix = nonRecursive.slice(-nonRecursive.length);
+    const pathSuffix = pathParts.slice(-suffix.length);
+    for (let i = 0; i < suffix.length; i++) {
+      if (!matchSegment(suffix[i], pathSuffix[i])) return false;
+    }
+    return true;
+  }
+
+  if (pathParts.length !== segments.length) return false;
+  for (let i = 0; i < segments.length; i++) {
+    if (!matchSegment(segments[i], pathParts[i])) return false;
+  }
+  return true;
+}
+
+function matchSegment(pattern: string, value: string): boolean {
+  if (pattern === "*") return true;
+  return pattern === value;
+}
+
+export async function checkNonFunctionalRequirements(
+  projectRoot: string,
+  briefPath: string,
+): Promise<Problem[]> {
+  const problems: Problem[] = [];
+  const absBrief = isAbsolute(briefPath) ? briefPath : join(projectRoot, briefPath);
+
+  let content: string;
+  try {
+    content = await readFile(absBrief, "utf-8");
+  } catch {
+    return problems;
+  }
+
+  const criteria = parseNfrSection(content);
+  if (criteria.length === 0) return problems;
+
+  for (const criterion of criteria) {
+    if (criterion.type === "pattern") {
+      const files = await findFilesByGlob(projectRoot, criterion.glob);
+      let matched = false;
+      let matchDetail = "";
+
+      for (const file of files) {
+        let fileContent: string;
+        try {
+          fileContent = await readFile(file, "utf-8");
+        } catch {
+          continue;
+        }
+
+        const lines = fileContent.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+          if (criterion.regex.test(lines[i])) {
+            matched = true;
+            matchDetail = `matched in ${file.replace(projectRoot + sep, "")}:${i + 1}`;
+            break;
+          }
+        }
+        if (matched) break;
+      }
+
+      if (matched) {
+        problems.push({
+          type: "nfr_pattern_violation",
+          file: absBrief,
+          severity: "blocking",
+          detail: `pattern '${criterion.raw}' violated — ${matchDetail}`,
+          suggestion: `fix the pattern violation or update the criterion in the brief`,
+        });
+      }
+    } else if (criterion.type === "command") {
+      const result = executeCheckCommand(projectRoot, criterion.command, { trusted: false });
+      if (result.status === "FAILED" || result.status === "ERROR" || result.status === "TIMEOUT" || result.status === "REJECTED") {
+        problems.push({
+          type: "nfr_command_failure",
+          file: absBrief,
+          severity: "warning",
+          detail: `command '${criterion.raw}' failed: ${truncateOutput(result.output)}`,
+          suggestion: `fix the failing command or update the criterion in the brief`,
+        });
+      }
+    }
+  }
+
+  return problems;
+}
+
 // ── run_mechanical_checks ────────────────────────────────────────────────────
 // Implements the mechanical pre-filter pipeline:
 // command discovery (AGENTS.md `## Review Checks` section, then toolchain
