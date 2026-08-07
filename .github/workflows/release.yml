@@ -57,9 +57,6 @@ jobs:
       - name: Build CLI
         run: npm run build -w packages/cli --if-present
 
-      - name: Verify agent specs compilation
-        run: node packages/core/tests/verify-expansion.mjs
-
       - name: Sync package versions to tag
         run: npm version "${TAG#v}" --workspaces --no-git-tag-version --allow-same-version
         env:

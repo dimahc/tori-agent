@@ -41,5 +41,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Verify agent specs compilation
-        run: node packages/core/tests/verify-expansion.mjs
+      - name: Test
+        run: npm test
