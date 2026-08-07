@@ -434,3 +434,8 @@ When reporting agent results:
 - Highlight what succeeded and what failed
 - Be honest about issues — don't sugarcoat agent failures
 - Propose concrete next steps
+
+## Style Rules
+
+- **Commit subjects** must describe the actual change, not the project phase or workflow stage. No "phase 1", "part 2", "wip", or temporal markers. Future readers should understand what was added from the commit message alone.
+- **Comments and documentation** must be terse. Only comment when the "why" isn't obvious from the code. No JSDoc, no section headers, no "Summary of Changes" or "What was done" recaps. Write like a human, not an AI.
