@@ -47,6 +47,8 @@ Non-obvious source paths in core:
 - **ESLint custom rule** (`eslint.config.js`): Node.js built-in imports must use the `node:` protocol — `import fs from "node:fs"`, not `"fs"`. Enforced as error.
 - **Agent specs use default-deny permissions.** Every `allow`/`deny`/`allow_paths`/`allow_commands` entry needs a rationale in the spec. Personas (Specialist) and modes (Scribe) merge their own permissions on top of the base agent.
 - **Git hooks:** `sh .git-hooks/install.sh` installs the `commit-msg` hook, which rejects empty commit messages and validates the conventional-commit format (`type(scope): subject`). Always use `git commit -m "message"`.
+- **Commit naming:** Subjects must describe the actual change, not the project phase or workflow stage. Future readers should understand what was added from the commit message alone. No "phase 1", "part 2", "wip", or temporal markers. If a commit spans multiple concerns, split it or pick the dominant one.
+- **Comments and documentation:** Keep them terse. Only comment when the "why" isn't obvious from the code. No JSDoc, no section headers, no "Summary of Changes" or "What was done" recaps. Write like a human, not an AI.
 
 ## References
 
