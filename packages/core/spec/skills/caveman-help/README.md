@@ -2,17 +2,17 @@
 
 Quick-reference card. One shot, no mode change.
 
-## What it does
+## Description
 
-Prints a cheat sheet of all caveman modes, sibling skills, deactivation triggers, and how to set the default mode via env var or config file. One-shot display — does not flip the active mode, write flag files, or persist anything. Use when you forget the slash commands.
+Prints a cheat sheet of all caveman modes, sibling skills, deactivation triggers, and how to set the default mode via env var or config file. One-shot display — does not flip the active mode, write flag files, or persist anything.
 
-## How to invoke
+## Usage
 
 ```
 /caveman-help
 ```
 
-Also triggers on "caveman help", "what caveman commands", "how do I use caveman".
+Also triggers on: "caveman help", "what caveman commands", "how do I use caveman".
 
 ## Example output
 

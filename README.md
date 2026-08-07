@@ -31,9 +31,7 @@ The core idea: orchestrate stages, not agents.
 ```mermaid
 stateDiagram-v2
     [*] --> NEW: Request received
-    NEW --> DONE: TRIVIAL — act directly (fast track)
     NEW --> EXECUTE: SIMPLE — explicit intent, one delegation
-    EXECUTE --> DONE: SIMPLE — delegation returned
     NEW --> REQUIREMENTS: COMPLEX — full workflow
     REQUIREMENTS --> PLAN: Intent unambiguous
     PLAN --> EXECUTE: Tasks defined
@@ -46,7 +44,7 @@ stateDiagram-v2
     DONE --> [*]
 ```
 
-Tori scales effort to complexity: trivial asks are executed directly and clear tasks get a single delegation (fast track); the full pipeline applies to complex missions. TRIVIAL/SIMPLE transitions are conceptual — no workflow is created at those levels. See `packages/core/spec/prompts/tori.md` (Effort Scaling).
+> **Note:** SIMPLE workflow transitions (direct `NEW → EXECUTE`) are conceptual only. No workflow artifact is created at that level. See [`packages/core/spec/prompts/tori.md`](../packages/core/spec/prompts/tori.md) (Effort Scaling).
 
 ### Guards
 
@@ -54,13 +52,14 @@ Tori scales effort to complexity: trivial asks are executed directly and clear t
 - Task budget: **250k tokens** or **20 tool calls**
 - Task timeout: **20 minutes**
 - Max delegation depth: **1** (Tori → Specialist)
-- Git lifecycle: tori owns it — an `<type>/<description>` branch per mission, conventional commits at stage boundaries, push stays manual
+- Git lifecycle: delegated to delivery-agent — an `<type>/<description>` branch per mission, conventional commits at stage boundaries, push stays manual
 
 ## Built-in agents
 
 - `Tori` — orchestrates workflows and manages stage transitions
 - `Specialist` — executes single tasks with guards (budget, time, depth)
 - `Scribe` — generates artifacts at each stage (specs, plans, summaries)
+- `Delivery Agent` — git delivery specialist; stages files, creates conventional commits, manages branches. Never pushes.
 
 `Specialist` is set up through personas for focused domains such as TypeScript, Terraform, Security, or Performance.
 
@@ -112,14 +111,14 @@ flowchart LR
 ### Components and responsibilities
 
 - `packages/core` — source of truth for shared logic, agent specs, prompts, and plugin assembly.
-- `packages/core/src/plugin/index.ts` — builds the plugin object via `buildPlugin()`.
-- `packages/core/src/codegen/loader.ts` — loads YAML agent specs from `packages/core/spec/agents/*.yaml` and prompt files from `packages/core/spec/prompts/**`.
-- `packages/core/src/tools/lifecycle.ts` — provides lifecycle functions for artifact management (specs, exec-plans, briefs).
-- `packages/core/src/tools/workflow.ts` — provides workflow state management (stage transitions, task/check recording).
-- `packages/core/src/plugin/tools.ts` — wraps lifecycle and workflow functions as runtime-callable tools.
-- `packages/core/src/plugin/agents.ts` — injects compiled agents into host config.
-- `packages/runtime-opencode/src/index.ts` and `packages/runtime-kilocode/src/index.ts` — thin wrappers that export `buildPlugin()` from core.
-- `packages/runtime-opencode/src/sdk-adapter.ts` and `packages/runtime-kilocode/src/sdk-adapter.ts` — normalize `serverUrl` into `{ baseUrl: new URL(serverUrl) }`.
+- [`packages/core/src/plugin/index.ts`](../packages/core/src/plugin/index.ts) — builds the plugin object via `buildPlugin()`.
+- [`packages/core/src/codegen/loader.ts`](../packages/core/src/codegen/loader.ts) — loads YAML agent specs from `packages/core/spec/agents/*.yaml` and prompt files from `packages/core/spec/prompts/**`.
+- [`packages/core/src/tools/lifecycle.ts`](../packages/core/src/tools/lifecycle.ts) — provides lifecycle functions for artifact management (specs, exec-plans, briefs).
+- [`packages/core/src/tools/workflow.ts`](../packages/core/src/tools/workflow.ts) — provides workflow state management (stage transitions, task/check recording).
+- [`packages/core/src/plugin/tools.ts`](../packages/core/src/plugin/tools.ts) — wraps lifecycle and workflow functions as runtime-callable tools.
+- [`packages/core/src/plugin/agents.ts`](../packages/core/src/plugin/agents.ts) — injects compiled agents into host config.
+- [`packages/runtime-opencode/src/index.ts`](../packages/runtime-opencode/src/index.ts) and [`packages/runtime-kilocode/src/index.ts`](../packages/runtime-kilocode/src/index.ts) — thin wrappers that export `buildPlugin()` from core.
+- [`packages/runtime-opencode/src/sdk-adapter.ts`](../packages/runtime-opencode/src/sdk-adapter.ts) and [`packages/runtime-kilocode/src/sdk-adapter.ts`](../packages/runtime-kilocode/src/sdk-adapter.ts) — normalize `serverUrl` into `{ baseUrl: new URL(serverUrl) }`.
 - `packages/cli` — currently a stub, not a production runtime path.
 - `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` — managed repo artifacts.
 

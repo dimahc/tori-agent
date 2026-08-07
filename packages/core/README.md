@@ -1,59 +1,67 @@
 # @tori-agent/core
 
-Shared core library for `tori-agent`. This package owns the deterministic workflow engine, agent spec loading, and artifact tooling.
+Shared core library for `tori-agent`. Owns the deterministic workflow engine, agent spec loading, and artifact tooling.
+
+> **Note:** `npm test` currently fails — no `.test.js` files exist yet. See [AGENTS.md](../AGENTS.md) for the verification flow (`build` → `lint` → `verify-expansion`).
 
 ## Entry point
 
-- `src/index.ts` — exports `buildPlugin()` and public types
+- [`src/index.ts`](../src/index.ts) — exports `buildPlugin()` and public types
 
-## What it provides
+## Plugin assembly
 
-### Plugin assembly
-
-- `buildPlugin()` — creates the plugin object consumed by OpenCode and Kilo Code runtimes
-- Agent spec loading from `spec/agents/*.yaml` and prompt compilation from `spec/prompts/**`
+- [`buildPlugin()`](../src/index.ts) — creates the plugin object consumed by OpenCode and Kilo Code runtimes. Call this from a runtime wrapper; pass the project root.
+- Agent spec loading from [`spec/agents/*.yaml`](../spec/agents) and prompt compilation from [`spec/prompts/**`](../spec/prompts)
 - Runtime tool wrapping (lifecycle + workflow tools)
 
-### Workflow state machine
+## Workflow state machine
 
-- `src/tools/workflow.ts` — workflow state management
-  - `createWorkflow` — create a new workflow artifact
-  - `getWorkflowState` — read current stage, iteration, tasks, checks
-  - `transitionStage` — move to next stage with validation
-  - `recordTaskResult` — log task completion/failure
-  - `recordCheckResult` — log verification check outcomes
+Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 
-### Lifecycle tools
+| Function | Purpose |
+|----------|---------|
+| `createWorkflow` | Create a new workflow artifact from a mission brief |
+| `getWorkflowState` | Read current stage, iteration, tasks, and checks |
+| `transitionStage` | Advance to the next stage with guard validation |
+| `recordTaskResult` | Log task completion or failure |
+| `recordCheckResult` | Log verification check outcomes |
 
-- `src/tools/lifecycle.ts` — artifact bookkeeping
-  - `projectState` — scan specs, exec-plans, briefs, workflows
-  - `checkArtifacts` — cross-artifact consistency scan
-  - `runMechanicalChecks` — lint + test pre-filter
-  - `markBlockDone`, `completePlan`, `registerSpec` — write operations (delegated to Scribe)
+## Lifecycle tools
 
-### Agent compilation
+Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
-- `src/codegen/loader.ts` — loads YAML specs, compiles prompts with persona modes
-- `src/codegen/types.ts` — shared types for compiled agents
+| Function | Purpose |
+|----------|---------|
+| `projectState` | Scan specs, exec-plans, briefs, and workflows |
+| `checkArtifacts` | Cross-artifact consistency scan |
+| `runMechanicalChecks` | Lint + test pre-filter (reads `## Review Checks` from AGENTS.md) |
+| `markBlockDone` | Mark an exec-plan block as completed |
+| `completePlan` | Set an exec-plan to completed (refuses if unchecked blocks remain) |
+| `registerSpec` | Create a new spec file with minimal frontmatter |
 
-### Artifact paths
+## Agent compilation
 
-Managed docs live under:
+- [`src/codegen/loader.ts`](../src/codegen/loader.ts) — loads YAML specs, compiles prompts with persona modes
+- [`src/codegen/types.ts`](../src/codegen/types.ts) — shared types for compiled agents
+
+## Artifact paths
+
+Managed docs are created automatically on `session.created`:
+
 - `docs/specs` — agent specifications
 - `docs/exec-plans` — execution plans
 - `docs/briefs` — project briefs
 - `docs/workflows` — workflow state files
 
-Directories are created automatically on `session.created`.
-
 ## Scripts
 
 - `npm run build` — compile TypeScript to `dist/`
-- `npm test` — run `node --test dist/tests/*.test.js`
+- `npm test` — run `node --test dist/tests/*.test.js` (currently fails; no test files yet)
 
 ## Notes
 
 - This package is the source of truth for shared behavior
-- Runtime packages (`runtime-opencode`, `runtime-kilocode`) are thin adapters
+- Runtime packages (`runtime-opencode`, `runtime-kilocode`) are thin adapters — do not add logic there
 - Do not edit generated `dist/` output
 - If you change shared behavior, update this package first, then validate runtime wrappers
+- For architecture context, see the [parent README](../README.md)

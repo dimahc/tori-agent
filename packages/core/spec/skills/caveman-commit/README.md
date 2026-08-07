@@ -2,21 +2,23 @@
 
 Terse Conventional Commits. Why over what.
 
-## What it does
+## Description
 
-Generates commit messages in Conventional Commits format. Subject ≤50 chars, hard cap 72. Imperative mood. Body only when the *why* is non-obvious or there are breaking changes. No AI attribution, no "this commit does X", no emoji unless the project uses them. Body always required for breaking changes, security fixes, data migrations, and reverts — future debuggers need the context.
+Generates commit messages in Conventional Commits format. Subject ≤50 chars, hard cap 72. Imperative mood. Body only when the *why* is non-obvious or there are breaking changes. No AI attribution, no "this commit does X", no emoji unless the project uses them.
+
+Body is always required for: breaking changes, security fixes, data migrations, and reverts — future debuggers need the context.
 
 Outputs only the message. Does not stage, commit, or amend.
 
-## How to invoke
+## Usage
 
 ```
 /caveman-commit
 ```
 
-Also triggers on phrases like "write a commit", "commit message", "generate commit".
+Also triggers on: "write a commit", "commit message", "generate commit".
 
-## Example output
+## Examples
 
 Diff: new endpoint for user profile.
 

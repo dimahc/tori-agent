@@ -1,20 +1,51 @@
 # @tori-agent/cli
 
-CLI package for `tori-agent`.
+CLI for `tori-agent`. Currently implements `generate`; `serve` and `doctor` are pending.
 
-## Entry point
+## Commands
 
-- `src/index.ts`
+### `generate` (implemented)
 
-## Current status
+Expands all agent specs + personas, prints a list of generated files. Outputs to `.opencode/agents/` or `.kilo/agents/` depending on the active runtime. Also syncs builtin skills to `.opencode/skills/` or `.kilo/skills/`.
 
-This package is a **stub**. The planned commands are:
+```bash
+node packages/cli/dist/cli.js generate
+```
 
-- `tori generate` — scaffold a new agent spec
-- `tori serve` — start a local agent server
-- `tori doctor` — validate project configuration
+#### Flags
 
-None of these are implemented yet. `main()` currently logs `tori-agent CLI — not yet implemented`.
+| Flag | Values | Default | Description |
+|------|--------|---------|-------------|
+| `--format` | `json` (default), `yaml`, `md` | `json` | Output format for agent files. Index is always `index.json`. Builtin skills sync in all formats. |
+
+```bash
+# JSON output (default)
+node packages/cli/dist/cli.js generate
+
+# YAML output
+node packages/cli/dist/cli.js generate --format yaml
+
+# Markdown output
+node packages/cli/dist/cli.js generate --format md
+```
+
+### `serve` (pending)
+
+Start a local agent server. Not yet implemented.
+
+### `doctor` (pending)
+
+Validate project configuration. Not yet implemented.
+
+## Quickstart
+
+```bash
+# Build the CLI
+npm run build -w packages/cli
+
+# Generate agent files for the current runtime
+node packages/cli/dist/cli.js generate --format yaml
+```
 
 ## Scripts
 
@@ -23,5 +54,6 @@ None of these are implemented yet. `main()` currently logs `tori-agent CLI — n
 ## Notes
 
 - `package.json` points `bin.tori` to `./dist/cli.js`
-- The source entry point is `src/index.ts`
-- This package is not part of the production runtime path
+- Source entry point: `src/index.ts`
+- Not part of the production runtime path
+- For architecture context, see the [parent README](../README.md)

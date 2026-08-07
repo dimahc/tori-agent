@@ -1,25 +1,33 @@
 # caveman
 
-Talk like smart caveman. Same brain, fewer tokens.
+Compress model responses to caveman-style prose. Same brain, fewer tokens.
 
-## What it does
+## Description
 
-Compress every model response to caveman-style prose. Drops articles, filler, pleasantries, and hedging. Keeps every technical detail, code block, error string, and symbol exact. Cuts 65% of output tokens (measured) with full accuracy preserved. Mode persists for the whole session until changed or stopped.
+Drops articles, filler, pleasantries, and hedging from every model response. Keeps every technical detail, code block, error string, and symbol exact. Measured savings: ~65% output token reduction with full accuracy preserved. Mode persists for the whole session until changed or stopped.
 
-Six intensity levels:
+### Intensity levels
 
-| Level | What change |
-|-------|-------------|
+| Level | Behavior |
+|-------|----------|
 | `lite` | Drop filler/hedging. Sentences stay full. Professional but tight. |
 | `full` | Default. Drop articles, fragments OK, short synonyms. |
 | `ultra` | Bare fragments. Abbreviations (DB, auth, fn). Arrows for causality. |
 | `wenyan-lite` | Classical Chinese register, light compression. |
-| `wenyan-full` | Maximum 文言文. 80-90% character reduction. |
+| `wenyan-full` | Maximum 文言文. 80–90% character reduction. |
 | `wenyan-ultra` | Extreme classical compression. |
 
-Auto-clarity rule: caveman drops to normal prose for security warnings, irreversible-action confirmations, multi-step sequences where fragment ambiguity risks misread, and when user repeats a question. Resumes after the clear part.
+### Auto-clarity rule
 
-## How to invoke
+Caveman drops to normal prose for:
+- Security warnings
+- Irreversible-action confirmations
+- Multi-step sequences where fragment ambiguity risks misread
+- When user repeats a question
+
+Resumes compressed mode after the clear part.
+
+## Usage
 
 ```
 /caveman              # full mode (default)
@@ -29,7 +37,7 @@ Auto-clarity rule: caveman drops to normal prose for security warnings, irrevers
 stop caveman          # back to normal prose
 ```
 
-## Example output
+## Examples
 
 Question: "Why does my React component re-render?"
 
