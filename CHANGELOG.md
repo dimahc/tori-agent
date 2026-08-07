@@ -10,6 +10,7 @@
 ### Fixed
 
 - Fix auto-assign & npm deps (#14)
+- Move specialist permissions to agent level and remove invalid git tool
 ## [v0.1.3] - 2026-08-06
 
 ### Fixed
