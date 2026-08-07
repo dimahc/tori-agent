@@ -1,4 +1,5 @@
 import { delegate } from './delegate.js';
+import { createWorkflow, getWorkflowState } from './workflow.js';
 import type { AgentPermissions } from '../codegen/types.js';
 import type { PersonaMatch } from '../types/persona.js';
 import type { TaskClassification } from '../types/classification.js';
@@ -59,14 +60,26 @@ export async function task(
     };
   }
 
+  let effectiveWorkflowId = workflowId;
+  const existingWorkflow = await getWorkflowState(projectRoot, paths, effectiveWorkflowId);
+  if (!existingWorkflow) {
+    if (!effectiveWorkflowId) {
+      effectiveWorkflowId = `simple-${taskId}`;
+    }
+    await createWorkflow(projectRoot, paths, effectiveWorkflowId, {
+      workflow: 'simple-delegation',
+      current_stage: 'execute',
+    });
+  }
+
   const result = await delegate(
     projectRoot,
     paths,
-    workflowId,
+    effectiveWorkflowId,
     taskId,
     resolvedAgent,
     scope,
-    parentCheckpointRef || `docs/checkpoints/${workflowId}/${taskId}.md`
+    parentCheckpointRef || `docs/checkpoints/${effectiveWorkflowId}/${taskId}.md`
   );
 
   setClassification(taskId, classification);

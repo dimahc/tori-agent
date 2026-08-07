@@ -604,7 +604,7 @@ export async function recordTaskResult(projectRoot: string, paths: WorkflowPaths
   }
 
   const insertPoint = checksSectionIndex === -1 ? content.length : checksSectionIndex;
-  const taskRegex = new RegExp(`^- \\[. \\] ${taskId} \\(\\S+\\) — status: \\S+`, 'm');
+  const taskRegex = new RegExp(`^- \[[ x]]\\] ${taskId} \\(\\S+\\) — status: \\S+`, 'm');
   const existingMatch = content.match(taskRegex);
 
   let updated: string;
@@ -648,7 +648,7 @@ export async function recordCheckResult(
     throw new Error(`Malformed workflow file: ${workflowId}`);
   }
 
-  const checkRegex = new RegExp(`^- \\[. \\] ${checkName} — \\S+`, 'm');
+  const checkRegex = new RegExp(`^- \[[ x]]\\] ${checkName} — \\S+`, 'm');
   const existingMatch = content.match(checkRegex);
 
   let currentIteration = 0;
