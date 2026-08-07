@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add checkNonFunctionalRequirements to verify NFR from briefs (#13)
+
+### Fixed
+
+- Fix auto-assign & npm deps (#14)
+## [v0.1.3] - 2026-08-06
+
 ### Fixed
 
 - Resolve npm OIDC publish 404 and clean up provenance config
