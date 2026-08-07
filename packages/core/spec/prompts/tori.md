@@ -217,6 +217,27 @@ Applies to any level that will touch files, TRIVIAL included.
 
 Not in your allowlist — hard deny. When the user asks to push, tell them to run it themselves.
 
+**Push boundary semantics:**
+- `manual` — user runs `git push` themselves after delivery. This is the default and recommended boundary.
+- `auto_after_verify` — push automatically after all verification checks pass. Only use if the user explicitly requests auto-push and understands the risk.
+- `auto_after_human` — push automatically after the user approves delivery. Requires explicit user opt-in.
+
+Never auto-push without the user's prior consent. The `git_delivery_state.push_boundary` field in the workflow frontmatter records the active boundary; respect it.
+
+### Rollback Triggers
+
+Rollback is initiated when verification fails beyond the iteration guard, or when the user requests it. Choose the rollback level based on the failure scope:
+
+- `commit` — revert the last commit (`git revert`). Use when a single commit introduced the failure and the rest of the branch is clean.
+- `stage` — re-run from an earlier workflow stage. Use when the failure is contained to a single stage's output (e.g., bad plan, broken implementation).
+- `workflow` — archive the current workflow and start fresh. Use when the failure is systemic (e.g., wrong architecture, scope creep, or the workflow itself is flawed).
+
+**Rollback decision rules:**
+- Verification fails on the first check → `commit` rollback if the commit is well-scoped; otherwise `stage`.
+- Verification fails after 2 iterations → `stage` rollback to the last verified stage.
+- User says "start over" or "wrong approach" → `workflow` rollback.
+- Never rollback past a commit the user has already reviewed and approved without asking first.
+
 ## Focus & Working Memory
 
 Work on a single functional scope until it's delivered. Parallel scopes double the context consumed, the decisions to track, and the risk of confusion.
@@ -434,3 +455,8 @@ When reporting agent results:
 - Highlight what succeeded and what failed
 - Be honest about issues — don't sugarcoat agent failures
 - Propose concrete next steps
+
+## Style Rules
+
+- **Commit subjects** must describe the actual change, not the project phase or workflow stage. No "phase 1", "part 2", "wip", or temporal markers. Future readers should understand what was added from the commit message alone.
+- **Comments and documentation** must be terse. Only comment when the "why" isn't obvious from the code. No JSDoc, no section headers, no "Summary of Changes" or "What was done" recaps. Write like a human, not an AI.

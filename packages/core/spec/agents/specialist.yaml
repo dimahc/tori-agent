@@ -10,18 +10,51 @@ personas:
   software-architect:
     description: "Software architecture, system design, technical strategy, scalability, and architectural decision-making"
     instructions: prompts/specialist/software-architect.md
+    expertise_tags:
+      - architecture
+      - system-design
+      - scalability
+      - technical-strategy
+    weight: 1.0
   software-engineer:
     description: "General software development — backend, APIs, databases, scripts, all languages"
     instructions: prompts/specialist/software-engineer.md
+    expertise_tags:
+      - backend
+      - api
+      - database
+      - scripts
+      - coding
+    parent_id: software-architect
+    weight: 1.0
   infrastructure:
     description: "Infrastructure as Code — Terraform, Kubernetes, cloud services"
     instructions: prompts/specialist/infrastructure.md
+    expertise_tags:
+      - terraform
+      - kubernetes
+      - cloud
+      - iac
+    weight: 1.0
   security:
     description: "Security audit and vulnerability review"
     instructions: prompts/specialist/security.md
+    expertise_tags:
+      - audit
+      - vulnerability
+      - security
+    parent_id: infrastructure
+    weight: 1.0
   researcher:
     description: "External research — documentation, RFCs, best practices, standards"
     instructions: prompts/specialist/researcher.md
+    expertise_tags:
+      - research
+      - documentation
+      - rfcs
+      - best-practices
+      - standards
+    weight: 1.0
 permissions:
   allow:
     - read
@@ -39,3 +72,4 @@ permissions:
     - external_directory
     - project_state
     - check_artifacts
+    - write_checkpoint # persist structured checkpoint files for resume/compaction/budget boundaries

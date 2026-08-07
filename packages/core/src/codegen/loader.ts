@@ -2,7 +2,11 @@ import yaml from "js-yaml";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentPermissions, AgentSpec, CompiledAgent } from "./types.js";
+import type { AgentPermissions, AgentSpec, CompiledAgent, PersonaEntry } from "./types.js";
+import { mergePermissionSets } from "../runtime/permissions.js";
+import { buildHierarchy, matchPersona } from "../runtime/persona-registry.js";
+import type { PersonaHierarchy, PersonaMatch } from "../types/persona.js";
+import type { WritePolicy } from "../types/write-path.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -137,6 +141,40 @@ export function mergePermissions(
   override: AgentPermissions,
 ): AgentPermissions {
   return { ...base, ...override };
+}
+
+export function mergeWritePolicyIntoPermissions(
+  base: Record<string, unknown>,
+  policy: WritePolicy,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+
+  const writeEntry: Record<string, string> = { "*": "deny" };
+  for (const path of policy.allow_paths) {
+    writeEntry[path] = "allow";
+  }
+  for (const path of policy.deny_paths) {
+    writeEntry[path] = "deny";
+  }
+
+  result["write"] = writeEntry;
+  result["edit"] = writeEntry;
+
+  return result;
+}
+
+export { mergePermissionSets } from "../runtime/permissions.js";
+export { buildHierarchy, matchPersona } from "../runtime/persona-registry.js";
+export type { PersonaHierarchy, PersonaMatch } from "../types/persona.js";
+
+export async function buildPersonaHierarchy(): Promise<PersonaHierarchy> {
+  const specs = await loadAgentSpecs();
+  return buildHierarchy(specs);
+}
+
+export async function matchPersonaForTask(taskDescription: string): Promise<PersonaMatch | null> {
+  const hierarchy = await buildPersonaHierarchy();
+  return matchPersona(taskDescription, hierarchy);
 }
 
 export async function expandPersonas(

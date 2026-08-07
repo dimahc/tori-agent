@@ -36,6 +36,7 @@ permissions:
     - todoread # resume task state after compaction
     - skill # load skill instructions on demand
     - task # primary tool: delegate work to specialized agents
+    - classify_task # pre-flight: score task complexity, risk, and routing before delegation
     - question # ask the user for clarification
     - compress # only protection against context compaction
     - project_state # read-only bookkeeping, called at complex-mission start
@@ -45,6 +46,11 @@ permissions:
     - transition_stage # orchestration: drive the workflow state machine
     - record_task_result # orchestration: record task outcomes in workflows
     - record_check_result # orchestration: record verification check outcomes
+    - write_checkpoint # orchestration: persist structured checkpoint files for resume/compaction/budget boundaries
+    - set_write_policy # orchestration: set write tier policy for workflow
+    - rollback # orchestration: systematic revert workflow with commit/stage/workflow levels
+    - report_progress # orchestration: emit progress events for streaming updates
+    - trigger_ci_check # orchestration: run CI command on verify stage entry
     - read # coordination reads (plans, configs) + TRIVIAL fast track; .env hard-denied at call time
     - edit # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
     - write # TRIVIAL fast track (prompt-enforced scoping); .env hard-denied at call time
@@ -53,6 +59,7 @@ permissions:
     # workflow. Compiled to { "*": "deny", <cmd>: "allow" } ; any non-matching command is denied
     # at call time (evaluatePermission fallback: deny). Matching: exact, or prefix when the
     # pattern ends with "*".
+    # Push boundary: `git push` is NEVER allowlisted — hard boundary, see Git Hygiene in prompt.
     bash:
       - npm * # build/lint/test/install — prefix match covers all npm subcommands (npm run build, npm test, ...)
       - node * # run scripts and one-off checks (node dist/x.js, node --eval ...)
