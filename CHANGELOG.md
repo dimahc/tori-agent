@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Add package metadata to all package.json files
+- Improve READMEs for technical clarity
+- Add unit tests for core package
+- Simplify tori agent and add delivery-agent
+- Update workflows to run npm test
+
+### Fixed
+
+- Correct checkbox regex and auto-create workflow in task
+## [v0.2.0] - 2026-08-07
+
 ### Added
 
 - Add checkNonFunctionalRequirements to verify NFR from briefs (#13)
