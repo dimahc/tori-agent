@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Assign PR to author
-        uses: peter-evans/auto-assign@v5
+        uses: actions/github-script@v7
         with:
-          assignees: ${{ github.actor }}
+          script: |
+            github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              assignees: [context.actor]
+            })
