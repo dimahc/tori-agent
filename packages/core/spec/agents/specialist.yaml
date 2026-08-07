@@ -67,8 +67,6 @@ permissions:
     - websearch
     - question
     - task
-    - git
-    - bash
     - external_directory
     - project_state
     - check_artifacts
