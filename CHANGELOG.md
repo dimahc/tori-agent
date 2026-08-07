@@ -5,6 +5,7 @@
 ### Added
 
 - Add checkNonFunctionalRequirements to verify NFR from briefs (#13)
+- Add persona registry, task classification, ADR logging, rollback, CI hooks, feedback events, write guards, and git delivery state (#15)
 
 ### Fixed
 
