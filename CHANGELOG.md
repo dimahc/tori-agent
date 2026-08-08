@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent silent failure in skills sync (#16)
+## [v0.3.0] - 2026-08-07
+
 ### Changed
 
 - Add package metadata to all package.json files
