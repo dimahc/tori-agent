@@ -29,8 +29,15 @@ export interface ToolRegistry {
   [name: string]: {
     description: string;
     args: Record<string, unknown>;
-    execute(args: Record<string, unknown>): Promise<string>;
+    execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string>;
   };
+}
+
+export interface ToolExecutionContext {
+  sessionID: string;
+  directory: string;
+  worktree: string;
+  agent: string;
 }
 
 export function buildReadOnlyTools(
@@ -140,9 +147,29 @@ function resolveArtifact(projectRoot: string, relPath: string): string {
   return normalizedPath;
 }
 
+function extractAssistantText(data?: {
+  info?: { text?: string };
+  parts?: Array<{ text?: string }>;
+}): string | undefined {
+  if (data?.info?.text) return data.info.text;
+  const texts = (data?.parts ?? []).map((p) => p.text).filter(Boolean);
+  return texts.length > 0 ? texts.join('\n') : undefined;
+}
+
+export interface SdkClient {
+  session?: {
+    create(body: { parentID?: string; title?: string }): Promise<{ data?: { id: string } }>;
+    prompt(body: {
+      path: { id: string };
+      body: { agent?: string; parts: Array<{ type: string; text?: string }> };
+    }): Promise<{ data?: { info?: { text?: string }; parts?: Array<{ text?: string }> } }>;
+  };
+}
+
 export function buildWriteTools(
   projectRoot: string,
   paths: ArtifactPaths,
+  client?: SdkClient,
 ): ToolRegistry {
   const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
 
@@ -380,7 +407,7 @@ export function buildWriteTools(
         }
       },
     },
-    task: {
+    delegate: {
       description:
         "Delegate a task to a specialist agent. Provide `persona` for expertise-based routing " +
         "(resolved via registry with confidence threshold 0.6) or `agent` for direct agent selection.",
@@ -392,21 +419,24 @@ export function buildWriteTools(
         agent: {},
         parent_checkpoint_ref: {},
       },
-      async execute({
-        workflow_id,
-        task_id,
-        scope,
-        persona,
-        agent,
-        parent_checkpoint_ref,
-      }: {
-        workflow_id?: string;
-        task_id?: string;
-        scope?: string;
-        persona?: string;
-        agent?: string;
-        parent_checkpoint_ref?: string;
-      }) {
+      async execute(
+        {
+          workflow_id,
+          task_id,
+          scope,
+          persona,
+          agent,
+          parent_checkpoint_ref,
+        }: {
+          workflow_id?: string;
+          task_id?: string;
+          scope?: string;
+          persona?: string;
+          agent?: string;
+          parent_checkpoint_ref?: string;
+        },
+        context?: ToolExecutionContext,
+      ) {
         try {
           const result = await task(
             projectRoot,
@@ -418,6 +448,40 @@ export function buildWriteTools(
             agent,
             parent_checkpoint_ref,
           );
+
+          // The plugin's tool must not shadow opencode's built-in `task`
+          // (which actually spawns subagent sessions), so this is named
+          // `delegate`. After recording the delegation we spawn the
+          // subagent session ourselves. Skip when classification required
+          // human or bookkeeping failed (empty checkpoint_ref).
+          if (
+            client?.session &&
+            result.checkpoint_ref &&
+            result.agent &&
+            context?.sessionID
+          ) {
+            const created = await client.session.create({
+              parentID: context.sessionID,
+              title: (result.scope ?? '').slice(0, 60),
+            });
+            const sessionId = created?.data?.id;
+            if (sessionId) {
+              const promptResult = await client.session.prompt({
+                path: { id: sessionId },
+                body: {
+                  agent: result.agent,
+                  parts: [{ type: 'text', text: result.scope ?? '' }],
+                },
+              });
+              const text = extractAssistantText(promptResult?.data);
+              return JSON.stringify({
+                ...result,
+                session_id: sessionId,
+                output: text ?? '',
+              });
+            }
+          }
+
           return JSON.stringify(result);
         } catch (err) {
           return JSON.stringify({

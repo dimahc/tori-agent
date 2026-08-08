@@ -67,14 +67,18 @@ export async function delegate(
   } else {
     tree = {
       root: taskId,
-      max_depth: 3,
+      max_depth: 5,
       current_depth: 0,
       nodes: {},
     };
   }
 
-  if (tree.current_depth + 1 > tree.max_depth) {
-    throw new DepthExceededError(tree.current_depth + 1, tree.max_depth, workflowId);
+  const parentNode = tree.nodes[taskId];
+  const parentDepth = parentNode ? parentNode.depth : 0;
+  const childDepth = parentDepth + 1;
+
+  if (childDepth > tree.max_depth) {
+    throw new DepthExceededError(childDepth, tree.max_depth, workflowId);
   }
 
   const sentenceCount = scope.split(".").filter((s) => s.trim().length > 0).length;
@@ -83,7 +87,6 @@ export async function delegate(
   }
 
   const childTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const childDepth = tree.current_depth + 1;
   const checkpointRef = `docs/checkpoints/${workflowId}/${childTaskId}.md`;
 
   const childNode: DelegationNode = {
@@ -96,7 +99,6 @@ export async function delegate(
     checkpoint_ref: checkpointRef,
   };
 
-  const parentNode = tree.nodes[taskId];
   if (parentNode) {
     parentNode.children.push(childTaskId);
   }
@@ -127,6 +129,7 @@ export async function delegate(
       task_id: taskId,
       agent: parentTask?.agent || agent,
       depth: childDepth - 1,
+      checkpoint_ref: parentCheckpointRef,
     },
     state: {
       todowrite: [],

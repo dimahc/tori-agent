@@ -14,7 +14,7 @@ permissions:
     - todowrite # task tracking across delegations and compaction events
     - todoread # resume task state after compaction
     - skill # load skill instructions on demand
-    - task # primary tool: delegate work to specialized agents
+    - delegate # primary tool: delegate work to specialized agents
     - classify_task # pre-flight: score task complexity, risk, and routing before delegation
     - question # ask the user for clarification
     - compress # only protection against context compaction

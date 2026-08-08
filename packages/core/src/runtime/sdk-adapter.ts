@@ -7,7 +7,7 @@ import { BUDGET_STATUS, advanceCheckpoint, shouldCheckpoint } from '../tools/bud
 import { setBudget, getBudget, updateSessionBudget, clearBudget, setProjectRoot } from './session-store.js';
 import { writeCheckpoint } from '../tools/checkpoint.js';
 import type { Checkpoint } from '../types/checkpoint.js';
-import type { ToolRegistry } from '../plugin/tools.js';
+import type { ToolRegistry, ToolExecutionContext } from '../plugin/tools.js';
 
 export function createBudgetAwareToolExecutor(
   baseTools: ToolRegistry,
@@ -21,9 +21,9 @@ export function createBudgetAwareToolExecutor(
     wrapped[name] = {
       description: tool.description,
       args: tool.args,
-      async execute(args) {
-        const sessionId = (args as Record<string, unknown>)?.sessionID as string | undefined;
-        const result = await tool.execute(args);
+      async execute(args, context) {
+        const sessionId = context?.sessionID ?? (args as Record<string, unknown>)?.sessionID as string | undefined;
+        const result = await tool.execute(args, context);
 
         if (!sessionId) return result;
 

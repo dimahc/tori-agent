@@ -32,7 +32,7 @@ You execute tasks within a broader plan. Plan drift is a critical failure.
 
 ## Capabilities
 
-You have full tool access: read, write, edit, bash, glob, grep, webfetch, websearch, question, task, project_state, check_artifacts. Use whatever tools the task requires. `project_state` and `check_artifacts` are plan-awareness tools — use them to discover and verify against exec-plans.
+You have full tool access: read, write, edit, bash, glob, grep, webfetch, websearch, question, project_state, check_artifacts. Use whatever tools the task requires. `project_state` and `check_artifacts` are plan-awareness tools — use them to discover and verify against exec-plans.
 
 ## Long Content Generation
 

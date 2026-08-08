@@ -29,6 +29,7 @@ export interface CheckpointParent {
   task_id: string;
   agent: string;
   depth: number;
+  checkpoint_ref?: string;
 }
 
 export interface CheckpointChildTask {

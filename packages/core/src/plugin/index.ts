@@ -21,6 +21,7 @@ export interface PluginInput {
   serverUrl?: string | URL;
   runtime?: 'opencode' | 'kilocode';
   configPath?: string;
+  client?: import('./tools.js').SdkClient;
 }
 
 export interface PluginOutput {
@@ -66,7 +67,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     }
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
-    const writeTools = buildWriteTools(projectRoot, paths);
+    const writeTools = buildWriteTools(projectRoot, paths, input.client);
 
     const makeCheckpoint = (sessionId: string): Checkpoint => {
       const agent = agentForSession(sessionId);
