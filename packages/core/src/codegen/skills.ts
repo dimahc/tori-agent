@@ -39,10 +39,17 @@ export async function listBuiltinSkills(): Promise<BuiltinSkill[]> {
   let entries: Dirent[];
   try {
     entries = await readdir(skillsDir, { withFileTypes: true });
-  } catch {
-    console.warn(
-      "[tori-core] spec/skills/ not found — no builtin skills available",
-    );
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      console.warn(
+        "[tori-core] spec/skills/ not found — no builtin skills available",
+      );
+    } else {
+      console.warn(
+        `[tori-core] Failed to read spec/skills/:`,
+        (err as Error).message ?? String(err),
+      );
+    }
     return [];
   }
 

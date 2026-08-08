@@ -58,7 +58,12 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const configDir = configPath ? dirname(configPath) : join(directory, runtime === 'opencode' ? '.opencode' : '.kilocode');
     initSessionStore(configDir);
 
-    await syncBuiltinSkills(join(configDir, 'skills'));
+    try {
+      const synced = await syncBuiltinSkills(join(configDir, 'skills'));
+      log('[PLUGIN] skills synced', { count: synced.length, skills: synced.map(s => s.name) });
+    } catch (err) {
+      log('[PLUGIN] skills sync failed', (err as Error).message ?? String(err));
+    }
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
     const writeTools = buildWriteTools(projectRoot, paths);
