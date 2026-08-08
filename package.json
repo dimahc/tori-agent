@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dimahc/tori-agent"
+    "url": "git+https://github.com/dimahc/tori-agent.git"
   },
   "homepage": "https://github.com/dimahc/tori-agent",
   "bugs": "https://github.com/dimahc/tori-agent/issues",
