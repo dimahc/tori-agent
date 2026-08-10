@@ -150,6 +150,7 @@ export function buildWriteTools(
   projectRoot: string,
   paths: ArtifactPaths,
   configDir: string,
+  runtime: 'opencode' | 'kilocode' = 'opencode',
 ): ToolRegistry {
   const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
 
@@ -252,16 +253,16 @@ export function buildWriteTools(
     },
     scratchpad: {
       description:
-        "Append an entry to the project scratchpad (" + join(configDir, 'scratchpad.md') + "). " +
+        "Append an entry to the project scratchpad (" + join('.opencode', 'scratchpad.md') + " or " + join('.kilocode', 'scratchpad.md') + "). " +
         "The scratchpad is Tori's central brain — use it to track active work, completed tasks, " +
         "decisions, and key artifacts. Call this after every spawn and every delivery.",
       args: { section: {}, content: {} },
       async execute({ section, content }: { section?: string; content?: string }) {
         try {
-          const scratchpadPath = join(configDir, 'scratchpad.md');
+          const scratchpadRelPath = join(runtime === 'opencode' ? '.opencode' : '.kilocode', 'scratchpad.md');
           const timestamp = new Date().toISOString().split('T')[0];
           const entry = `\n## ${section || 'Entry'} [${timestamp}]\n${content || ''}\n`;
-          return JSON.stringify(await writeAppend(projectRoot, scratchpadPath, entry));
+          return JSON.stringify(await writeAppend(projectRoot, scratchpadRelPath, entry));
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),

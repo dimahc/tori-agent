@@ -66,7 +66,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     }
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
-    const writeTools = buildWriteTools(projectRoot, paths, configDir);
+    const writeTools = buildWriteTools(projectRoot, paths, configDir, runtime);
 
     const makeCheckpoint = (sessionId: string): Checkpoint => {
       const agent = agentForSession(sessionId);
