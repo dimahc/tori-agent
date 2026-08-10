@@ -149,6 +149,7 @@ function resolveArtifact(projectRoot: string, relPath: string): string {
 export function buildWriteTools(
   projectRoot: string,
   paths: ArtifactPaths,
+  configDir: string,
 ): ToolRegistry {
   const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
 
@@ -242,6 +243,25 @@ export function buildWriteTools(
       async execute({ file, summary, remaining_work }: { file?: string; summary?: string; remaining_work?: string }) {
         try {
           return JSON.stringify(await saveCheckpoint(projectRoot, file!, summary!, remaining_work!));
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    scratchpad: {
+      description:
+        "Append an entry to the project scratchpad (" + join(configDir, 'scratchpad.md') + "). " +
+        "The scratchpad is Tori's central brain — use it to track active work, completed tasks, " +
+        "decisions, and key artifacts. Call this after every spawn and every delivery.",
+      args: { section: {}, content: {} },
+      async execute({ section, content }: { section?: string; content?: string }) {
+        try {
+          const scratchpadPath = join(configDir, 'scratchpad.md');
+          const timestamp = new Date().toISOString().split('T')[0];
+          const entry = `\n## ${section || 'Entry'} [${timestamp}]\n${content || ''}\n`;
+          return JSON.stringify(await writeAppend(projectRoot, scratchpadPath, entry));
         } catch (err) {
           return JSON.stringify({
             error: err instanceof Error ? err.message : String(err),
