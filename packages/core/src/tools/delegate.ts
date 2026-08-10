@@ -143,12 +143,14 @@ export async function delegate(
     child_tasks: [],
   };
 
-  await writeCheckpoint(projectRoot, checkpointRef, checkpoint);
-
   const relPath = join(paths.workflows, `${workflowId}.md`);
   const absPath = resolveArtifact(projectRoot, relPath);
 
-  const content = await readFile(absPath, "utf-8");
+  const [, content] = await Promise.all([
+    writeCheckpoint(projectRoot, checkpointRef, checkpoint),
+    readFile(absPath, "utf-8"),
+  ]);
+
   const updated = setFrontmatterField(content, "delegation_tree", serializeDelegationTree(tree));
   await writeFile(absPath, updated, "utf-8");
 

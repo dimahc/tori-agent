@@ -7,7 +7,7 @@
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join, dirname, isAbsolute, resolve, sep } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -759,7 +759,7 @@ export async function checkNonFunctionalRequirements(
         });
       }
     } else if (criterion.type === "command") {
-      const result = executeCheckCommand(projectRoot, criterion.command, { trusted: false });
+      const result = await executeCheckCommand(projectRoot, criterion.command, { trusted: false });
       if (result.status === "FAILED" || result.status === "ERROR" || result.status === "TIMEOUT" || result.status === "REJECTED") {
         problems.push({
           type: "nfr_command_failure",
@@ -1114,7 +1114,78 @@ function checkBinAllowed(bin: string): string | null {
   return null;
 }
 
-export function executeCheckCommand(projectRoot: string, command: string, options: ExecuteCheckOptions = {}): CheckResult {
+interface SpawnAsyncResult {
+  stdout: string;
+  stderr: string;
+  status: number | null;
+  error?: Error;
+}
+
+function spawnAsync(
+  command: string,
+  args: string[],
+  options: {
+    cwd: string;
+    shell: boolean;
+    timeout: number;
+    maxBuffer: number;
+  }
+): Promise<SpawnAsyncResult> {
+  return new Promise((resolve) => {
+    const child: ChildProcess = spawn(command, args, {
+      cwd: options.cwd,
+      shell: options.shell,
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+
+    const timeoutHandle = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve({ stdout, stderr, status: null, error: new Error("ETIMEDOUT") as any });
+    }, options.timeout);
+
+    child.stdout!.on("data", (data: Buffer) => {
+      const chunk = data.toString("utf-8");
+      stdout += chunk;
+      stdoutBytes += data.length;
+      if (stdoutBytes > options.maxBuffer) {
+        clearTimeout(timeoutHandle);
+        child.kill("SIGTERM");
+        resolve({ stdout, stderr, status: null, error: new Error("ENOBUFS") as any });
+      }
+    });
+
+    child.stderr!.on("data", (data: Buffer) => {
+      const chunk = data.toString("utf-8");
+      stderr += chunk;
+      stderrBytes += data.length;
+      if (stderrBytes > options.maxBuffer) {
+        clearTimeout(timeoutHandle);
+        child.kill("SIGTERM");
+        resolve({ stdout, stderr, status: null, error: new Error("ENOBUFS") as any });
+      }
+    });
+
+    child.on("close", (status) => {
+      clearTimeout(timeoutHandle);
+      resolve({ stdout, stderr, status });
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timeoutHandle);
+      resolve({ stdout, stderr, status: null, error });
+    });
+  });
+}
+
+export async function executeCheckCommand(
+  projectRoot: string,
+  command: string,
+  options: ExecuteCheckOptions = {}
+): Promise<CheckResult> {
   const timeout = options.timeoutMs ?? DEFAULT_CHECK_TIMEOUT_MS;
   const maxBuffer = options.maxBuffer ?? DEFAULT_CHECK_MAX_BUFFER;
 
@@ -1135,10 +1206,9 @@ export function executeCheckCommand(projectRoot: string, command: string, option
     }
   }
 
-  const result = spawnSync(bin, args, {
+  const result = await spawnAsync(bin, args, {
     cwd: projectRoot,
     shell: false,
-    encoding: "utf-8",
     timeout,
     maxBuffer,
   });
@@ -1201,10 +1271,12 @@ export async function runMechanicalChecks(projectRoot: string, options: RunCheck
 
   const trusted = source !== "agents_md";
 
-  const lintResults: LintResult[] = lintCommands.map(({ label, command }) => {
-    const { status, output } = executeCheckCommand(projectRoot, command, { ...options, trusted });
-    return { label, command, status, output };
-  });
+  const lintResults: LintResult[] = await Promise.all(
+    lintCommands.map(async ({ label, command }) => {
+      const { status, output } = await executeCheckCommand(projectRoot, command, { ...options, trusted });
+      return { label, command, status, output };
+    })
+  );
 
   const lintFailed = lintResults.some(
     (r) => r.status === "FAILED" || r.status === "TIMEOUT" || r.status === "REJECTED"
@@ -1222,12 +1294,14 @@ export async function runMechanicalChecks(projectRoot: string, options: RunCheck
     return { discovered: true, source, lint: lintResults, test: testResults, verdict: "FAIL", gate: "lint" };
   }
 
-  const testResults: TestResult[] = testCommands.map(({ label, command, onFailure = "block" }) => {
-    const { status, output } = executeCheckCommand(projectRoot, command, { ...options, trusted });
-    const blocking =
-      status === "REJECTED" || ((status === "FAILED" || status === "TIMEOUT") && onFailure !== "warn");
-    return { label, command, status, output, onFailure, blocking };
-  });
+  const testResults: TestResult[] = await Promise.all(
+    testCommands.map(async ({ label, command, onFailure = "block" }) => {
+      const { status, output } = await executeCheckCommand(projectRoot, command, { ...options, trusted });
+      const blocking =
+        status === "REJECTED" || ((status === "FAILED" || status === "TIMEOUT") && onFailure !== "warn");
+      return { label, command, status, output, onFailure, blocking };
+    })
+  );
 
   const testGateFailed = testResults.some((r) => r.blocking);
 
