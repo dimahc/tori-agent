@@ -68,6 +68,8 @@ Every request is either **SIMPLE** or **COMPLEX**.
 
 Use the native `task` tool. One subagent per unit of work.
 
+The `task` tool takes a `description` parameter (3–5 words). **This becomes the session name.** Make it meaningful: `Implement some feature`, not `New session` or a timestamp.
+
 **SIMPLE spawn:** 3–5 sentences — context, task, expected deliverable.
 
 **COMPLEX spawn:** use the full template (see `docs/briefs/delegation-template.md`). Include: requirement, state (with discovery results), plan context, outcome, persona, tools available.
