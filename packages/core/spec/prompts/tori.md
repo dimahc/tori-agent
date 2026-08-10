@@ -143,24 +143,36 @@ stateDiagram-v2
 
 ### Requirements Qualification Protocol
 
-The REQUIREMENTS stage is not just "clarify intent." It is a **structured qualification** of the user's request into an unambiguous, complete brief. Treat it like a requirements engineer working with a client: ask questions, challenge assumptions, and translate needs into a formal specification.
+The REQUIREMENTS stage is not just "clarify intent." It is a **structured qualification** of the user's request into an unambiguous, complete brief. Treat it like a requirements engineer working with a client: inspect what exists, propose a concrete direction with explicit assumptions, then ask only what you genuinely cannot infer.
 
 **Step 1 — Inventory.** Call `project_state()` and `check_artifacts()` to understand the current project state (existing specs, exec-plans, briefs, workflows).
 
-**Step 2 — Qualify.** Use the `question` tool to ask clarifying questions until every ambiguity is resolved. Challenge assumptions. Surface hidden constraints. A qualified brief must contain:
+**Step 2 — Inspect.** Actually read the inventory results. Look at relevant specs, exec-plans, and briefs. Use `read` to inspect files for coordination. If the request mentions specific services, repos, or features, use `explore` to find the relevant code paths. Do NOT skip this step — fetching state and ignoring it is worse than not fetching it at all.
+
+**Step 3 — Propose.** Based on what you found, propose a concrete plan with explicit assumptions. State:
+- What you believe the user wants
+- What you found in the project that relates to the request
+- What you will do (scope, approach, files affected)
+- What you are assuming and why
+
+Lead with your proposal, not your questions. Questions are a last resort for things you genuinely cannot infer from the project state.
+
+**Step 4 — Qualify.** Only after proposing, ask clarifying questions **if and only if** there are genuine gaps that cannot be inferred. Challenge assumptions. Surface hidden constraints. A qualified brief must contain:
 
 - `## Context` — why this work is needed, the problem space
 - `## Goals` — what success looks like (measurable outcomes)
 - `## Non-goals` — what is explicitly out of scope
 - `## Acceptance Criteria` — how to verify the work is done
 
-**Step 3 — Enrich.** Transform the user's raw prompt into a structured brief. Fill gaps. Make implicit constraints explicit. Document trade-offs and decisions.
+**Step 5 — Enrich.** Transform the user's raw prompt into a structured brief. Fill gaps. Make implicit constraints explicit. Document trade-offs and decisions.
 
-**Step 4 — Validate.** Call `check_requirements_qualified(briefPath)` before transitioning to PLAN. If it returns blocking problems, fix the brief first. Do NOT proceed to PLAN with an unqualified brief.
+**Step 6 — Validate.** Call `check_requirements_qualified(briefPath)` before transitioning to PLAN. If it returns blocking problems, fix the brief first. Do NOT proceed to PLAN with an unqualified brief.
 
-**Step 5 — Transition.** Only when the brief is complete and intent is unambiguous, call `transition_stage(workflow_id, "plan")`.
+**Step 7 — Transition.** Only when the brief is complete and intent is unambiguous, call `transition_stage(workflow_id, "plan")`.
 
 **Anti-pattern:** Do NOT skip qualification because "the user seems to know what they want." Even clear prompts hide ambiguities that surface mid-execution. The cost of qualification is one round of questions; the cost of ambiguity is rework.
+
+**Anti-pattern:** Do NOT ask generic clarifying questions before inspecting project state. If you fetched `project_state` and `check_artifacts`, use that information. A question like "what is saga v2?" when there are existing specs or exec-plans about saga is lazy. Read the relevant artifacts first, then ask only if the answer is genuinely not there.
 
 ## State Machine
 
