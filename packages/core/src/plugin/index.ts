@@ -4,9 +4,10 @@ import { appendFile } from 'node:fs/promises';
 import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, initSessionStore } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
 import { syncBuiltinSkills } from '../codegen/skills.js';
-import { buildReadOnlyTools, buildWriteTools, type ToolRegistry } from './tools.js';
+import { buildReadOnlyTools, buildWriteTools, registerToolInLazyRegistry, getDiscoveryTools } from './tools.js';
 import { createBudgetAwareToolExecutor } from '../runtime/sdk-adapter.js';
 import type { Checkpoint } from '../types/checkpoint.js';
+import type { LazyToolMeta } from './lazy-load.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG = '/tmp/tori-debug.log';
@@ -68,6 +69,20 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const readOnlyTools = buildReadOnlyTools(projectRoot, paths, join(configDir, 'skills'));
     const writeTools = buildWriteTools(projectRoot, paths, configDir, runtime);
 
+    // ── Lazy-load registry ──────────────────────────────────────────────────
+    const discoveryTools = getDiscoveryTools();
+    const allCoreTools = { ...readOnlyTools, ...writeTools, ...discoveryTools };
+
+    for (const [name, tool] of Object.entries(readOnlyTools)) {
+      registerToolInLazyRegistry(name, 'core', tool.description, tool.args, tool.execute as LazyToolMeta['execute']);
+    }
+    for (const [name, tool] of Object.entries(writeTools)) {
+      registerToolInLazyRegistry(name, 'core', tool.description, tool.args, tool.execute as LazyToolMeta['execute']);
+    }
+    for (const [name, tool] of Object.entries(discoveryTools)) {
+      registerToolInLazyRegistry(name, 'core', tool.description, tool.args, tool.execute as LazyToolMeta['execute']);
+    }
+
     const makeCheckpoint = (sessionId: string): Checkpoint => {
       const agent = agentForSession(sessionId);
       return {
@@ -94,6 +109,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const pluginToolNames = new Set<string>();
     for (const name of Object.keys(readOnlyTools)) pluginToolNames.add(name);
     for (const name of Object.keys(writeTools)) pluginToolNames.add(name);
+    for (const name of Object.keys(discoveryTools)) pluginToolNames.add(name);
     log('[PLUGIN] pluginToolNames', [...pluginToolNames]);
 
     return {
@@ -118,6 +134,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
       },
       tool: {
         ...budgetAwareTools,
+        ...discoveryTools,
       } as Record<string, unknown>,
       event: async ({ event }) => {
         log('[EVENT] event received', { type: event.type, full: JSON.stringify(event) });

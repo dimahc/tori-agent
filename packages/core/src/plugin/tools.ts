@@ -23,6 +23,7 @@ import {
 import type { PersonaMatch } from "../types/persona.js";
 import type { CIConfig } from "../types/ci.js";
 import { trigger_ci_check } from "../tools/ci-hook.js";
+import { registerLazyTool, buildDiscoveryTools, type LazyToolMeta } from "./lazy-load.js";
 
 export interface ToolRegistry {
   [name: string]: {
@@ -38,6 +39,30 @@ export interface ToolExecutionContext {
   worktree: string;
   agent: string;
 }
+
+// ── Lazy-load helpers ────────────────────────────────────────────────────────
+
+export function registerToolInLazyRegistry(
+  name: string,
+  category: LazyToolMeta['category'],
+  description: string,
+  args: Record<string, unknown>,
+  execute: LazyToolMeta['execute'],
+): void {
+  registerLazyTool({
+    name,
+    category,
+    description,
+    args,
+    execute: async (a, c) => execute(a, c) as Promise<string>,
+  });
+}
+
+export function getDiscoveryTools(): Record<string, LazyToolMeta> {
+  return buildDiscoveryTools();
+}
+
+// ── Tool builders ────────────────────────────────────────────────────────────
 
 export function buildReadOnlyTools(
   projectRoot: string,
@@ -131,6 +156,48 @@ export function buildReadOnlyTools(
             error: err instanceof Error ? err.message : String(err),
           });
         }
+      },
+    },
+    list_available_tools: {
+      description:
+        "List all available tools with their category. " +
+        "Use this to discover what tools exist before loading extensions. " +
+        "Returns tool name and category (core, erpnext, jira, confluence, etc.).",
+      args: {},
+      async execute() {
+        try {
+          const coreTools = [
+            'task', 'transition_stage', 'record_task_result', 'record_check_result',
+            'write_checkpoint', 'classify_task', 'question', 'compress',
+            'todowrite', 'skill', 'scratchpad', 'project_state', 'check_artifacts',
+            'workflow_state', 'run_mechanical_checks', 'mark_block_done',
+            'complete_plan', 'register_spec', 'write_append', 'save_checkpoint',
+            'trigger_ci_check', 'list_available_tools', 'load_tools',
+          ];
+          return JSON.stringify({
+            tools: coreTools.map(name => ({ name, category: 'core' })),
+            total: coreTools.length,
+            note: 'Extension tools (erpnext, jira, confluence, etc.) are loaded by the runtime. Use load_tools to request them.',
+          });
+        } catch (err) {
+          return JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+    load_tools: {
+      description:
+        "Load extension tools by category or name. " +
+        "Currently a no-op placeholder — extension tools (erpnext, jira, confluence) " +
+        "are loaded by the runtime. This tool exists for future lazy-loading support.",
+      args: { categories: {}, names: {} },
+      async execute({ categories, names }: { categories?: string; names?: string }) {
+        return JSON.stringify({
+          message: 'Extension tools are loaded by the runtime, not by this tool.',
+          loaded: [],
+          hint: 'To reduce context, configure your MCP server to load only the tools you need per project.',
+        });
       },
     },
   };
