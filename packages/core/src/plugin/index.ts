@@ -1,7 +1,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendFile } from 'node:fs/promises';
-import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, initSessionStore } from './agents.js';
+import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, checkDenyDoomLoop, resetDenyDoomLoop, initSessionStore } from './agents.js';
 import { loadAndCompileAllAgents } from '../codegen/loader.js';
 import { syncBuiltinSkills } from '../codegen/skills.js';
 import { buildReadOnlyTools, buildWriteTools, registerToolInLazyRegistry, getDiscoveryTools } from './tools.js';
@@ -164,6 +164,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         if (checkDoomLoop(input.sessionID, input.type, input.pattern)) {
           log('[PERMISSION.ASK] doom loop detected — escalating to ask');
           resetDoomLoop(input.sessionID, input.type);
+          resetDenyDoomLoop(input.sessionID, input.type);
           output.status = 'ask';
           return;
         }
@@ -174,9 +175,17 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         }
         const result = evaluatePermission(agent.permission, input.type, input.pattern);
         log('[PERMISSION.ASK] evaluated', { agentId, tool: input.type, result, agentPermKeys: Object.keys(agent.permission) });
+        if (result === 'deny' && checkDenyDoomLoop(input.sessionID, input.type)) {
+          log('[PERMISSION.ASK] deny doom loop detected — escalating to ask');
+          resetDenyDoomLoop(input.sessionID, input.type);
+          resetDoomLoop(input.sessionID, input.type);
+          output.status = 'ask';
+          return;
+        }
         output.status = result;
         if (result === 'allow') {
           resetDoomLoop(input.sessionID, input.type);
+          resetDenyDoomLoop(input.sessionID, input.type);
         }
       },
     };

@@ -5,8 +5,13 @@ export { initSessionStore } from '../runtime/session-store.js';
 
 export type { CompiledAgent };
 
-const doomLoopCounters = new Map<string, { tool: string; args: string; count: number }>();
+const doomLoopCounters = new Map<string, { tool: string; args: string; count: number; ts: number }>();
+const denyDoomCounters = new Map<string, { tool: string; count: number; ts: number }>();
 const MAX_DOOM_ENTRIES = 100;
+const DOOM_WINDOW_MS = 60_000;
+const DOOM_SAME_TOOL_THRESHOLD = 5;
+const DENY_DOOM_WINDOW_MS = 60_000;
+const DENY_DOOM_THRESHOLD = 3;
 
 export function checkDoomLoop(sessionID: string, tool: string, pattern?: string | string[]): boolean {
     if (doomLoopCounters.size >= MAX_DOOM_ENTRIES) {
@@ -14,18 +19,83 @@ export function checkDoomLoop(sessionID: string, tool: string, pattern?: string 
     }
     const key = `${sessionID}:${tool}`;
     const args = JSON.stringify(pattern ?? []);
+    const now = Date.now();
     const current = doomLoopCounters.get(key);
     if (current && current.args === args) {
         current.count++;
         if (current.count >= 3) return true;
     } else {
-        doomLoopCounters.set(key, { tool, args, count: 1 });
+        doomLoopCounters.set(key, { tool, args, count: 1, ts: now });
     }
     return false;
 }
 
+export function checkToolDoomLoop(sessionID: string, tool: string): boolean {
+    pruneDoomLoop();
+    if (doomLoopCounters.size >= MAX_DOOM_ENTRIES) {
+        doomLoopCounters.clear();
+    }
+    const now = Date.now();
+    const cutoff = now - DOOM_WINDOW_MS;
+    const key = `${sessionID}:${tool}`;
+    const existing = doomLoopCounters.get(key);
+    let count: number;
+    if (existing && existing.ts >= cutoff) {
+        existing.ts = now;
+        existing.count++;
+        count = existing.count;
+    } else {
+        doomLoopCounters.set(key, { tool, args: '', count: 1, ts: now });
+        count = 1;
+    }
+    return count >= DOOM_SAME_TOOL_THRESHOLD;
+}
+
 export function resetDoomLoop(sessionID: string, tool: string): void {
     doomLoopCounters.delete(`${sessionID}:${tool}`);
+}
+
+export function pruneDoomLoop(): void {
+    const cutoff = Date.now() - DOOM_WINDOW_MS;
+    for (const [key, entry] of doomLoopCounters.entries()) {
+        if (entry.ts < cutoff) {
+            doomLoopCounters.delete(key);
+        }
+    }
+}
+
+export function pruneDenyDoomLoop(): void {
+    const cutoff = Date.now() - DENY_DOOM_WINDOW_MS;
+    for (const [key, entry] of denyDoomCounters.entries()) {
+        if (entry.ts < cutoff) {
+            denyDoomCounters.delete(key);
+        }
+    }
+}
+
+export function checkDenyDoomLoop(sessionID: string, tool: string): boolean {
+    pruneDenyDoomLoop();
+    if (denyDoomCounters.size >= MAX_DOOM_ENTRIES) {
+        denyDoomCounters.clear();
+    }
+    const now = Date.now();
+    const cutoff = now - DENY_DOOM_WINDOW_MS;
+    const key = `${sessionID}:${tool}`;
+    const existing = denyDoomCounters.get(key);
+    let count: number;
+    if (existing && existing.ts >= cutoff) {
+        existing.ts = now;
+        existing.count++;
+        count = existing.count;
+    } else {
+        denyDoomCounters.set(key, { tool, count: 1, ts: now });
+        count = 1;
+    }
+    return count >= DENY_DOOM_THRESHOLD;
+}
+
+export function resetDenyDoomLoop(sessionID: string, tool: string): void {
+    denyDoomCounters.delete(`${sessionID}:${tool}`);
 }
 
 export function trackSessionAgent(sessionID: string, agent?: string): void {

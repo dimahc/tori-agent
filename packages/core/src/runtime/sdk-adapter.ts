@@ -2,6 +2,7 @@ export function createConversationClient(serverUrl: string | URL): { baseUrl: UR
   return { baseUrl: new URL(serverUrl) };
 }
 
+import { checkToolDoomLoop } from '../plugin/agents.js';
 import type { TaskBudget } from '../types/budget.js';
 import { BUDGET_STATUS, advanceCheckpoint, shouldCheckpoint } from '../tools/budget.js';
 import { setBudget, getBudget, updateSessionBudget, clearBudget, setProjectRoot } from './session-store.js';
@@ -23,6 +24,12 @@ export function createBudgetAwareToolExecutor(
       args: tool.args,
       async execute(args, context) {
         const sessionId = context?.sessionID ?? (args as Record<string, unknown>)?.sessionID as string | undefined;
+        if (sessionId && checkToolDoomLoop(sessionId, name)) {
+          return JSON.stringify({
+            error: 'Doom loop detected: too many calls to the same tool. Stop and delegate or report blocker.',
+            tool: name,
+          });
+        }
         const result = await tool.execute(args, context);
 
         if (!sessionId) return result;
