@@ -3,6 +3,7 @@ import { cp, mkdir, readdir, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { computeSkillContentHash, verifySkillSignature } from "./signing.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -10,6 +11,8 @@ export interface BuiltinSkill {
   name: string;
   description: string;
   path: string;
+  content_hash?: string;
+  signature?: string;
 }
 
 export interface SyncedSkill {
@@ -23,12 +26,12 @@ function resolveSkillsDir(): string {
 
 function parseFrontmatter(
   content: string,
-): { name?: unknown; description?: unknown } | null {
+): { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown } | null {
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
   if (!match) return null;
   const parsed = yaml.load(match[1]);
   if (parsed && typeof parsed === "object") {
-    return parsed as { name?: unknown; description?: unknown };
+    return parsed as { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown };
   }
   return null;
 }
@@ -63,6 +66,35 @@ export async function listBuiltinSkills(): Promise<BuiltinSkill[]> {
       const content = await readFile(join(skillPath, "SKILL.md"), "utf-8");
       const frontmatter = parseFrontmatter(content);
       if (frontmatter && typeof frontmatter.name === "string") {
+        const expectedHash = typeof frontmatter.content_hash === "string" ? frontmatter.content_hash : undefined;
+        if (expectedHash) {
+          const actualHash = await computeSkillContentHash(skillPath);
+          if (actualHash !== expectedHash) {
+            console.warn(
+              `[tori-core] Skill ${entry.name} content_hash mismatch: expected ${expectedHash}, actual ${actualHash}`,
+            );
+            continue;
+          }
+        }
+
+        const signature = typeof frontmatter.signature === "string" ? frontmatter.signature : undefined;
+        if (signature) {
+          const publicKeyHex = process.env.TORI_SKILL_PUBLIC_KEY_HEX;
+          if (!publicKeyHex) {
+            console.warn(
+              `[tori-core] Skill ${entry.name} has a signature but TORI_SKILL_PUBLIC_KEY_HEX is not set — skipping verification`,
+            );
+          } else {
+            const valid = await verifySkillSignature(skillPath, signature, publicKeyHex);
+            if (!valid) {
+              console.warn(
+                `[tori-core] Skill ${entry.name} signature verification failed`,
+              );
+              continue;
+            }
+          }
+        }
+
         skills.push({
           name: frontmatter.name,
           description:
@@ -70,6 +102,8 @@ export async function listBuiltinSkills(): Promise<BuiltinSkill[]> {
               ? frontmatter.description
               : "",
           path: skillPath,
+          content_hash: expectedHash,
+          signature,
         });
       }
     } catch (err) {
