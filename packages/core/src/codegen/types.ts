@@ -22,6 +22,24 @@ export interface AgentSpec {
   modes?: Record<string, PersonaEntry>;
   content_hash?: string;
   signature?: string;
+  version?: string;
+  platforms?: string[];
+  author?: {
+    name?: string;
+    identity?: string;
+    signing_key?: string;
+  };
+  risk_tier?: 'L0' | 'L1' | 'L2' | 'L3';
+  scan_status?: {
+    scanner?: string;
+    last_scanned?: string;
+    result?: string;
+  };
+  changelog?: Array<{
+    version?: string;
+    date?: string;
+    notes?: string;
+  }>;
 }
 
 export interface AgentPermissions {
@@ -29,6 +47,11 @@ export interface AgentPermissions {
   deny?: string[];
   allow_paths?: Record<string, string[]>;
   allow_commands?: Record<string, string[]>;
+  deny_write?: string[];
+  network?: {
+    allow?: string[];
+    deny?: string[];
+  };
 }
 
 export interface CompiledAgent {
