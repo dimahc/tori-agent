@@ -15,6 +15,7 @@ export interface AgentSpec {
   temperature: number;
   description: string;
   prompt: string;
+  references?: string[];
   human_tone: boolean;
   permissions: AgentPermissions;
   personas?: Record<string, PersonaEntry>;

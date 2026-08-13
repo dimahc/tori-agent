@@ -71,6 +71,23 @@ export async function loadHumanTone(): Promise<string> {
   }
 }
 
+async function loadReferences(
+  references?: string[],
+): Promise<string> {
+  if (!references || references.length === 0) return "";
+
+  const fragments: string[] = [];
+  for (const ref of references) {
+    const content = await loadPrompt(ref);
+    if (content) {
+      fragments.push(content);
+    } else {
+      console.warn(`[tori-core] Reference not found: ${ref}`);
+    }
+  }
+  return fragments.join("\n\n");
+}
+
 export async function compileAgent(
   spec: AgentSpec,
 ): Promise<CompiledAgent | null> {
@@ -82,6 +99,8 @@ export async function compileAgent(
     return null;
   }
 
+  const references = await loadReferences(spec.references);
+
   const permission = buildPermissions(spec.permissions);
 
   return {
@@ -90,7 +109,9 @@ export async function compileAgent(
     temperature: spec.temperature,
     mode: spec.mode,
     color: spec.color ?? "info",
-    prompt: promptContent,
+    prompt: references
+      ? `${references}\n\n${promptContent}`
+      : promptContent,
     permission,
     humanTone: spec.human_tone,
   };
@@ -195,6 +216,9 @@ export async function expandPersonas(
     return [];
   }
 
+  const references = await loadReferences(spec.references);
+  const referencesText = references ? `${references}\n\n` : "";
+
   const results: CompiledAgent[] = [];
 
   for (const [key, entry] of Object.entries(entries)) {
@@ -216,7 +240,7 @@ export async function expandPersonas(
       temperature: spec.temperature,
       mode: spec.mode,
       color: spec.color ?? "info",
-      prompt: `${basePrompt}\n\n${instructions}`,
+      prompt: `${referencesText}${basePrompt}\n\n${instructions}`,
       permission: buildPermissions(mergedPerms),
       humanTone: spec.human_tone,
     });
