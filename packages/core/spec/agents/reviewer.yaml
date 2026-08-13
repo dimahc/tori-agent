@@ -1,0 +1,57 @@
+id: reviewer
+name: Reviewer
+mode: subagent
+color: warning
+temperature: 0.3
+human_tone: false
+description: "Multi-lens analysis specialist. Evaluates artifacts through different critical lenses: quality review, assumption challenging, and enhancement identification."
+prompt: prompts/reviewer.md
+references:
+  - prompts/references/communication.md
+permissions:
+  allow:
+    - read
+    - bash
+    - glob
+    - grep
+    - question
+    - project_state
+    - check_artifacts
+  allow_commands:
+    bash:
+      - git status
+      - git status *
+      - git diff
+      - git diff *
+      - git log
+      - git log *
+      - git branch
+      - git branch *
+      - npm *
+      - node *
+      - ls
+      - ls *
+      - find *
+      - grep *
+      - sort *
+      - pwd
+  deny:
+    - write
+    - edit
+    - task
+    - webfetch
+    - websearch
+    - external_directory
+    - mark_block_done
+    - complete_plan
+    - register_spec
+modes:
+  quality:
+    description: "Technical quality reviewer. Evaluates code, designs, and artifacts for correctness, logic, error handling, API design, and maintainability."
+    instructions: prompts/reviewer/quality.md
+  challenge:
+    description: "Critical thinking specialist. Challenges proposals, assumptions, and designs to surface risks, edge cases, hidden costs, and alternative interpretations."
+    instructions: prompts/reviewer/challenge.md
+  enhance:
+    description: "Improvement specialist. Identifies enhancement opportunities in code, designs, and processes without changing requirements."
+    instructions: prompts/reviewer/enhance.md
