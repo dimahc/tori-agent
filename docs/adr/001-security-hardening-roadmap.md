@@ -58,6 +58,14 @@ We will implement a phased security hardening roadmap aligned with AST10, priori
 ### Phase 4: Long-term (P3) — Ecosystem Compatibility
 
 6. **Implement Universal Skill Format v1.0**: Support the cross-platform YAML standard as a superset of current formats, with `risk_tier`, `permissions.deny_write`, `network.allow` domain allowlists, and `scan_status`.
+   - Status: **Completed** (2026-08-13)
+   - Implementation:
+     - `packages/core/src/codegen/types.ts` — added `version`, `platforms`, `author`, `risk_tier`, `scan_status`, `changelog` to `AgentSpec`; added `deny_write` and `network` to `AgentPermissions`
+     - `packages/core/src/codegen/loader.ts` — `buildPermissions()` now compiles `deny_write` and `network.allow/deny` into permission entries; `validateAgentSpec()` validates Universal Skill Format fields and emits least-privilege warnings
+     - `packages/core/src/codegen/skills.ts` — parses `content_hash`, `signature`, and `permissions` from skill frontmatter; validates permissions; emits install receipts
+     - `packages/core/src/codegen/signing.ts` — `computeContentHash`, `computeSkillContentHash`, `verifySkillSignature`, `verifySpecSignature`
+     - `packages/core/src/codegen/skill-validation.ts` — `emitSkillInstallReceipt()` for privacy-safe install plans; `validateSkillPermissions()` for least-privilege warnings
+     - `packages/core/src/codegen/index.ts` — exports new modules
    - Effort: Medium
    - Risk mitigated: AST10 (Cross-Platform Reuse), AST03 (Over-Privileged Skills)
 
@@ -70,6 +78,7 @@ We will implement a phased security hardening roadmap aligned with AST10, priori
 - Reduces blast radius of compromised skills through isolation (Phase 2)
 - Enables detection of malicious skills beyond pattern matching (Phase 3)
 - Provides audit trail and governance for compliance (Phase 3)
+- Adds Universal Skill Format v1.0 metadata, schema validation, least-privilege permission extensions, and install receipts (Phase 6)
 - Aligns with OWASP AST10, NIST AI RMF, and EU AI Act requirements
 
 ### Negative
