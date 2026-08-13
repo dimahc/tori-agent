@@ -20,6 +20,8 @@ export interface AgentSpec {
   permissions: AgentPermissions;
   personas?: Record<string, PersonaEntry>;
   modes?: Record<string, PersonaEntry>;
+  content_hash?: string;
+  signature?: string;
 }
 
 export interface AgentPermissions {
