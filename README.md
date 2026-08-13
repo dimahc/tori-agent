@@ -80,7 +80,7 @@ core specs/prompts → tori orchestrator → Specialist personas → OpenCode | 
 - `packages/runtime-opencode` — OpenCode runtime wrapper
 - `packages/runtime-kilocode` — Kilo Code runtime wrapper
 - `packages/cli` — CLI package (`generate` command implemented, `serve`/`doctor` pending)
-- `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` — repo artifacts
+- `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — repo artifacts
 
 ## Architecture
 
@@ -120,7 +120,7 @@ flowchart LR
 - [`packages/runtime-opencode/src/index.ts`](../packages/runtime-opencode/src/index.ts) and [`packages/runtime-kilocode/src/index.ts`](../packages/runtime-kilocode/src/index.ts) — thin wrappers that export `buildPlugin()` from core.
 - [`packages/runtime-opencode/src/sdk-adapter.ts`](../packages/runtime-opencode/src/sdk-adapter.ts) and [`packages/runtime-kilocode/src/sdk-adapter.ts`](../packages/runtime-kilocode/src/sdk-adapter.ts) — normalize `serverUrl` into `{ baseUrl: new URL(serverUrl) }`.
 - `packages/cli` — currently a stub, not a production runtime path.
-- `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` — managed repo artifacts.
+- `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — managed repo artifacts.
 
 ### Startup and runtime flow
 
@@ -137,7 +137,7 @@ flowchart LR
 - Runtime packages should remain thin adapters.
 - `packages/cli` is not a production entrypoint.
 - Do not edit generated `dist/` output.
-- Managed docs artifacts live under `docs/specs`, `docs/exec-plans`, `docs/briefs`, and `docs/workflows`.
+- Managed repo artifacts live under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, and `.opencode/workflows`.
 
 ## Project structure
 
@@ -205,12 +205,12 @@ npm run lint
 1. **Shared behavior** — always start in `packages/core`
 2. **Runtime adapters** — update after core changes are validated
 3. **Agent specs and prompts** — live in `packages/core/spec/agents/*.yaml` and `packages/core/spec/prompts/**`
-4. **Repo artifacts** — managed under `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows`
+4. **Repo artifacts** — managed under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows`
 
 ### What not to touch
 
 - `dist/` — generated build output, never edit directly
-- Generated artifacts in `docs/` that are managed by workflow tools
+- Generated artifacts in `.opencode/` that are managed by workflow tools
 
 ### Permissions model
 

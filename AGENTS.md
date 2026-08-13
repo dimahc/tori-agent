@@ -35,10 +35,12 @@ npm workspaces monorepo. `packages/core` is the source of truth for shared logic
 Non-obvious source paths in core:
 - `spec/agents/*.yaml` — agent definitions (permissions, personas, modes); loaded by `src/codegen/loader.ts`
 - `spec/prompts/**` — system prompts loaded at runtime and appended to agent specs
-- `src/tools/lifecycle.ts` — exec-plan/spec/brief bookkeeping; also contains `runMechanicalChecks` which reads the `## Review Checks` section above
+- `src/tools/lifecycle.ts` — exec-plan/spec/brief bookkeeping; also contains `runMechanicalChecks` which reads the `## Review Checks` section above. Artifact paths: `.opencode/specs/`, `.opencode/plans/`, `.opencode/briefs/`, `.opencode/workflows/`.
 - `src/tools/workflow.ts` — workflow state machine (stage transitions, task/check recording)
 
-`docs/specs/`, `docs/exec-plans/`, `docs/briefs/`, `docs/workflows/` are managed artifacts created on demand by plugin tools — don't hand-edit them.
+`.opencode/specs/`, `.opencode/plans/`, `.opencode/briefs/`, `.opencode/workflows/` are managed artifacts created on demand by plugin tools — don't hand-edit them.
+
+`docs/adr/` is for Architecture Decision Records (ADRs) — human-important decisions that belong in versioned documentation. All other managed artifacts live in `.opencode/`.
 
 ## Conventions
 

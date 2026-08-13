@@ -96,12 +96,12 @@ npm run lint
 1. **Shared behavior** — always start in `packages/core`
 2. **Runtime adapters** — update after core changes are validated
 3. **Agent specs and prompts** — live in `packages/core/spec/agents/*.yaml` and `packages/core/spec/prompts/**`
-4. **Repo artifacts** — managed under `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows`
+4. **Repo artifacts** — managed under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows`
 
 ### What not to touch
 
 - `dist/` — generated build output, never edit directly
-- Generated artifacts in `docs/` that are managed by workflow tools
+- Generated artifacts in `.opencode/` that are managed by workflow tools
 
 ### Permissions model
 
