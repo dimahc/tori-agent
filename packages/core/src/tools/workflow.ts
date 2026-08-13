@@ -513,6 +513,13 @@ export async function transitionStage(
     }
   }
 
+  if (currentStage === 'verify' && toStage === 'execute') {
+    const iteration = Number(fm.iteration ?? 0);
+    if (iteration >= 2) {
+      toStage = 'needs_human';
+    }
+  }
+
   if (!allowed.includes(toStage)) {
     throw new Error(`Invalid transition: ${currentStage} → ${toStage}. Allowed: ${allowed.join(', ') || 'none (terminal state)'}`);
   }
