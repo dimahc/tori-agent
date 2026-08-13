@@ -6,6 +6,13 @@ temperature: 0.3
 human_tone: true
 description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Pure orchestrator — does not perform substantive work directly."
 prompt: prompts/tori.md
+references:
+  - prompts/references/safety-boundaries.md
+  - prompts/references/git-hygiene.md
+  - prompts/references/performance-speed.md
+  - prompts/references/tool-denial-delegation.md
+  - prompts/references/communication.md
+  - prompts/references/context-management.md
 permissions:
   # Tori is a pure orchestrator with read-only direct access.
   # All mutations are delegated. Bash allowlist is for coordination only.
@@ -51,6 +58,9 @@ permissions:
       - ls # directory listing (bare command)
       - ls * # directory listing with flags/paths (ls -la, ls dist/, ...)
       - pwd # print working directory (exact — no useful flags)
+      - find * # file discovery (find . -name '*.ts', ...)
+      - grep * # content search (grep -r 'pattern', ...)
+      - sort * # output sorting (sort file.txt, sort -u, ...)
   deny:
     - mark_block_done # lifecycle writes go through scribe delegation, never direct
     - complete_plan # lifecycle writes go through scribe delegation, never direct

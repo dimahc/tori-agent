@@ -55,6 +55,10 @@ personas:
       - best-practices
       - standards
     weight: 1.0
+    permissions:
+      allow:
+        - webfetch
+        - websearch
 permissions:
   allow:
     - read
@@ -63,10 +67,5 @@ permissions:
     - bash
     - glob
     - grep
-    - webfetch
-    - websearch
-    - question
-    - external_directory
-    - project_state
     - check_artifacts
     - write_checkpoint
