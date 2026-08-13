@@ -32,6 +32,12 @@ We will implement a phased security hardening roadmap aligned with AST10, priori
 ### Phase 2: Short-term (P1) — Trust & Integrity
 
 2. **Add skill signing and content hashing**: Implement ed25519 signing for skills and agent specs, with `content_hash` in manifests. Enable Merkle-root registry verification.
+   - Status: **Completed** (2026-08-13)
+   - Implementation:
+     - `packages/core/src/codegen/signing.ts` — `computeContentHash`, `computeSkillContentHash`, `verifySkillSignature`, `verifySpecSignature`
+     - `packages/core/src/codegen/skills.ts` — verifies `content_hash` on builtin skill load; verifies `signature` if `TORI_SKILL_PUBLIC_KEY_HEX` is set
+     - `packages/core/src/codegen/loader.ts` — verifies `content_hash` and `signature` on agent spec load if `TORI_AGENT_PUBLIC_KEY_HEX` is set
+     - `packages/core/src/codegen/types.ts` — added `content_hash` and `signature` fields to `AgentSpec`
    - Effort: Medium
    - Risk mitigated: AST01 (Malicious Skills), AST02 (Supply Chain Compromise)
 
