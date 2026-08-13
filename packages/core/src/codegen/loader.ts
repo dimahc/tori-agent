@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifySpecSignature, computeContentHash } from "./signing.js";
+import { validateSkillPermissions } from "./skill-validation.js";
 import type { AgentPermissions, AgentSpec, CompiledAgent, PersonaEntry } from "./types.js";
 import { mergePermissionSets } from "../runtime/permissions.js";
 import { buildHierarchy, matchPersona } from "../runtime/persona-registry.js";
@@ -182,7 +183,132 @@ function buildPermissions(p: AgentPermissions): Record<string, unknown> {
     }
   }
 
+  // Universal Skill Format: deny_write protects identity files by default
+  const writeEntry: Record<string, string> = { "*": "deny" };
+  if (p.deny_write) {
+    for (const path of p.deny_write) {
+      writeEntry[path] = "deny";
+    }
+  }
+  result["write"] = writeEntry;
+  result["edit"] = writeEntry;
+
+  // Universal Skill Format: network.allow is a domain allowlist, not a boolean
+  if (p.network) {
+    const networkEntry: Record<string, string> = { "*": "deny" };
+    if (p.network.allow) {
+      for (const domain of p.network.allow) {
+        networkEntry[domain] = "allow";
+      }
+    }
+    if (p.network.deny) {
+      for (const domain of p.network.deny) {
+        networkEntry[domain] = "deny";
+      }
+    }
+    result["network"] = networkEntry;
+  }
+
   return result;
+}
+
+const VALID_RISK_TIERS = new Set(['L0', 'L1', 'L2', 'L3']);
+const VALID_MODES = new Set(['all', 'subagent']);
+const VALID_PLATFORMS = new Set(['openclaw', 'claude', 'cursor', 'vscode']);
+
+export function validateAgentSpec(spec: unknown): string[] {
+  const errors: string[] = [];
+  if (!spec || typeof spec !== "object") {
+    return ["Agent spec must be an object"];
+  }
+
+  const s = spec as Record<string, unknown>;
+
+  if (typeof s.id !== "string" || !s.id.trim()) {
+    errors.push("id must be a non-empty string");
+  }
+
+  if (typeof s.name !== "string" || !s.name.trim()) {
+    errors.push("name must be a non-empty string");
+  }
+
+  if (!VALID_MODES.has(s.mode as string)) {
+    errors.push(`mode must be one of: ${[...VALID_MODES].join(", ")}`);
+  }
+
+  if (typeof s.temperature !== "number") {
+    errors.push("temperature must be a number");
+  }
+
+  if (typeof s.description !== "string") {
+    errors.push("description must be a string");
+  }
+
+  if (typeof s.prompt !== "string") {
+    errors.push("prompt must be a string");
+  }
+
+  if (typeof s.human_tone !== "boolean") {
+    errors.push("human_tone must be a boolean");
+  }
+
+  if (s.risk_tier && !VALID_RISK_TIERS.has(s.risk_tier as string)) {
+    errors.push(`risk_tier must be one of: ${[...VALID_RISK_TIERS].join(", ")}`);
+  }
+
+  if (s.platforms && Array.isArray(s.platforms)) {
+    for (const platform of s.platforms) {
+      if (!VALID_PLATFORMS.has(platform as string)) {
+        errors.push(`platform "${platform}" is not recognized; valid: ${[...VALID_PLATFORMS].join(", ")}`);
+      }
+    }
+  }
+
+  if (s.author && typeof s.author === "object") {
+    const author = s.author as Record<string, unknown>;
+    if (author.identity && typeof author.identity !== "string") {
+      errors.push("author.identity must be a string when present");
+    }
+    if (author.signing_key && typeof author.signing_key !== "string") {
+      errors.push("author.signing_key must be a string when present");
+    }
+  }
+
+  if (s.scan_status && typeof s.scan_status === "object") {
+    const scan = s.scan_status as Record<string, unknown>;
+    if (scan.last_scanned && typeof scan.last_scanned !== "string") {
+      errors.push("scan_status.last_scanned must be a string when present");
+    }
+    if (scan.result && typeof scan.result !== "string") {
+      errors.push("scan_status.result must be a string when present");
+    }
+  }
+
+  if (s.changelog && Array.isArray(s.changelog)) {
+    for (const entry of s.changelog) {
+      if (entry && typeof entry === "object") {
+        const e = entry as Record<string, unknown>;
+        if (e.version && typeof e.version !== "string") {
+          errors.push("changelog entries must have string version when present");
+        }
+        if (e.date && typeof e.date !== "string") {
+          errors.push("changelog entries must have string date when present");
+        }
+      }
+    }
+  }
+
+  if (s.permissions && typeof s.permissions === "object") {
+    const permWarnings = validateSkillPermissions(
+      (s.id as string) || 'unknown',
+      s.permissions as Record<string, unknown>,
+    );
+    for (const warning of permWarnings) {
+      console.warn(`[tori-core] Agent spec ${s.id}: ${warning}`);
+    }
+  }
+
+  return errors;
 }
 
 export function mergePermissions(
