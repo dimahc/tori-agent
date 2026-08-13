@@ -72,7 +72,6 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
 
     // ── Lazy-load registry ──────────────────────────────────────────────────
     const discoveryTools = getDiscoveryTools();
-    const allCoreTools = { ...readOnlyTools, ...writeTools, ...discoveryTools };
 
     for (const [name, tool] of Object.entries(readOnlyTools)) {
       registerToolInLazyRegistry(name, 'core', tool.description, tool.args, tool.execute as LazyToolMeta['execute']);
