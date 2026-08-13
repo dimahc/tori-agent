@@ -13,5 +13,6 @@ dist/
 !.kilocode/agents/
 !.kilocode/tools/
 .agents/
-docs
+# docs/ is not ignored — ADRs and decision records must be versioned
+# Managed artifacts (specs, exec-plans, briefs, workflows) are created by plugin tools
 tmp
