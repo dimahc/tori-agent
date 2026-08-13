@@ -4,6 +4,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { computeSkillContentHash, verifySkillSignature } from "./signing.js";
+import { emitSkillInstallReceipt, validateSkillPermissions } from "./skill-validation.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,7 @@ export interface BuiltinSkill {
   path: string;
   content_hash?: string;
   signature?: string;
+  permissions?: Record<string, unknown>;
 }
 
 export interface SyncedSkill {
@@ -26,12 +28,12 @@ function resolveSkillsDir(): string {
 
 function parseFrontmatter(
   content: string,
-): { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown } | null {
+): { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown; permissions?: unknown } | null {
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
   if (!match) return null;
   const parsed = yaml.load(match[1]);
   if (parsed && typeof parsed === "object") {
-    return parsed as { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown };
+    return parsed as { name?: unknown; description?: unknown; content_hash?: unknown; signature?: unknown; permissions?: unknown };
   }
   return null;
 }
@@ -104,7 +106,18 @@ export async function listBuiltinSkills(): Promise<BuiltinSkill[]> {
           path: skillPath,
           content_hash: expectedHash,
           signature,
+          permissions: frontmatter.permissions as Record<string, unknown> | undefined,
         });
+
+        if (frontmatter.permissions && typeof frontmatter.permissions === "object") {
+          const permWarnings = validateSkillPermissions(
+            frontmatter.name as string,
+            frontmatter.permissions as Record<string, unknown>,
+          );
+          for (const warning of permWarnings) {
+            console.warn(`[tori-core] Skill ${entry.name}: ${warning}`);
+          }
+        }
       }
     } catch (err) {
       console.warn(
@@ -146,6 +159,14 @@ export async function syncBuiltinSkills(
   targetSkillsDir: string,
 ): Promise<SyncedSkill[]> {
   const skills = await listBuiltinSkills();
+
+  const receipt = emitSkillInstallReceipt(
+    'tori-core-sync',
+    skills.map((s) => ({ name: s.name, path: s.path, content_hash: s.content_hash, signature: s.signature })),
+    skills.map((s) => join(targetSkillsDir, basename(s.path))),
+  );
+  console.log('[tori-core] Skill sync receipt:', JSON.stringify(receipt, null, 2));
+
   const synced: SyncedSkill[] = [];
 
   for (const skill of skills) {
