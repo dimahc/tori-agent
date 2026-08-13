@@ -51,7 +51,7 @@ export interface PluginInput {
 Assembly order inside the returned plugin function:
 
 1. **Resolve `projectRoot`** — `worktree` wins over `directory` (unless `worktree === '/'`).
-2. **Fix artifact paths** — `docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows` (hardcoded).
+2. **Fix artifact paths** — runtime-managed directories (`.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` for OpenCode; `.kilocode/...` for Kilo Code).
 3. **`loadAndCompileAllAgents()`** — read all YAML specs, expand personas/modes into `CompiledAgent[]`.
 4. **`buildReadOnlyTools()` / `buildWriteTools()`** — wrap lifecycle/workflow functions as host-callable tools.
 5. **Return the hook object** the host SDK expects.
@@ -297,5 +297,5 @@ Transitions are validated by `transition_stage` — invalid jumps are rejected. 
 - **Caller wildcard denies on `edit`/`bash`/`write`/`notebook_*` are force-inherited into subagent sessions** by the host's task tool and override the subagent's own allows. Never emit those denies in the host-facing config (`HOST_INHERITABLE_DENY_TOOLS`); enforce them at call time via `permission.ask` instead. If a subagent reports built-in tools as "unavailable" while its plugin tools work, this inheritance is the first thing to check.
 - `write: allow` in a spec must keep implying `edit: allow` (`buildHostPermission`) — the host gates its file-writing built-ins under `edit`.
 - The `permission.ask` adjudicator only covers sessions it has seen via `chat.message`. Untracked sessions fall through to host defaults by design.
-- Managed docs artifacts (`docs/specs`, `docs/exec-plans`, `docs/briefs`, `docs/workflows`) are created on `session.created` and manipulated only through lifecycle/workflow tools — don't hand-edit them.
+- Managed artifacts (`.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` for OpenCode; `.kilocode/...` for Kilo Code) are created on `session.created` and manipulated only through lifecycle/workflow tools — don't hand-edit them.
 - `npm test` currently fails because no `.test.js` files exist; the real verification flow is build → verify-expansion.

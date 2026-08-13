@@ -48,10 +48,10 @@ Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
 Managed docs are created automatically on `session.created`:
 
-- `docs/specs` — agent specifications
-- `docs/exec-plans` — execution plans
-- `docs/briefs` — project briefs
-- `docs/workflows` — workflow state files
+- `.opencode/specs` or `.kilocode/specs` — agent specifications
+- `.opencode/plans` or `.kilocode/plans` — execution plans
+- `.opencode/briefs` or `.kilocode/briefs` — project briefs
+- `.opencode/workflows` or `.kilocode/workflows` — workflow state files
 
 ## Scripts
 

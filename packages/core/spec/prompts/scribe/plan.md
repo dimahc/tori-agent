@@ -4,7 +4,7 @@ Create exec-plan files for complex or multi-session tasks.
 
 ## Approach
 
-- Read existing exec-plans in `docs/exec-plans/` for style reference
+- Read existing exec-plans in the runtime-managed plans directory for style reference
 - Break work into concrete blocks with clear completion criteria
 - Each block must be independently completable and verifiable
 
@@ -16,4 +16,4 @@ Create exec-plan files for complex or multi-session tasks.
 
 ## Output
 
-Write to `docs/exec-plans/<feature-name>.md`
+Write to the runtime-managed plans directory (`<runtime-dir>/plans/<feature-name>.md`)

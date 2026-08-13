@@ -1,7 +1,7 @@
 ---
 name: spec-writer
 description: >
-  Guide for writing specification documents in docs/specs/.
+  Guide for writing specification documents in the managed specs directory.
   Covers the register_spec workflow, the standard spec structure
   (template.md), and the completeness checklist (checklist.md).
   Use when creating a new spec, fleshing out a draft spec, or
@@ -20,7 +20,7 @@ exec-plans capture *how*. One spec per concern. Write in English.
 1. **Create the stub with the `register_spec` tool.** Never create the file
    manually — the tool refuses to overwrite and writes the canonical minimal
    frontmatter (`title`, `status: draft`, `created`) plus the `# Title`
-   heading. Specs live in `docs/specs/`.
+   heading. Specs live in the runtime-managed specs directory (`.opencode/specs/` or `.kilocode/specs/`).
 2. **Flesh it out** by editing the file, following `template.md`. Replace the
    stub heading body with the full structure.
 3. **Verify against `checklist.md`** before considering the spec done.

@@ -46,11 +46,12 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     const worktree = input.worktree;
     const projectRoot = (worktree && worktree !== '/') ? worktree : directory;
 
+    const runtimeDir = runtime === 'opencode' ? '.opencode' : '.kilocode';
     const paths = {
-      specs: 'docs/specs',
-      execPlans: 'docs/exec-plans',
-      briefs: 'docs/briefs',
-      workflows: 'docs/workflows',
+      specs: join(runtimeDir, 'specs'),
+      execPlans: join(runtimeDir, 'plans'),
+      briefs: join(runtimeDir, 'briefs'),
+      workflows: join(runtimeDir, 'workflows'),
     };
 
     const allAgents = await loadAndCompileAllAgents();
