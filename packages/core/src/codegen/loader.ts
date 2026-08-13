@@ -2,6 +2,7 @@ import yaml from "js-yaml";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifySpecSignature, computeContentHash } from "./signing.js";
 import type { AgentPermissions, AgentSpec, CompiledAgent, PersonaEntry } from "./types.js";
 import { mergePermissionSets } from "../runtime/permissions.js";
 import { buildHierarchy, matchPersona } from "../runtime/persona-registry.js";
@@ -38,6 +39,33 @@ export async function loadAgentSpecs(): Promise<AgentSpec[]> {
       const content = await readFile(filePath, "utf-8");
       const spec = yaml.load(content) as AgentSpec;
       if (spec && spec.id) {
+        if (spec.content_hash) {
+          const actualHash = computeContentHash(content);
+          if (actualHash !== spec.content_hash) {
+            console.warn(
+              `[tori-core] Agent spec ${file} content_hash mismatch: expected ${spec.content_hash}, actual ${actualHash}`,
+            );
+            continue;
+          }
+        }
+
+        if (spec.signature) {
+          const publicKeyHex = process.env.TORI_AGENT_PUBLIC_KEY_HEX;
+          if (!publicKeyHex) {
+            console.warn(
+              `[tori-core] Agent spec ${file} has a signature but TORI_AGENT_PUBLIC_KEY_HEX is not set — skipping verification`,
+            );
+          } else {
+            const valid = await verifySpecSignature(filePath, spec.signature, publicKeyHex);
+            if (!valid) {
+              console.warn(
+                `[tori-core] Agent spec ${file} signature verification failed`,
+              );
+              continue;
+            }
+          }
+        }
+
         specs.push(spec);
       }
     } catch (err) {
