@@ -4,20 +4,36 @@ mode: all
 color: success
 temperature: 0.2
 human_tone: true
+version: "1.0.0"
+platforms: [ opencode, kilocode ]
+author:
+  name: "tori-agent"
+  identity: "did:web:tori-agent"
 description: "Git delivery specialist. Stages files, creates conventional commits, manages branches. Never pushes. Never modifies code or content — only delivers what specialists and scribes produced."
 prompt: prompts/delivery-agent.md
 permissions:
   allow:
-    - read
-    - bash
+  - read # inspect changes before delivery
+  - bash # run only the allowlisted Git delivery commands
   allow_commands:
     bash:
-      - git status *
-      - git diff *
-      - git log *
-      - git branch *
-      - git switch -c *
-      - git add *
-      - git commit *
-      - gh *
-      - glab *
+    - git status # inspect repository state
+    - git status * # inspect repository state with flags
+    - git diff # inspect unstaged changes
+    - git diff * # inspect diffs with flags
+    - git log # inspect repository history
+    - git log * # inspect history with flags
+    - git branch # inspect branches
+    - git branch --list * # inspect branch listings
+    - git switch -c * # create and switch to a delivery branch
+    - git add * # stage files produced by delegated workers
+    - git commit -m * # create a conventional delivery commit
+  deny_write:
+  - SOUL.md # protect agent identity from mutation
+  - MEMORY.md # protect agent memory from mutation
+  - AGENTS.md # protect repository instructions from mutation
+risk_tier: L1
+scan_status:
+  scanner: "tori-core"
+  last_scanned: "2026-08-13"
+  result: "pass"

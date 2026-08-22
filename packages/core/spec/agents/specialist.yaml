@@ -4,6 +4,11 @@ mode: subagent
 color: warning
 temperature: 0.3
 human_tone: false
+version: "1.0.0"
+platforms: [ opencode, kilocode ]
+author:
+  name: "tori-agent"
+  identity: "did:web:tori-agent"
 description: "Task executor. Receives a single task within a workflow stage, executes it with guards, and reports results. Does not delegate. Persona defines expertise."
 prompt: prompts/specialist.md
 personas:
@@ -11,61 +16,163 @@ personas:
     description: "Software architecture, system design, technical strategy, scalability, and architectural decision-making"
     instructions: prompts/specialist/software-architect.md
     expertise_tags:
-      - architecture
-      - system-design
-      - scalability
-      - technical-strategy
+    - architecture
+    - system-design
+    - scalability
+    - technical-strategy
     weight: 1.0
+    permissions:
+      allow:
+      - read # retain implementation capability
+      - write # retain implementation capability
+      - edit # retain implementation capability
+      - bash # retain implementation capability
+      - glob # retain implementation capability
+      - grep # retain implementation capability
+      - project_state # retain plan discovery
+      - check_artifacts # retain consistency checks
+      - run_mechanical_checks # retain verification
+      - save_checkpoint # retain checkpointing
+      deny:
+      - webfetch # architecture persona does not perform external research
+      - websearch # architecture persona does not perform external research
   software-engineer:
     description: "General software development — backend, APIs, databases, scripts, all languages"
     instructions: prompts/specialist/software-engineer.md
     expertise_tags:
-      - backend
-      - api
-      - database
-      - scripts
-      - coding
+    - backend
+    - api
+    - database
+    - scripts
+    - coding
     parent_id: software-architect
     weight: 1.0
+    permissions:
+      allow:
+      - read # retain implementation capability
+      - write # retain implementation capability
+      - edit # retain implementation capability
+      - bash # retain implementation capability
+      - glob # retain implementation capability
+      - grep # retain implementation capability
+      - project_state # retain plan discovery
+      - check_artifacts # retain consistency checks
+      - run_mechanical_checks # retain verification
+      - save_checkpoint # retain checkpointing
+      deny:
+      - webfetch # engineering persona does not perform external research
+      - websearch # engineering persona does not perform external research
   infrastructure:
     description: "Infrastructure as Code — Terraform, Kubernetes, cloud services"
     instructions: prompts/specialist/infrastructure.md
     expertise_tags:
-      - terraform
-      - kubernetes
-      - cloud
-      - iac
+    - terraform
+    - kubernetes
+    - cloud
+    - iac
     weight: 1.0
+    permissions:
+      allow:
+      - read # retain implementation capability
+      - write # retain implementation capability
+      - edit # retain implementation capability
+      - bash # retain implementation capability
+      - glob # retain implementation capability
+      - grep # retain implementation capability
+      - project_state # retain plan discovery
+      - check_artifacts # retain consistency checks
+      - run_mechanical_checks # retain verification
+      - save_checkpoint # retain checkpointing
+      deny:
+      - webfetch # infrastructure persona does not perform external research
+      - websearch # infrastructure persona does not perform external research
   security:
     description: "Security audit and vulnerability review"
     instructions: prompts/specialist/security.md
     expertise_tags:
-      - audit
-      - vulnerability
-      - security
+    - audit
+    - vulnerability
+    - security
     parent_id: infrastructure
     weight: 1.0
+    permissions:
+      allow:
+      - read # retain implementation capability
+      - write # retain implementation capability
+      - edit # retain implementation capability
+      - bash # retain implementation capability
+      - glob # retain implementation capability
+      - grep # retain implementation capability
+      - project_state # retain plan discovery
+      - check_artifacts # retain consistency checks
+      - run_mechanical_checks # retain verification
+      - save_checkpoint # retain checkpointing
+      deny:
+      - webfetch # security persona does not perform external research
+      - websearch # security persona does not perform external research
   researcher:
     description: "External research — documentation, RFCs, best practices, standards"
     instructions: prompts/specialist/researcher.md
     expertise_tags:
-      - research
-      - documentation
-      - rfcs
-      - best-practices
-      - standards
+    - research
+    - documentation
+    - rfcs
+    - best-practices
+    - standards
     weight: 1.0
     permissions:
       allow:
-        - webfetch
-        - websearch
+      - read # retain implementation capability
+      - write # retain implementation capability
+      - edit # retain implementation capability
+      - bash # retain implementation capability
+      - glob # retain implementation capability
+      - grep # retain implementation capability
+      - project_state # retain plan discovery
+      - check_artifacts # retain consistency checks
+      - run_mechanical_checks # retain verification
+      - save_checkpoint # retain checkpointing
+      - webfetch # researcher-only external documentation retrieval
+      - websearch # researcher-only external search
 permissions:
   allow:
-    - read
-    - write
-    - edit
-    - bash
-    - glob
-    - grep
-    - check_artifacts
-    - write_checkpoint
+  - read # inspect source, plans, and existing artifacts
+  - write # implement delegated changes
+  - edit # update delegated files
+  - bash # run implementation and test commands from the allowlist
+  - glob # discover relevant files
+  - grep # search source and documentation
+  - project_state # discover active plans when none was supplied
+  - check_artifacts # verify artifact consistency before reporting
+  - run_mechanical_checks # run the repository lint/test pre-filter
+  - save_checkpoint # persist a resume checkpoint at budget boundaries
+  - webfetch # parent capability required for the researcher persona
+  - websearch # parent capability required for the researcher persona
+  allow_commands:
+    bash:
+    - npm * # run package build, lint, and test commands
+    - npx * # run repository-local JavaScript tooling
+    - node * # run repository scripts and checks
+    - python * # run delegated Python implementation checks
+    - python3 * # run delegated Python implementation checks
+    - pytest * # run delegated Python tests
+    - go * # run delegated Go implementation checks
+    - cargo * # run delegated Rust implementation checks
+    - make * # run repository build targets
+    - terraform * # run delegated infrastructure validation
+    - kubectl * # inspect or validate delegated Kubernetes work
+    - git status # inspect repository state
+    - git status * # inspect repository state with flags
+    - git diff # inspect uncommitted changes
+    - git diff * # inspect diffs with flags
+    - git log # inspect repository history
+    - git log * # inspect history with flags
+deny_write:
+  - SOUL.md # protect agent identity from mutation
+  - MEMORY.md # protect agent memory from mutation
+  - AGENTS.md # protect repository instructions from mutation
+risk_tier: L1
+scan_status:
+  scanner: "tori-core"
+  last_scanned: "2026-08-13"
+  result: "pass"

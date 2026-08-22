@@ -183,15 +183,34 @@ function buildPermissions(p: AgentPermissions): Record<string, unknown> {
     }
   }
 
-  // Universal Skill Format: deny_write protects identity files by default
-  const writeEntry: Record<string, string> = { "*": "deny" };
+  // Universal Skill Format: deny_write protects identity files while preserving
+  // the agent's explicit write/edit capability. Agents without write/edit remain denied.
+  const canWrite = p.allow?.includes("write") ?? false;
+  const canEdit = p.allow?.includes("edit") ?? false;
+  const writeEntry: Record<string, string> = {
+    "*": p.allow_paths?.write ? "deny" : (canWrite ? "allow" : "deny"),
+  };
+  const editEntry: Record<string, string> = {
+    "*": p.allow_paths?.edit ? "deny" : (canEdit ? "allow" : "deny"),
+  };
+  if (p.allow_paths?.write) {
+    for (const path of p.allow_paths.write) {
+      writeEntry[path] = "allow";
+    }
+  }
+  if (p.allow_paths?.edit) {
+    for (const path of p.allow_paths.edit) {
+      editEntry[path] = "allow";
+    }
+  }
   if (p.deny_write) {
     for (const path of p.deny_write) {
       writeEntry[path] = "deny";
+      editEntry[path] = "deny";
     }
   }
   result["write"] = writeEntry;
-  result["edit"] = writeEntry;
+  result["edit"] = editEntry;
 
   // Universal Skill Format: network.allow is a domain allowlist, not a boolean
   if (p.network) {

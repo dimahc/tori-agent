@@ -4,47 +4,60 @@ mode: subagent
 color: warning
 temperature: 0.3
 human_tone: false
+version: "1.0.0"
+platforms: [ opencode, kilocode ]
+author:
+  name: "tori-agent"
+  identity: "did:web:tori-agent"
 description: "Multi-lens analysis specialist. Evaluates artifacts through different critical lenses: quality review, assumption challenging, and enhancement identification."
 prompt: prompts/reviewer.md
 references:
-  - prompts/references/communication.md
+- prompts/references/communication.md
 permissions:
   allow:
-    - read
-    - bash
-    - glob
-    - grep
-    - question
-    - project_state
-    - check_artifacts
+  - read # inspect implementation and review artifacts
+  - bash # run only read-only inspection and verification commands below
+  - glob # discover review targets
+  - grep # search implementation and documentation
+  - project_state # understand active management artifacts
+  - check_artifacts # verify cross-artifact consistency
+  - run_mechanical_checks # run lint/tests before semantic review
   allow_commands:
     bash:
-      - git status
-      - git status *
-      - git diff
-      - git diff *
-      - git log
-      - git log *
-      - git branch
-      - git branch *
-      - npm *
-      - node *
-      - ls
-      - ls *
-      - find *
-      - grep *
-      - sort *
-      - pwd
+    - git status # inspect repository state
+    - git status * # inspect repository state with flags
+    - git diff # inspect uncommitted changes
+    - git diff * # inspect diffs with flags
+    - git log # inspect repository history
+    - git log * # inspect history with flags
+    - git branch # inspect current branches
+    - git branch --list * # inspect branch listings
+    - npm * # run package lint and tests
+    - node * # run repository verification scripts
+    - ls # inspect directory contents
+    - ls * # inspect directory contents with flags
+    - grep * # perform read-only shell searches when needed
+    - sort * # sort read-only command output
+    - pwd # identify repository root
   deny:
-    - write
-    - edit
-    - task
-    - webfetch
-    - websearch
-    - external_directory
-    - mark_block_done
-    - complete_plan
-    - register_spec
+  - write # reviewers are read-only
+  - edit # reviewers are read-only
+  - task # reviewers must not delegate
+  - webfetch # reviewers do not perform external research
+  - websearch # reviewers do not perform external research
+  - mark_block_done # reviewers do not mutate plans
+  - complete_plan # reviewers do not complete plans
+  - register_spec # reviewers do not create specs
+  - save_checkpoint # reviewers do not write checkpoints
+  deny_write:
+  - SOUL.md # protect agent identity from mutation
+  - MEMORY.md # protect agent memory from mutation
+  - AGENTS.md # protect repository instructions from mutation
+risk_tier: L0
+scan_status:
+  scanner: "tori-core"
+  last_scanned: "2026-08-13"
+  result: "pass"
 modes:
   quality:
     description: "Technical quality reviewer. Evaluates code, designs, and artifacts for correctness, logic, error handling, API design, and maintainability."

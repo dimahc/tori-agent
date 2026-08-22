@@ -4,6 +4,11 @@ mode: subagent
 color: info
 temperature: 0.1
 human_tone: false
+version: "1.0.0"
+platforms: [ opencode, kilocode ]
+author:
+  name: "tori-agent"
+  identity: "did:web:tori-agent"
 description: "Stage artifact generator. Produces structured knowledge artifacts at each workflow stage (specs, plans, summaries). Handles write operations when delegated by Tori."
 prompt: prompts/scribe.md
 modes:
@@ -27,15 +32,43 @@ modes:
     instructions: prompts/scribe/plan.md
 permissions:
   allow:
-    - read
-    - write
-    - edit
-    - bash
-    - mark_block_done
-    - complete_plan
-    - register_spec
-    - glob
-    - grep
-    - question
-    - project_state
-    - check_artifacts
+  - read # inspect existing artifacts and style
+  - write # create only delegated artifact paths below
+  - edit # update only delegated artifact paths below
+  - mark_block_done # check delegated exec-plan blocks
+  - complete_plan # complete delegated exec-plans after validation
+  - register_spec # create delegated specs through the lifecycle guard
+  - glob # discover artifact files
+  - grep # search artifact content
+  - question # clarify missing artifact requirements
+  - project_state # inspect current artifact state
+  - check_artifacts # verify artifact consistency
+  - run_mechanical_checks # run required lint/test checks
+  allow_paths:
+    write:
+    - .opencode/specs/* # delegated specs
+    - .opencode/plans/* # delegated exec-plans
+    - .opencode/briefs/* # delegated briefs
+    - .opencode/workflows/* # delegated workflow records
+    - docs/adr/* # delegated architecture decision records
+    - README.md # delegated user-facing documentation
+    - CHANGELOG.md # delegated changelog updates
+    edit:
+    - .opencode/specs/* # delegated specs
+    - .opencode/plans/* # delegated exec-plans
+    - .opencode/briefs/* # delegated briefs
+    - .opencode/workflows/* # delegated workflow records
+    - docs/adr/* # delegated architecture decision records
+    - README.md # delegated user-facing documentation
+    - CHANGELOG.md # delegated changelog updates
+  deny:
+  - bash # checks use run_mechanical_checks; shell mutations are forbidden
+  deny_write:
+  - SOUL.md # protect agent identity from mutation
+  - MEMORY.md # protect agent memory from mutation
+  - AGENTS.md # protect repository instructions from mutation
+risk_tier: L1
+scan_status:
+  scanner: "tori-core"
+  last_scanned: "2026-08-13"
+  result: "pass"

@@ -4,64 +4,53 @@ mode: all
 color: error
 temperature: 0.3
 human_tone: true
+version: "1.0.0"
+platforms: [ opencode, kilocode ]
+author:
+  name: "tori-agent"
+  identity: "did:web:tori-agent"
 description: "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Pure orchestrator — does not perform substantive work directly."
 prompt: prompts/tori.md
 references:
-  - prompts/references/safety-boundaries.md
-  - prompts/references/git-hygiene.md
-  - prompts/references/performance-speed.md
-  - prompts/references/tool-denial-delegation.md
-  - prompts/references/communication.md
-  - prompts/references/context-management.md
+- prompts/references/safety-boundaries.md
+- prompts/references/git-hygiene.md
+- prompts/references/performance-speed.md
+- prompts/references/tool-denial-delegation.md
+- prompts/references/communication.md
+- prompts/references/context-management.md
 permissions:
   # Tori is a pure orchestrator with read-only direct access.
-  # All mutations are delegated. Bash allowlist is for coordination only.
-  # Hard boundaries: default-deny, .env hard deny, git push never allowlisted.
+  # All mutations are delegated; workflow tools below are the only direct writes.
+  # Hard boundary: default-deny and no shell access.
   allow:
-    - todowrite # task tracking across delegations and compaction events
-    - todoread # resume task state after compaction
-    - skill # load skill instructions on demand
-    - task # primary tool: spawn subagents via opencode native task
-    - classify_task # pre-flight: score task complexity, risk, and routing before delegation
-    - question # ask the user for clarification
-    - compress # only protection against context compaction
-    - project_state # read-only bookkeeping, called at complex-mission start
-    - check_artifacts # read-only cross-artifact consistency scan
-    - run_mechanical_checks # lint/tests at the start of verification stages
-    - workflow_state # read workflow stage/iteration/tasks/checks
-    - transition_stage # orchestration: drive the workflow state machine
-    - record_task_result # orchestration: record task outcomes in workflows
-    - record_check_result # orchestration: record verification check outcomes
-    - write_checkpoint # orchestration: persist structured checkpoint files for resume/compaction/budget boundaries
-    - set_write_policy # orchestration: set write tier policy for workflow
-    - rollback # orchestration: systematic revert workflow with commit/stage/workflow levels
-    - report_progress # orchestration: emit progress events for streaming updates
-    - trigger_ci_check # orchestration: run CI command on verify stage entry
-    - read # coordination reads (plans, configs); .env hard-denied at call time
-  allow_commands:
-    # bash is NOT freely allowed — curated allowlist for read-only coordination.
-    # Compiled to { "*": "deny", <cmd>: "allow" } ; any non-matching command is denied
-    # at call time (evaluatePermission fallback: deny). Matching: exact, or prefix when the
-    # pattern ends with "*".
-    # Push boundary: `git push` is NEVER allowlisted — hard boundary, see Git Hygiene in prompt.
-    bash:
-      - npm * # build/lint/test/install — prefix match covers all npm subcommands (npm run build, npm test, ...)
-      - node * # run scripts and one-off checks (node dist/x.js, node --eval ...)
-      - git status # read-only repo state check (bare command)
-      - git status * # read-only repo state check with flags (git status --short, ...)
-      - git diff # read-only change review (bare command)
-      - git diff * # read-only change review with flags (git diff --stat, git diff HEAD~1, ...)
-      - git log # read-only history inspection (bare command)
-      - git log * # read-only history inspection with flags (git log --oneline -5, ...)
-      - git branch # list/inspect branches (read-only, bare command)
-      - git branch * # list/inspect branches with flags (git branch --show-current, git branch -a, ...)
-      - ls # directory listing (bare command)
-      - ls * # directory listing with flags/paths (ls -la, ls dist/, ...)
-      - pwd # print working directory (exact — no useful flags)
-      - find * # file discovery (find . -name '*.ts', ...)
-      - grep * # content search (grep -r 'pattern', ...)
-      - sort * # output sorting (sort file.txt, sort -u, ...)
+  - todowrite # track delegations and compaction work
+  - skill # load required workflow skill instructions
+  - task # delegate substantive work to a worker
+  - question # ask the user for clarification
+  - project_state # inspect current management artifacts
+  - check_artifacts # verify cross-artifact consistency
+  - run_mechanical_checks # run the repository lint/test pre-filter
+  - workflow_state # inspect workflow stage, tasks, and checks
+  - transition_stage # advance the workflow state machine
+  - record_task_result # record delegated task outcomes
+  - record_check_result # record verification outcomes
+  - save_checkpoint # persist a workflow resume checkpoint
+  - scratchpad # persist orchestration notes
+  - trigger_ci_check # run configured CI at verification entry
+  - read # inspect plans, specs, and configuration
   deny:
-    - mark_block_done # lifecycle writes go through scribe delegation, never direct
-    - complete_plan # lifecycle writes go through scribe delegation, never direct
-    - register_spec # lifecycle writes go through scribe delegation, never direct
+  - write # project content mutations belong to delegated workers
+  - edit # project content mutations belong to delegated workers
+  - bash # shell mutation and delivery are outside orchestration
+  - mark_block_done # plan mutations go through the delegated scribe
+  - complete_plan # plan mutations go through the delegated scribe
+  - register_spec # spec mutations go through the delegated scribe
+  deny_write:
+  - SOUL.md # protect agent identity from mutation
+  - MEMORY.md # protect agent memory from mutation
+  - AGENTS.md # protect repository instructions from mutation
+risk_tier: L0
+scan_status:
+  scanner: "tori-core"
+  last_scanned: "2026-08-13"
+  result: "pass"
