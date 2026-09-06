@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tori-agent.dev/ontology/2026/core/ontology.schema.json",
+  "title": "Tori Core Ontology",
+  "description": "Formal JSON Schema for the Tori Agentic Ontology (SC-01)",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/definitions/Agent" },
+    { "$ref": "#/definitions/Role" },
+    { "$ref": "#/definitions/Capability" },
+    { "$ref": "#/definitions/Skill" },
+    { "$ref": "#/definitions/Tool" },
+    { "$ref": "#/definitions/Task" },
+    { "$ref": "#/definitions/Workflow" },
+    { "$ref": "#/definitions/Stage" },
+    { "$ref": "#/definitions/Transition" },
+    { "$ref": "#/definitions/Artifact" },
+    { "$ref": "#/definitions/Knowledge" },
+    { "$ref": "#/definitions/Policy" }
+  ],
+  "definitions": {
+    "$defs": {
+      "OntologicalEntity": {
+        "type": "object",
+        "required": ["@id", "@type"],
+        "properties": {
+          "@id": { "type": "string", "format": "uri" },
+          "@type": { "type": "string" },
+          "@context": { "type": "object" },
+          "governedBy": { "type": "string" },
+          "implements": { "type": "string" },
+          "partOf": { "type": "string" },
+          "requires": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Agent": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "roles", "capabilities", "tools"],
+        "properties": {
+          "@type": { "const": "Agent" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "roles": { "type": "array", "items": { "$ref": "#/definitions/Role" } },
+          "capabilities": { "type": "array", "items": { "$ref": "#/definitions/Capability" } },
+          "tools": { "type": "array", "items": { "$ref": "#/definitions/Tool" } },
+          "metadata": { "type": "object" }
+        }
+      },
+      "Role": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "permissions", "capabilities"],
+        "properties": {
+          "@type": { "const": "Role" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } },
+          "capabilities": { "type": "array", "items": { "$ref": "#/definitions/Capability" } }
+        }
+      },
+      "Capability": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "scope"],
+        "properties": {
+          "@type": { "const": "Capability" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "scope": { "type": "string" }
+        }
+      },
+      "Skill": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "required_capabilities"],
+        "properties": {
+          "@type": { "const": "Skill" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "required_capabilities": { "type": "array", "items": { "$ref": "#/definitions/Capability" } }
+        }
+      },
+      "Tool": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "capability_id"],
+        "properties": {
+          "@type": { "const": "Tool" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "capability_id": { "type": "string" }
+        }
+      },
+      "Task": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "description", "assigned_to", "status"],
+        "properties": {
+          "@type": { "const": "Task" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "assigned_to": { "type": "array", "items": { "$ref": "#/definitions/Agent" } },
+          "status": { "enum": ["Open", "Working", "Pending Review", "Overdue", "Completed", "Cancelled"] }
+        }
+      },
+      "Workflow": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "stages", "transitions"],
+        "properties": {
+          "@type": { "const": "Workflow" },
+          "name": { "type": "string" },
+          "stages": { "type": "array", "items": { "$ref": "#/definitions/Stage" } },
+          "transitions": { "type": "array", "items": { "$ref": "#/definitions/Transition" } }
+        }
+      },
+      "Stage": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "workflow_id", "entry_conditions", "exit_conditions"],
+        "properties": {
+          "@type": { "const": "Stage" },
+          "name": { "type": "string" },
+          "workflow_id": { "type": "string" },
+          "entry_conditions": { "type": "array", "items": { "type": "string" } },
+          "exit_conditions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Transition": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["from_stage", "to_stage", "trigger"],
+        "properties": {
+          "@type": { "const": "Transition" },
+          "from_stage": { "type": "string" },
+          "to_stage": { "type": "string" },
+          "trigger": { "type": "string" }
+        }
+      },
+      "Artifact": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "type", "owner_id", "metadata"],
+        "properties": {
+          "@type": { "const": "Artifact" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "owner_id": { "type": "string" },
+          "metadata": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "Knowledge": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "content", "source_id"],
+        "properties": {
+          "@type": { "const": "Knowledge" },
+          "name": { "type": "string" },
+          "content": { "type": "string" },
+          "source_id": { "type": "string" }
+        }
+      },
+      "Policy": {
+        "allOf": [{ "$ref": "#/definitions/OntologicalEntity" }],
+        "required": ["name", "rules", "enforcement_level"],
+        "properties": {
+          "@type": { "const": "Policy" },
+          "name": { "type": "string" },
+          "rules": { "type": "array", "items": { "type": "string" } },
+          "enforcement_level": { "enum": ["Advisory", "Mandatory", "Strict"] }
+        }
+      }
+    }
+  }
+}
