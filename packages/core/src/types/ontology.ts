@@ -22,6 +22,9 @@ export interface OntologicalEntity {
   readonly implements?: OntologyId;
   readonly partOf?: OntologyId;
   readonly requires?: OntologyId[];
+  
+  // Optional metadata for schema versioning and extensibility
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface Agent extends OntologicalEntity {
@@ -98,7 +101,7 @@ export interface Artifact extends OntologicalEntity {
   readonly name: string;
   readonly type: string;
   readonly owner_id: OntologyId;
-  readonly metadata: Record<string, unknown>[];
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface Knowledge extends OntologicalEntity {
