@@ -1,0 +1,334 @@
+{
+  "@context": {
+    "tori": "https://tori-agent.dev/ontology/2026/core#",
+    "agent": "https://tori-agent.dev/ontology/2026/agent#",
+    "@id": "@id",
+    "@type": "@type",
+    "governedBy": "tori:governedBy",
+    "implements": "tori:implements",
+    "partOf": "tori:partOf",
+    "requires": "tori:requires",
+    "name": "tori:name",
+    "description": "tori:description",
+    "roles": "tori:roles",
+    "capabilities": "tori:capabilities",
+    "tools": "tori:tools",
+    "metadata": "tori:metadata",
+    "permissions": "tori:permissions",
+    "scope": "tori:scope",
+    "required_capabilities": "tori:required_capabilities",
+    "capability_id": "tori:capability_id",
+    "assigned_to": "tori:assigned_to",
+    "status": "tori:status",
+    "stages": "tori:stages",
+    "transitions": "tori:transitions",
+    "workflow_id": "tori:workflow_id",
+    "entry_conditions": "tori:entry_conditions",
+    "exit_conditions": "tori:exit_conditions",
+    "from_stage": "tori:from_stage",
+    "to_stage": "tori:to_stage",
+    "trigger": "tori:trigger",
+    "type": "tori:type",
+    "owner_id": "tori:owner_id",
+    "content": "tori:content",
+    "source_id": "tori:source_id",
+    "rules": "tori:rules",
+    "enforcement_level": "tori:enforcement_level"
+  },
+  "@graph": [
+    {
+      "@id": "capability:software_architecture",
+      "@type": "Capability",
+      "name": "Software Architecture",
+      "description": "Software architecture, system design, technical strategy, scalability, architectural decision-making",
+      "scope": "architecture"
+    },
+    {
+      "@id": "capability:software_engineering",
+      "@type": "Capability",
+      "name": "Software Engineering",
+      "description": "General software development — backend, APIs, databases, scripts, all languages",
+      "scope": "engineering"
+    },
+    {
+      "@id": "capability:infrastructure_as_code",
+      "@type": "Capability",
+      "name": "Infrastructure as Code",
+      "description": "Terraform, Kubernetes, cloud services, IaC",
+      "scope": "infrastructure"
+    },
+    {
+      "@id": "capability:security_audit",
+      "@type": "Capability",
+      "name": "Security Audit",
+      "description": "Security audit and vulnerability review",
+      "scope": "security"
+    },
+    {
+      "@id": "capability:external_research",
+      "@type": "Capability",
+      "name": "External Research",
+      "description": "Documentation, RFCs, best practices, standards research",
+      "scope": "research"
+    },
+    {
+      "@id": "capability:implementation",
+      "@type": "Capability",
+      "name": "Implementation",
+      "description": "General implementation capability - read, write, edit, bash, glob, grep",
+      "scope": "engineering"
+    },
+    {
+      "@id": "capability:plan_discovery",
+      "@type": "Capability",
+      "name": "Plan Discovery",
+      "description": "Discover active plans and artifacts",
+      "scope": "planning"
+    },
+    {
+      "@id": "capability:artifact_consistency",
+      "@type": "Capability",
+      "name": "Artifact Consistency",
+      "description": "Verify artifact consistency",
+      "scope": "quality"
+    },
+    {
+      "@id": "capability:mechanical_verification",
+      "@type": "Capability",
+      "name": "Mechanical Verification",
+      "description": "Run lint and tests",
+      "scope": "verification"
+    },
+    {
+      "@id": "capability:checkpointing",
+      "@type": "Capability",
+      "name": "Checkpointing",
+      "description": "Persist resume checkpoints at budget boundaries",
+      "scope": "orchestration"
+    },
+    {
+      "@id": "capability:external_research_access",
+      "@type": "Capability",
+      "name": "External Research Access",
+      "description": "Web fetch and search for external documentation",
+      "scope": "research"
+    },
+    {
+      "@id": "tool:read",
+      "@type": "Tool",
+      "name": "read",
+      "description": "Inspect source, plans, and existing artifacts",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:write",
+      "@type": "Tool",
+      "name": "write",
+      "description": "Implement delegated changes",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:edit",
+      "@type": "Tool",
+      "name": "edit",
+      "description": "Update delegated files",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:bash",
+      "@type": "Tool",
+      "name": "bash",
+      "description": "Run implementation and test commands",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:glob",
+      "@type": "Tool",
+      "name": "glob",
+      "description": "Discover relevant files",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:grep",
+      "@type": "Tool",
+      "name": "grep",
+      "description": "Search source and documentation",
+      "capability_id": "capability:implementation"
+    },
+    {
+      "@id": "tool:project_state",
+      "@type": "Tool",
+      "name": "project_state",
+      "description": "Discover active plans",
+      "capability_id": "capability:plan_discovery"
+    },
+    {
+      "@id": "tool:check_artifacts",
+      "@type": "Tool",
+      "name": "check_artifacts",
+      "description": "Verify artifact consistency",
+      "capability_id": "capability:artifact_consistency"
+    },
+    {
+      "@id": "tool:run_mechanical_checks",
+      "@type": "Tool",
+      "name": "run_mechanical_checks",
+      "description": "Run lint/test pre-filter",
+      "capability_id": "capability:mechanical_verification"
+    },
+    {
+      "@id": "tool:save_checkpoint",
+      "@type": "Tool",
+      "name": "save_checkpoint",
+      "description": "Persist resume checkpoint",
+      "capability_id": "capability:checkpointing"
+    },
+    {
+      "@id": "tool:webfetch",
+      "@type": "Tool",
+      "name": "webfetch",
+      "description": "Fetch external documentation",
+      "capability_id": "capability:external_research_access"
+    },
+    {
+      "@id": "tool:websearch",
+      "@type": "Tool",
+      "name": "websearch",
+      "description": "Search external documentation",
+      "capability_id": "capability:external_research_access"
+    },
+    {
+      "@id": "role:specialist_base",
+      "@type": "Role",
+      "name": "Specialist Base",
+      "description": "Task executor with implementation capabilities",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint"],
+      "capabilities": ["capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"]
+    },
+    {
+      "@id": "role:software_architect",
+      "@type": "Role",
+      "name": "Software Architect",
+      "description": "Software architecture, system design, technical strategy, scalability, architectural decision-making",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint"],
+      "capabilities": ["capability:software_architecture", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"]
+    },
+    {
+      "@id": "role:software_engineer",
+      "@type": "Role",
+      "name": "Software Engineer",
+      "description": "General software development — backend, APIs, databases, scripts, all languages",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint"],
+      "capabilities": ["capability:software_engineering", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"]
+    },
+    {
+      "@id": "role:infrastructure_specialist",
+      "@type": "Role",
+      "name": "Infrastructure Specialist",
+      "description": "Infrastructure as Code — Terraform, Kubernetes, cloud services",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint"],
+      "capabilities": ["capability:infrastructure_as_code", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"]
+    },
+    {
+      "@id": "role:security_specialist",
+      "@type": "Role",
+      "name": "Security Specialist",
+      "description": "Security audit and vulnerability review",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint"],
+      "capabilities": ["capability:security_audit", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"]
+    },
+    {
+      "@id": "role:researcher",
+      "@type": "Role",
+      "name": "Researcher",
+      "description": "External research — documentation, RFCs, best practices, standards",
+      "permissions": ["read", "write", "edit", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks", "save_checkpoint", "webfetch", "websearch"],
+      "capabilities": ["capability:external_research", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing", "capability:external_research_access"]
+    },
+    {
+      "@id": "agent:specialist:software-architect",
+      "@type": "Agent",
+      "name": "Specialist (Software Architect)",
+      "description": "Software architecture, system design, technical strategy, scalability, and architectural decision-making",
+      "roles": ["role:software_architect"],
+      "capabilities": ["capability:software_architecture", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks", "tool:save_checkpoint"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:specialist:software-engineer",
+      "@type": "Agent",
+      "name": "Specialist (Software Engineer)",
+      "description": "General software development — backend, APIs, databases, scripts, all languages",
+      "roles": ["role:software_engineer"],
+      "capabilities": ["capability:software_engineering", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks", "tool:save_checkpoint"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:specialist:infrastructure",
+      "@type": "Agent",
+      "name": "Specialist (Infrastructure)",
+      "description": "Infrastructure as Code — Terraform, Kubernetes, cloud services",
+      "roles": ["role:infrastructure_specialist"],
+      "capabilities": ["capability:infrastructure_as_code", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks", "tool:save_checkpoint"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:specialist:security",
+      "@type": "Agent",
+      "name": "Specialist (Security)",
+      "description": "Security audit and vulnerability review",
+      "roles": ["role:security_specialist"],
+      "capabilities": ["capability:security_audit", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks", "tool:save_checkpoint"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:specialist:researcher",
+      "@type": "Agent",
+      "name": "Specialist (Researcher)",
+      "description": "External research — documentation, RFCs, best practices, standards",
+      "roles": ["role:researcher"],
+      "capabilities": ["capability:external_research", "capability:implementation", "capability:plan_discovery", "capability:artifact_consistency", "capability:mechanical_verification", "capability:checkpointing", "capability:external_research_access"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks", "tool:save_checkpoint", "tool:webfetch", "tool:websearch"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    }
+  ]
+}

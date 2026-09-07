@@ -1,0 +1,214 @@
+{
+  "@context": {
+    "tori": "https://tori-agent.dev/ontology/2026/core#",
+    "agent": "https://tori-agent.dev/ontology/2026/agent#",
+    "@id": "@id",
+    "@type": "@type",
+    "governedBy": "tori:governedBy",
+    "implements": "tori:implements",
+    "partOf": "tori:partOf",
+    "requires": "tori:requires",
+    "name": "tori:name",
+    "description": "tori:description",
+    "roles": "tori:roles",
+    "capabilities": "tori:capabilities",
+    "tools": "tori:tools",
+    "metadata": "tori:metadata",
+    "permissions": "tori:permissions",
+    "scope": "tori:scope",
+    "required_capabilities": "tori:required_capabilities",
+    "capability_id": "tori:capability_id",
+    "assigned_to": "tori:assigned_to",
+    "status": "tori:status",
+    "stages": "tori:stages",
+    "transitions": "tori:transitions",
+    "workflow_id": "tori:workflow_id",
+    "entry_conditions": "tori:entry_conditions",
+    "exit_conditions": "tori:exit_conditions",
+    "from_stage": "tori:from_stage",
+    "to_stage": "tori:to_stage",
+    "trigger": "tori:trigger",
+    "type": "tori:type",
+    "owner_id": "tori:owner_id",
+    "content": "tori:content",
+    "source_id": "tori:source_id",
+    "rules": "tori:rules",
+    "enforcement_level": "tori:enforcement_level"
+  },
+  "@graph": [
+    {
+      "@id": "capability:code_review",
+      "@type": "Capability",
+      "name": "Code Review",
+      "description": "Evaluate code, designs, and artifacts for correctness, logic, error handling, API design, and maintainability",
+      "scope": "quality"
+    },
+    {
+      "@id": "capability:critical_thinking",
+      "@type": "Capability",
+      "name": "Critical Thinking",
+      "description": "Challenge proposals, assumptions, and designs to surface risks, edge cases, hidden costs, and alternative interpretations",
+      "scope": "analysis"
+    },
+    {
+      "@id": "capability:improvement_identification",
+      "@type": "Capability",
+      "name": "Improvement Identification",
+      "description": "Identify enhancement opportunities in code, designs, and processes without changing requirements",
+      "scope": "enhancement"
+    },
+    {
+      "@id": "capability:read_files",
+      "@type": "Capability",
+      "name": "Read Files",
+      "description": "Inspect implementation and review artifacts",
+      "scope": "filesystem"
+    },
+    {
+      "@id": "capability:artifact_consistency",
+      "@type": "Capability",
+      "name": "Artifact Consistency",
+      "description": "Verify cross-artifact consistency",
+      "scope": "quality"
+    },
+    {
+      "@id": "capability:mechanical_verification",
+      "@type": "Capability",
+      "name": "Mechanical Verification",
+      "description": "Run lint and tests before semantic review",
+      "scope": "verification"
+    },
+    {
+      "@id": "tool:read",
+      "@type": "Tool",
+      "name": "read",
+      "description": "Inspect implementation and review artifacts",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:bash",
+      "@type": "Tool",
+      "name": "bash",
+      "description": "Run read-only inspection and verification commands",
+      "capability_id": "capability:mechanical_verification"
+    },
+    {
+      "@id": "tool:glob",
+      "@type": "Tool",
+      "name": "glob",
+      "description": "Discover review targets",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:grep",
+      "@type": "Tool",
+      "name": "grep",
+      "description": "Search implementation and documentation",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:project_state",
+      "@type": "Tool",
+      "name": "project_state",
+      "description": "Understand active management artifacts",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:check_artifacts",
+      "@type": "Tool",
+      "name": "check_artifacts",
+      "description": "Verify cross-artifact consistency",
+      "capability_id": "capability:artifact_consistency"
+    },
+    {
+      "@id": "tool:run_mechanical_checks",
+      "@type": "Tool",
+      "name": "run_mechanical_checks",
+      "description": "Run lint/tests before semantic review",
+      "capability_id": "capability:mechanical_verification"
+    },
+    {
+      "@id": "role:reviewer_base",
+      "@type": "Role",
+      "name": "Reviewer Base",
+      "description": "Read-only reviewer with mechanical verification capabilities",
+      "permissions": ["read", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:quality_reviewer",
+      "@type": "Role",
+      "name": "Quality Reviewer",
+      "description": "Technical quality reviewer for correctness, logic, error handling, API design, maintainability",
+      "permissions": ["read", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:code_review", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:challenge_reviewer",
+      "@type": "Role",
+      "name": "Challenge Reviewer",
+      "description": "Critical thinking specialist - challenges proposals, assumptions, designs",
+      "permissions": ["read", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:critical_thinking", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:enhance_reviewer",
+      "@type": "Role",
+      "name": "Enhancement Reviewer",
+      "description": "Improvement specialist - identifies enhancement opportunities without changing requirements",
+      "permissions": ["read", "bash", "glob", "grep", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:improvement_identification", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "agent:reviewer:quality",
+      "@type": "Agent",
+      "name": "Reviewer (Quality)",
+      "description": "Technical quality reviewer. Evaluates code, designs, and artifacts for correctness, logic, error handling, API design, and maintainability.",
+      "roles": ["role:quality_reviewer"],
+      "capabilities": ["capability:code_review", "capability:read_files", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L0",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:reviewer:challenge",
+      "@type": "Agent",
+      "name": "Reviewer (Challenge)",
+      "description": "Critical thinking specialist. Challenges proposals, assumptions, and designs to surface risks, edge cases, hidden costs, and alternative interpretations.",
+      "roles": ["role:challenge_reviewer"],
+      "capabilities": ["capability:critical_thinking", "capability:read_files", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L0",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:reviewer:enhance",
+      "@type": "Agent",
+      "name": "Reviewer (Enhance)",
+      "description": "Improvement specialist. Identifies enhancement opportunities in code, designs, and processes without changing requirements.",
+      "roles": ["role:enhance_reviewer"],
+      "capabilities": ["capability:improvement_identification", "capability:read_files", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "subagent",
+        "color": "warning",
+        "human_tone": false,
+        "risk_tier": "L0",
+        "platforms": ["opencode", "kilocode"]
+      }
+    }
+  ]
+}

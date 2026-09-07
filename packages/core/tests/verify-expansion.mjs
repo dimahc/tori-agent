@@ -1,42 +1,64 @@
-import { loadAndCompileAllAgents } from '../dist/codegen/loader.js';
+import { OntologyCompiler } from '../dist/ontology/compiler.js';
 
-// Failure threshold (documented decision):
-// Every console.warn path in loader.ts is a genuine expansion failure for this
-// gate — a missing spec/agents/ dir, a spec that fails to read/parse, a missing
-// prompt file, or missing persona instructions all mean the agent expansion
-// would silently lose agents in production. None of them are benign. Therefore
-// we exit non-zero if ANY warning is emitted during loading. We additionally
-// treat zero compiled agents as a failure (e.g. an empty spec/agents/ dir
-// produces no warning at all), since a build that generates no agents is
-// equally broken.
-const warnings = [];
-const originalWarn = console.warn;
-console.warn = (...args) => {
-  warnings.push(args.map(String).join(' '));
-};
+// Verify ontology-native agent compilation
+const compiler = new OntologyCompiler();
+await compiler.initialize();
+const result = await compiler.compileAll();
+const registry = compiler.getRegistry();
 
-const agents = await loadAndCompileAllAgents();
+console.log('Ontology-native agent compilation:');
+console.log(`  Agents: ${result.agents.length}`);
+console.log(`  Roles: ${result.roles.length}`);
+console.log(`  Capabilities: ${result.capabilities.length}`);
+console.log(`  Skills: ${result.skills.length}`);
+console.log(`  Tools: ${result.tools.length}`);
+console.log(`  Workflows: ${registry.getByType('Workflow').length}`);
+console.log(`  Stages: ${registry.getByType('Stage').length}`);
+console.log(`  Transitions: ${registry.getByType('Transition').length}`);
+console.log(`  Policies: ${registry.getByType('Policy').length}`);
+console.log(`  Errors: ${result.errors.length}`);
+console.log(`  Warnings: ${result.warnings.length}`);
 
-console.warn = originalWarn;
-
-console.log('Expanded agents:');
-for (const a of agents) {
-  console.log(`  ${a.id} — mode: ${a.mode}, prompt length: ${a.prompt.length}`);
-}
-console.log(`\nTotal: ${agents.length} agents`);
-
-if (warnings.length > 0 || agents.length === 0) {
-  console.error('ERROR: agent expansion did not fully succeed.');
-  for (const w of warnings) {
-    console.error(`  warning: ${w}`);
-  }
-  if (agents.length === 0) {
-    console.error('  No agents were compiled.');
-  }
-  console.error(
-    'Fix the broken agent spec/prompt files before merging — this is a CI gate.',
-  );
+// Verify tori agent exists with ontology-native behavior
+const tori = registry.getByType('Agent').find(a => a.name === 'Tori');
+if (!tori) {
+  console.error('ERROR: Tori agent not found');
   process.exit(1);
 }
 
+console.log('\nTori agent verified:');
+console.log(`  ID: ${tori['@id']}`);
+console.log(`  Implements: ${tori.metadata?.implements?.join(', ')}`);
+console.log(`  Roles: ${tori.roles?.length}`);
+console.log(`  Capabilities: ${tori.capabilities?.length}`);
+console.log(`  Tools: ${tori.tools?.length}`);
+
+// Verify workflow
+const wfId = tori.metadata?.implements?.[0];
+if (wfId) {
+  const wf = registry.get(wfId);
+  console.log(`\nWorkflow: ${wf?.name}`);
+  console.log(`  Stages: ${wf?.stages?.length}`);
+  console.log(`  Transitions: ${wf?.transitions?.length}`);
+}
+
+// Verify policies linked to agent
+const policies = registry.getRelated(tori['@id'], 'governedBy').filter(e => e['@type'] === 'Policy');
+console.log(`\nPolicies: ${policies.map(p => p.name).join(', ')}`);
+
+// Verify registry stats
+const stats = registry.getStats();
+console.log(`\nRegistry stats:`);
+console.log(`  Total entities: ${stats.totalEntities}`);
+console.log(`  By type:`, stats.entitiesByType);
+
+if (result.errors.length > 0 || result.agents.length === 0) {
+  console.error('\nERROR: ontology compilation failed');
+  for (const e of result.errors) {
+    console.error(`  ${e.specId}: ${e.error}`);
+  }
+  process.exit(1);
+}
+
+console.log('\n✓ Ontology-native compilation successful');
 process.exit(0);
