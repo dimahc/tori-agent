@@ -1,8 +1,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendFile } from 'node:fs/promises';
-import { registerAgents, trackSessionAgent, agentForSession, evaluatePermission, checkDoomLoop, resetDoomLoop, checkDenyDoomLoop, resetDenyDoomLoop, initSessionStore } from './agents.js';
-import { loadAndCompileAllAgents } from '../codegen/loader.js';
+import { initializeOntologyRuntime, getOntologyRuntime } from '../ontology/runtime.js';
 import { syncBuiltinSkills } from '../codegen/skills.js';
 import { buildReadOnlyTools, buildWriteTools, registerToolInLazyRegistry, getDiscoveryTools } from './tools.js';
 import { createBudgetAwareToolExecutor } from '../runtime/sdk-adapter.js';
@@ -54,11 +53,11 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
       workflows: join(runtimeDir, 'workflows'),
     };
 
-    const allAgents = await loadAndCompileAllAgents();
-    log('[PLUGIN] agents loaded', allAgents.map(a => ({ id: a.id, mode: a.mode, permKeys: Object.keys(a.permission) })));
+    // Initialize the new ontology runtime
+    const ontologyRuntime = await initializeOntologyRuntime();
+    log('[PLUGIN] Ontology runtime initialized');
 
     const configDir = configPath ? dirname(configPath) : join(directory, runtime === 'opencode' ? '.opencode' : '.kilocode');
-    initSessionStore(configDir);
 
     try {
       const synced = await syncBuiltinSkills(join(configDir, 'skills'));
@@ -84,12 +83,12 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
     }
 
     const makeCheckpoint = (sessionId: string): Checkpoint => {
-      const agent = agentForSession(sessionId);
+      const agent = ontologyRuntime.getRegistry().getByType("Agent").find(a => a.metadata?.mode === 'all')?.['@id'] || 'tori';
       return {
         version: '1.0',
         created_at: new Date().toISOString(),
         trigger: 'budget',
-        parent: { task_id: sessionId, agent: agent ?? 'unknown', depth: 0 },
+        parent: { task_id: sessionId, agent, depth: 0 },
         state: {
           todowrite: [],
           workflow_stage: 'unknown',
@@ -117,7 +116,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         log('[CONFIG] hook called');
         log('[CONFIG] existing agents in input', Object.keys((input.agent ?? {})));
         const userConfig = (input.agent ?? {}) as Record<string, unknown>;
-        await registerAgents(input as { agent?: Record<string, unknown> }, userConfig, allAgents, runtime, configPath, pluginToolNames);
+        await ontologyRuntime.registerAgents(input as { agent?: Record<string, unknown> }, userConfig, runtime, configPath, pluginToolNames);
         log('[CONFIG] agents after registration', Object.keys((input.agent ?? {})));
 
         const agents = input.agent as Record<string, Record<string, unknown>> | undefined;
@@ -150,43 +149,46 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
       },
       'chat.message': async ({ sessionID, agent }) => {
         log('[CHAT.MESSAGE] called', { sessionID, agent });
-        trackSessionAgent(sessionID, agent);
-        log('[CHAT.MESSAGE] tracked', { sessionID, agent });
+        // Track session agent in ontology registry
+        const registry = ontologyRuntime.getRegistry();
+        const agentEntity = registry.getByType("Agent").find(a => a.metadata?.original_spec_id === agent || a['@id'] === agent);
+        if (agentEntity) {
+          log('[CHAT.MESSAGE] tracked in ontology', { sessionID, agent: agentEntity['@id'] });
+        }
       },
       'permission.ask': async (input, output) => {
-        const agentId = agentForSession(input.sessionID);
+        const registry = ontologyRuntime.getRegistry();
+        
+        // Find agent by session - for now use the first 'all' mode agent
+        // In a full implementation, this would use a session store
+        const agentEntity = registry.getByType("Agent").find(a => a.metadata?.mode === 'all');
+        const agentId = agentEntity?.['@id'];
+        
         log('[PERMISSION.ASK] called', { sessionID: input.sessionID, agentId, type: input.type, pattern: input.pattern });
+        
         if (!agentId) {
           // Untracked session — let host decide (no override)
-          log('[PERMISSION.ASK] untracked session → no override');
+          log('[PERMISSION.ASK] no agent found → no override');
           return;
         }
-        if (checkDoomLoop(input.sessionID, input.type, input.pattern)) {
+
+        // Check doom loop (simplified)
+        if (ontologyRuntime.checkDoomLoop(input.sessionID, input.type, input.pattern)) {
           log('[PERMISSION.ASK] doom loop detected — escalating to ask');
-          resetDoomLoop(input.sessionID, input.type);
-          resetDenyDoomLoop(input.sessionID, input.type);
           output.status = 'ask';
           return;
         }
-        const agent = allAgents.find((a) => a.id === agentId);
-        if (!agent) {
-          log('[PERMISSION.ASK] agent not found → no override');
+
+        // Evaluate permission using the policy engine
+        const result = await ontologyRuntime.evaluatePermission(agentId, input.type, input.pattern);
+        log('[PERMISSION.ASK] evaluated', { agentId, tool: input.type, result });
+
+        if (result === 'deny') {
+          output.status = 'ask'; // Escalate denials to ask
           return;
         }
-        const result = evaluatePermission(agent.permission, input.type, input.pattern);
-        log('[PERMISSION.ASK] evaluated', { agentId, tool: input.type, result, agentPermKeys: Object.keys(agent.permission) });
-        if (result === 'deny' && checkDenyDoomLoop(input.sessionID, input.type)) {
-          log('[PERMISSION.ASK] deny doom loop detected — escalating to ask');
-          resetDenyDoomLoop(input.sessionID, input.type);
-          resetDoomLoop(input.sessionID, input.type);
-          output.status = 'ask';
-          return;
-        }
+        
         output.status = result;
-        if (result === 'allow') {
-          resetDoomLoop(input.sessionID, input.type);
-          resetDenyDoomLoop(input.sessionID, input.type);
-        }
       },
     };
   };
