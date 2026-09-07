@@ -13,12 +13,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run build -w packages/core && npm run build -w packages/runtime-opencode && npm run build -w packages/runtime-kilocode",
+    "build": "npm run build -w packages/core && npm run build -w packages/runtime",
     "test": "node --test packages/*/tests/*.test.js",
-    "lint": "eslint packages/*/src/"
+    "lint": "eslint packages/core/src/ packages/runtime/src/"
   },
   "workspaces": [
     "packages/core",
+    "packages/runtime",
     "packages/runtime-opencode",
     "packages/runtime-kilocode",
     "packages/cli"
@@ -34,6 +35,7 @@
   },
   "dependencies": {
     "@types/rdf-validate-shacl": "^0.4.9",
-    "rdf-validate-shacl": "^0.6.5"
+    "rdf-validate-shacl": "^0.6.5",
+    "yaml": "^2.5.0"
   }
 }

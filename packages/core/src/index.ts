@@ -1,52 +1,47 @@
-// Runtime detection (Seam 1)
-export { detectRuntime } from './runtime/detect.js';
-export type { Runtime } from './runtime/detect.js';
+/**
+ * @file packages/core/src/index.ts
+ * @description Tori Agent Core - Ontology-Oriented Architecture
+ * 
+ * This is the single entry point for the entire system.
+ * The ontology (JSON-LD → SHACL → Datalog) IS the architecture.
+ * 
+ * Exports:
+ * - Ontology: Types, Registry, Compiler, Migration, Store
+ * - Policy: Datalog Engine, Policy Engine
+ * - Serialization: JSON-LD Serializer, Context
+ * - Validation: SHACL Validator
+ * - Runtime: OntologyRuntime (plugin entry point)
+ * - Plugin Internals: Tool builders, lazy registry, budget executor, skills sync
+ */
 
-// SDK adapters — thin wrappers over host SDKs
-export { createConversationClient } from './runtime/sdk-adapter.js';
+// Ontology Types
+export * from './types/ontology.js';
+export * from './types/validation.js';
+export * from './types/registry.js';
+export * from './types/policy.js';
 
-// Plugin builder — creates a V2-style plugin function
-export { buildPlugin } from './plugin/index.js';
-export type { PluginInput, PluginOutput } from './plugin/index.js';
+// Ontology Engine
+export { OntologyRegistry, DEFAULT_REGISTRY_CONFIG } from './ontology/registry.js';
+export { OntologyCompiler } from './ontology/compiler.js';
+export { MigrationEngine, defaultMigrations } from './ontology/migration.js';
+export { FileSystemOntologyStore, DEFAULT_STORE_CONFIG } from './ontology/store.js';
+export { OntologyRuntime, initializeOntologyRuntime, getOntologyRuntime } from './ontology/runtime.js';
 
-// Standalone default export — allows @tori-agent/core to be loaded directly
-// as an opencode plugin without going through a runtime adapter.
-import { buildPlugin as _buildPlugin, type PluginInput } from './plugin/index.js';
-import { detectRuntime as _detectRuntime } from './runtime/detect.js';
+// Policy Engine (Datalog)
+export { DatalogEngine } from './policy/datalog.js';
+export { PolicyEngineImpl } from './policy/engine.js';
+export type { PolicyEngine, Fact, Rule, Atom, Substitution } from './types/policy.js';
 
-export default async function (input: PluginInput) {
-  const runtime = input.runtime ?? _detectRuntime();
-  const pluginFn = _buildPlugin({ runtime, configPath: input.configPath ?? '' });
-  return await pluginFn(input);
-}
+// Serialization
+export { JSONLDSerializer } from './serialization/jsonld.js';
 
-// Agent registration helpers — host-native tools/permission shaping
-export { buildToolsMap, buildHostPermission, evaluatePermission } from './plugin/agents.js';
+// Validation
+export { ShaclValidator } from './validation/shacl.js';
+export type { ValidationIssue, ValidationResult, ShaclShape, ShaclPropertyConstraint, Severity } from './types/validation.js';
 
-// Lifecycle tools — deterministic bookkeeping operations for exec-plans, specs, briefs
-export {
-  projectState,
-  markBlockDone,
-  completePlan,
-  registerSpec,
-  checkArtifacts,
-  runMechanicalChecks,
-  executeCheckCommand,
-  truncateOutput,
-  splitCommandLine,
-} from './tools/lifecycle.js';
-export type { ArtifactPaths } from './tools/lifecycle.js';
+// Plugin Internals (for runtime package)
+export * from './plugin/index.js';
 
-// Codegen — YAML-based agent spec loading and compilation
-export { loadAndCompileAllAgents } from './codegen/index.js';
-
-// Codegen — builtin skill discovery and syncing into a host runtime
-export { listBuiltinSkills, syncBuiltinSkills } from './codegen/index.js';
-export type { BuiltinSkill, SyncedSkill } from './codegen/index.js';
-
-// Session persistence — JSON-file-backed session→agent tracking
-export { initSessionStore, trackSessionAgent, agentForSession, clearSession, setProjectRoot, setBudget, getBudget, clearBudget, updateSessionBudget, checkSessionBudget } from './runtime/session-store.js';
-
-// Persona system — composable expertise model with hierarchy and matching
-export { buildHierarchy, matchPersona, buildPersonaHierarchy, matchPersonaForTask } from './codegen/index.js';
-export type { PersonaDefinition, PersonaHierarchy, PersonaMatch } from './types/persona.js';
+// Schemas (re-export for external access)
+export { ontologySchema } from './schemas/ontology.schema.js';
+export { ontologyContext } from './schemas/ontology.context.js';

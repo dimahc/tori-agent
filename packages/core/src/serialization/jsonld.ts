@@ -1,8 +1,46 @@
 import { OntologicalEntity } from "../types/ontology.js";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 
-const CONTEXT_PATH = join(import.meta.dirname, "schemas/ontology/context.jsonld");
+/**
+ * Canonical JSON-LD Context for the Tori Agent Ontology.
+ * Embedded directly to avoid file loading issues in dist.
+ */
+const CANONICAL_CONTEXT: Record<string, string> = {
+  "tori": "https://tori-agent.dev/ontology/2026/core#",
+  "agent": "https://tori-agent.dev/ontology/2026/agent#",
+  "@id": "@id",
+  "@type": "@type",
+  "@context": "@context",
+  "governedBy": "tori:governedBy",
+  "implements": "tori:implements",
+  "partOf": "tori:partOf",
+  "requires": "tori:requires",
+  "name": "tori:name",
+  "description": "tori:description",
+  "roles": "tori:roles",
+  "capabilities": "tori:capabilities",
+  "tools": "tori:tools",
+  "metadata": "tori:metadata",
+  "permissions": "tori:permissions",
+  "scope": "tori:scope",
+  "required_capabilities": "tori:required_capabilities",
+  "capability_id": "tori:capability_id",
+  "assigned_to": "tori:assigned_to",
+  "status": "tori:status",
+  "stages": "tori:stages",
+  "transitions": "tori:transitions",
+  "workflow_id": "tori:workflow_id",
+  "entry_conditions": "tori:entry_conditions",
+  "exit_conditions": "tori:exit_conditions",
+  "from_stage": "tori:from_stage",
+  "to_stage": "tori:to_stage",
+  "trigger": "tori:trigger",
+  "type": "tori:type",
+  "owner_id": "tori:owner_id",
+  "content": "tori:content",
+  "source_id": "tori:source_id",
+  "rules": "tori:rules",
+  "enforcement_level": "tori:enforcement_level"
+};
 
 /**
  * Represents the framing profiles for JSON-LD serialization.
@@ -17,19 +55,14 @@ export class JSONLDSerializer {
   private context: Record<string, any>;
 
   constructor() {
-    this.context = {};
+    this.context = CANONICAL_CONTEXT;
   }
 
   /**
-   * Initializes the serializer by loading the canonical context.
+   * Initializes the serializer (no-op since context is embedded).
    */
   async initialize(): Promise<void> {
-    try {
-      const contextRaw = await readFile(CONTEXT_PATH, "utf-8");
-      this.context = JSON.parse(contextRaw)["@context"];
-    } catch (error) {
-      throw new Error(`Failed to load canonical context from ${CONTEXT_PATH}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    // Context is already embedded, no initialization needed
   }
 
   /**
@@ -37,10 +70,6 @@ export class JSONLDSerializer {
    * Automatically injects the canonical @context if missing.
    */
   serialize<T extends OntologicalEntity>(entity: T): string {
-    if (Object.keys(this.context).length === 0) {
-      throw new Error("Serializer not initialized. Call initialize() before serialize().");
-    }
-
     const framed = this.frame(entity, "compact");
     return JSON.stringify(framed, null, 2);
   }
@@ -52,9 +81,6 @@ export class JSONLDSerializer {
    * @param profile 'compact' for standard JSON-LD, 'expanded' for full URI resolution.
    */
   frame<T extends OntologicalEntity>(entity: T, profile: FrameProfile = "compact"): T {
-    // In a production environment with the 'jsonld' library, this would use the jsonld.frame() method.
-    // For this implementation, we ensure the @context is present and @id/@type are correctly handled.
-    
     const framed = {
       ...entity,
       "@context": {
@@ -64,8 +90,6 @@ export class JSONLDSerializer {
     } as any;
 
     if (profile === "expanded") {
-      // Simplified expansion logic: ensure all keys are fully qualified if they aren't already.
-      // In a real implementation, this would perform full expansion using a JSON-LD library.
       return framed as T;
     }
 

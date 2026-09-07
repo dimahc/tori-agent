@@ -10,8 +10,8 @@
  * - SHACL validation on registration
  */
 
-import { loadHumanTone } from "../codegen/loader.js";
-import type { CompiledAgent } from "../codegen/types.js";
+import { loadHumanTone } from "../tools/loader.js";
+import type { CompiledAgent } from "../types/spec.js";
 import { OntologyCompiler } from "./compiler.js";
 import { OntologyRegistry } from "./registry.js";
 import { PolicyEngineImpl } from "../policy/engine.js";

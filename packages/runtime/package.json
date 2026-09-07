@@ -1,0 +1,32 @@
+{
+  "name": "@tori-agent/runtime",
+  "version": "0.1.1",
+  "description": "Unified Tori Agent Runtime for OpenCode and KiloCode",
+  "author": "@dimahc <dev@dimahc.com>",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./plugin": {
+      "import": "./dist/plugin.js",
+      "types": "./dist/plugin.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@tori-agent/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

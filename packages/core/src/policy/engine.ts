@@ -120,6 +120,27 @@ export class PolicyEngineImpl implements PolicyEngine {
   }
 
   /**
+   * Synchronous version of evaluate for cases where async is not needed.
+   * Uses the current fact/rule base without rebuilding.
+   */
+  public evaluateSync(
+    subject: string,
+    action: string,
+    object: string,
+    context?: Record<string, unknown>
+  ): boolean {
+    const contextFacts = this.buildContextFacts(subject, object, context);
+    const tempEngine = new DatalogEngine([...this.facts, ...contextFacts], this.rules);
+
+    if (tempEngine.evaluate({ predicate: DENY_PREDICATE, terms: [subject, object] }).length > 0) {
+      return false;
+    }
+
+    const predicate = this.actionToPredicate(action);
+    return tempEngine.evaluate({ predicate, terms: [subject, object] }).length > 0;
+  }
+
+  /**
    * Adds a ground fact to the persistent fact base.
    * @throws If the fact has an empty predicate or a non-array `args`.
    */

@@ -16,9 +16,9 @@ import yaml from "js-yaml";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifySpecSignature, computeContentHash } from "../codegen/signing.js";
-import { validateSkillPermissions } from "../codegen/skill-validation.js";
-import type { AgentSpec, AgentPermissions } from "../codegen/types.js";
+import { verifySpecSignature, computeContentHash } from "../tools/signing.js";
+import { validateSkillPermissions } from "../tools/skill-validation.js";
+import type { AgentSpec, AgentPermissions } from "../types/spec.js";
 import {
   OntologyRegistry,
   DEFAULT_REGISTRY_CONFIG,
@@ -136,7 +136,7 @@ export class OntologyCompiler {
     const referencesText = references ? `${references}\n\n` : "";
 
     // 2. Build permissions from spec
-    const basePermissions = this.buildOntologicalPermissions(spec.permissions, spec);
+    const basePermissions = this.buildOntologicalPermissions(spec.permissions || {}, spec);
 
     // 3. Handle personas/modes
     const entries = spec.personas ?? spec.modes;
@@ -157,8 +157,8 @@ export class OntologyCompiler {
       }
 
       const mergedPerms = entry.permissions
-        ? this.mergePermissions(spec.permissions, entry.permissions)
-        : spec.permissions;
+        ? this.mergePermissions(spec.permissions || {}, entry.permissions)
+        : (spec.permissions || {});
       const ontologicalPerms = this.buildOntologicalPermissions(mergedPerms, { ...spec, id: `${spec.id}:${key}`, description: entry.description });
 
       const agent = await this.compileSingleAgent(
