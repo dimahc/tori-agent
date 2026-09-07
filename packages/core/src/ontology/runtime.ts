@@ -8,19 +8,19 @@
  * - PolicyEngine for all permission decisions
  * - JSONLDSerializer for agent serialization
  * - SHACL validation on registration
+ * - Ontology-native behavior (workflows, policies, capabilities) instead of prompts
  */
 
-import { loadHumanTone } from "../tools/loader.js";
-import type { CompiledAgent } from "../types/spec.js";
 import { OntologyCompiler } from "./compiler.js";
 import { OntologyRegistry } from "./registry.js";
 import { PolicyEngineImpl } from "../policy/engine.js";
 import { JSONLDSerializer } from "../serialization/jsonld.js";
-import { Agent, Role, Capability, Tool, OntologyId, OntologicalEntity } from "../types/ontology.js";
+import { Agent, Role, Capability, Tool, OntologyId, OntologicalEntity, Workflow, Stage, Transition, Policy } from "../types/ontology.js";
 
 /**
  * OntologyRuntime - The new plugin runtime.
  * Initializes the ontology, compiles agents, and provides runtime APIs.
+ * Behavior is defined by ontology (workflows, policies, capabilities) not prompts.
  */
 export class OntologyRuntime {
   private compiler: OntologyCompiler;
@@ -28,7 +28,6 @@ export class OntologyRuntime {
   private policyEngine: PolicyEngineImpl;
   private serializer: JSONLDSerializer;
   private initialized = false;
-  private humanTone = "";
 
   constructor() {
     this.compiler = new OntologyCompiler();
@@ -42,9 +41,6 @@ export class OntologyRuntime {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-
-    // Load human tone for prompt injection
-    this.humanTone = await loadHumanTone();
 
     // Initialize compiler (loads registry from store)
     await this.compiler.initialize();
@@ -99,10 +95,11 @@ export class OntologyRuntime {
    * Register agents for a runtime (OpenCode/KiloCode).
    * REPLACES: registerAgents() from agents.ts
    * 
-   * Instead of building permission maps, we now:
+   * Instead of building permission maps from prompts, we now:
    * 1. Serialize agents as JSON-LD
    * 2. Provide capability-based tool maps
    * 3. Delegate permission checks to PolicyEngine
+   * 4. Include ontology-native behavior (workflows, policies, capabilities)
    */
   async registerAgents(
     input: { agent?: Record<string, unknown> },
@@ -124,12 +121,6 @@ export class OntologyRuntime {
       const userCfg = (userAgents[originalSpecId] ?? {}) as Record<string, unknown> & { soul?: boolean };
       const { soul, ...userCfgRest } = userCfg;
 
-      // Build final prompt with human tone
-      const agentMode = agent.metadata?.mode as string | undefined;
-      const finalPrompt = agentMode === 'all' && soul !== false && this.humanTone
-        ? `${agent.metadata?.prompt}\n\nInstructions from: ${configPath}\n${this.humanTone}`
-        : (agent.metadata?.prompt as string) || "";
-
       // Get capabilities for this agent
       const capabilities = this.registry.getRelated(agent['@id'], 'governedBy')
         .filter(e => e['@type'] === 'Capability') as Capability[];
@@ -140,6 +131,9 @@ export class OntologyRuntime {
       // Build host permission object (for runtime compatibility)
       const hostPermission = await this.buildHostPermissionFromPolicy(agent, pluginToolNames);
 
+      // Get ontology-native behavior for this agent
+      const behavior = this.getAgentBehavior(agent);
+
       // Merge user tool overrides
       const userTools = (userCfgRest.tools ?? {}) as Record<string, boolean>;
 
@@ -149,11 +143,64 @@ export class OntologyRuntime {
         mode: agent.metadata?.mode,
         color: agent.metadata?.color ?? "info",
         ...userCfgRest,
-        prompt: finalPrompt,
+        // Ontology-native behavior replaces prompt
+        behavior: behavior,
         tools: { ...toolsMap, ...userTools },
         permission: hostPermission,
       } as never;
     }
+  }
+
+  /**
+   * Get ontology-native behavior for an agent.
+   * Returns workflows, policies, stages, and capabilities instead of a prompt.
+   */
+  getAgentBehavior(agent: Agent): AgentBehavior {
+    // Get implemented workflows
+    const implementsWorkflows = (agent.metadata?.implements as string[]) || [];
+    const workflows: Workflow[] = [];
+    for (const wfId of implementsWorkflows) {
+      const wf = this.registry.get(wfId);
+      if (wf && wf['@type'] === 'Workflow') workflows.push(wf as Workflow);
+    }
+
+    // Get policies governed by this agent
+    const policies = this.registry.getRelated(agent['@id'], 'governedBy')
+      .filter(e => e['@type'] === 'Policy') as Policy[];
+
+    // Get stages from workflows
+    const stages: Stage[] = [];
+    for (const wf of workflows) {
+      const stageIds = (wf.stages as unknown as string[]) || [];
+      for (const stageId of stageIds) {
+        const stage = this.registry.get(stageId);
+        if (stage && stage['@type'] === 'Stage') stages.push(stage as Stage);
+      }
+    }
+
+    // Get transitions from workflows
+    const transitions: Transition[] = [];
+    for (const wf of workflows) {
+      const transIds = (wf.transitions as unknown as string[]) || [];
+      for (const transId of transIds) {
+        const trans = this.registry.get(transId);
+        if (trans && trans['@type'] === 'Transition') transitions.push(trans as Transition);
+      }
+    }
+
+    // Get capabilities
+    const capabilities = this.registry.getRelated(agent['@id'], 'governedBy')
+      .filter(e => e['@type'] === 'Capability') as Capability[];
+
+    return {
+      workflows,
+      policies,
+      stages,
+      transitions,
+      capabilities,
+      // Current stage tracking (would be persisted in workflow state)
+      currentStage: stages[0]?.['@id'] || null,
+    };
   }
 
   /**
@@ -327,6 +374,19 @@ export class OntologyRuntime {
       .filter(e => e['@type'] === 'Capability');
     return caps.some(c => c['@id'] === `capability:${capabilityId}`);
   }
+}
+
+/**
+ * Ontology-native agent behavior - replaces prompts.
+ * Contains workflows, policies, stages, transitions, and capabilities.
+ */
+export interface AgentBehavior {
+  workflows: Workflow[];
+  policies: Policy[];
+  stages: Stage[];
+  transitions: Transition[];
+  capabilities: Capability[];
+  currentStage: OntologyId | null;
 }
 
 /**
