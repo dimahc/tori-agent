@@ -1,0 +1,359 @@
+{
+  "@context": {
+    "tori": "https://tori-agent.dev/ontology/2026/core#",
+    "agent": "https://tori-agent.dev/ontology/2026/agent#",
+    "@id": "@id",
+    "@type": "@type",
+    "governedBy": "tori:governedBy",
+    "implements": "tori:implements",
+    "partOf": "tori:partOf",
+    "requires": "tori:requires",
+    "name": "tori:name",
+    "description": "tori:description",
+    "roles": "tori:roles",
+    "capabilities": "tori:capabilities",
+    "tools": "tori:tools",
+    "metadata": "tori:metadata",
+    "permissions": "tori:permissions",
+    "scope": "tori:scope",
+    "required_capabilities": "tori:required_capabilities",
+    "capability_id": "tori:capability_id",
+    "assigned_to": "tori:assigned_to",
+    "status": "tori:status",
+    "stages": "tori:stages",
+    "transitions": "tori:transitions",
+    "workflow_id": "tori:workflow_id",
+    "entry_conditions": "tori:entry_conditions",
+    "exit_conditions": "tori:exit_conditions",
+    "from_stage": "tori:from_stage",
+    "to_stage": "tori:to_stage",
+    "trigger": "tori:trigger",
+    "type": "tori:type",
+    "owner_id": "tori:owner_id",
+    "content": "tori:content",
+    "source_id": "tori:source_id",
+    "rules": "tori:rules",
+    "enforcement_level": "tori:enforcement_level"
+  },
+  "@graph": [
+    {
+      "@id": "capability:artifact_generation",
+      "@type": "Capability",
+      "name": "Artifact Generation",
+      "description": "Produce structured knowledge artifacts at each workflow stage",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:specification_writing",
+      "@type": "Capability",
+      "name": "Specification Writing",
+      "description": "Write agent specifications with proper structure",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:adr_writing",
+      "@type": "Capability",
+      "name": "ADR Writing",
+      "description": "Write Architecture Decision Records",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:release_note_writing",
+      "@type": "Capability",
+      "name": "Release Note Writing",
+      "description": "Generate release notes from changes",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:documentation_writing",
+      "@type": "Capability",
+      "name": "Documentation Writing",
+      "description": "Write README and user-facing documentation",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:changelog_writing",
+      "@type": "Capability",
+      "name": "Changelog Writing",
+      "description": "Update CHANGELOG.md with changes",
+      "scope": "documentation"
+    },
+    {
+      "@id": "capability:plan_writing",
+      "@type": "Capability",
+      "name": "Plan Writing",
+      "description": "Create exec-plans from requirements",
+      "scope": "planning"
+    },
+    {
+      "@id": "capability:artifact_consistency",
+      "@type": "Capability",
+      "name": "Artifact Consistency",
+      "description": "Verify cross-artifact consistency",
+      "scope": "quality"
+    },
+    {
+      "@id": "capability:mechanical_verification",
+      "@type": "Capability",
+      "name": "Mechanical Verification",
+      "description": "Run lint and tests before artifact completion",
+      "scope": "verification"
+    },
+    {
+      "@id": "capability:read_files",
+      "@type": "Capability",
+      "name": "Read Files",
+      "description": "Inspect existing artifacts and style",
+      "scope": "filesystem"
+    },
+    {
+      "@id": "capability:scoped_write",
+      "@type": "Capability",
+      "name": "Scoped Write",
+      "description": "Create/update only delegated artifact paths",
+      "scope": "filesystem"
+    },
+    {
+      "@id": "tool:read",
+      "@type": "Tool",
+      "name": "read",
+      "description": "Inspect existing artifacts and style",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:write",
+      "@type": "Tool",
+      "name": "write",
+      "description": "Create delegated artifact paths",
+      "capability_id": "capability:scoped_write"
+    },
+    {
+      "@id": "tool:edit",
+      "@type": "Tool",
+      "name": "edit",
+      "description": "Update delegated artifact paths",
+      "capability_id": "capability:scoped_write"
+    },
+    {
+      "@id": "tool:mark_block_done",
+      "@type": "Tool",
+      "name": "mark_block_done",
+      "description": "Check delegated exec-plan blocks",
+      "capability_id": "capability:artifact_generation"
+    },
+    {
+      "@id": "tool:complete_plan",
+      "@type": "Tool",
+      "name": "complete_plan",
+      "description": "Complete delegated exec-plans after validation",
+      "capability_id": "capability:artifact_generation"
+    },
+    {
+      "@id": "tool:register_spec",
+      "@type": "Tool",
+      "name": "register_spec",
+      "description": "Create delegated specs through lifecycle guard",
+      "capability_id": "capability:artifact_generation"
+    },
+    {
+      "@id": "tool:glob",
+      "@type": "Tool",
+      "name": "glob",
+      "description": "Discover artifact files",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:grep",
+      "@type": "Tool",
+      "name": "grep",
+      "description": "Search artifact content",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:question",
+      "@type": "Tool",
+      "name": "question",
+      "description": "Clarify missing artifact requirements",
+      "capability_id": "capability:artifact_generation"
+    },
+    {
+      "@id": "tool:project_state",
+      "@type": "Tool",
+      "name": "project_state",
+      "description": "Inspect current artifact state",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:check_artifacts",
+      "@type": "Tool",
+      "name": "check_artifacts",
+      "description": "Verify artifact consistency",
+      "capability_id": "capability:artifact_consistency"
+    },
+    {
+      "@id": "tool:run_mechanical_checks",
+      "@type": "Tool",
+      "name": "run_mechanical_checks",
+      "description": "Run required lint/test checks",
+      "capability_id": "capability:mechanical_verification"
+    },
+    {
+      "@id": "role:scribe_base",
+      "@type": "Role",
+      "name": "Scribe Base",
+      "description": "Stage artifact generator with scoped write access",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:specification_scribe",
+      "@type": "Role",
+      "name": "Specification Scribe",
+      "description": "Write agent specifications",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:specification_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:adr_scribe",
+      "@type": "Role",
+      "name": "ADR Scribe",
+      "description": "Write Architecture Decision Records",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:adr_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:release_note_scribe",
+      "@type": "Role",
+      "name": "Release Note Scribe",
+      "description": "Generate release notes",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:release_note_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:documentation_scribe",
+      "@type": "Role",
+      "name": "Documentation Scribe",
+      "description": "Write README and user-facing documentation",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:documentation_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:changelog_scribe",
+      "@type": "Role",
+      "name": "Changelog Scribe",
+      "description": "Update CHANGELOG.md",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:changelog_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "role:plan_scribe",
+      "@type": "Role",
+      "name": "Plan Scribe",
+      "description": "Create exec-plans from requirements",
+      "permissions": ["read", "write", "edit", "mark_block_done", "complete_plan", "register_spec", "glob", "grep", "question", "project_state", "check_artifacts", "run_mechanical_checks"],
+      "capabilities": ["capability:read_files", "capability:plan_writing", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"]
+    },
+    {
+      "@id": "agent:scribe:specification",
+      "@type": "Agent",
+      "name": "Scribe (Specification)",
+      "description": "Write agent specifications",
+      "roles": ["role:specification_scribe"],
+      "capabilities": ["capability:specification_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:scribe:adr",
+      "@type": "Agent",
+      "name": "Scribe (ADR)",
+      "description": "Write Architecture Decision Records",
+      "roles": ["role:adr_scribe"],
+      "capabilities": ["capability:adr_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:scribe:release-note",
+      "@type": "Agent",
+      "name": "Scribe (Release Note)",
+      "description": "Generate release notes",
+      "roles": ["role:release_note_scribe"],
+      "capabilities": ["capability:release_note_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:scribe:documentation",
+      "@type": "Agent",
+      "name": "Scribe (Documentation)",
+      "description": "Write README and user-facing documentation",
+      "roles": ["role:documentation_scribe"],
+      "capabilities": ["capability:documentation_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:scribe:changelog",
+      "@type": "Agent",
+      "name": "Scribe (Changelog)",
+      "description": "Update CHANGELOG.md",
+      "roles": ["role:changelog_scribe"],
+      "capabilities": ["capability:changelog_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    },
+    {
+      "@id": "agent:scribe:plan",
+      "@type": "Agent",
+      "name": "Scribe (Plan)",
+      "description": "Create exec-plans from requirements",
+      "roles": ["role:plan_scribe"],
+      "capabilities": ["capability:plan_writing", "capability:read_files", "capability:scoped_write", "capability:artifact_generation", "capability:artifact_consistency", "capability:mechanical_verification"],
+      "tools": ["tool:read", "tool:write", "tool:edit", "tool:mark_block_done", "tool:complete_plan", "tool:register_spec", "tool:glob", "tool:grep", "tool:question", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"],
+      "metadata": {
+        "temperature": 0.1,
+        "mode": "subagent",
+        "color": "info",
+        "human_tone": false,
+        "risk_tier": "L1",
+        "platforms": ["opencode", "kilocode"]
+      }
+    }
+  ]
+}
