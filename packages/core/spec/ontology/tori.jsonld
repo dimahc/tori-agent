@@ -1,0 +1,370 @@
+{
+  "@context": {
+    "tori": "https://tori-agent.dev/ontology/2026/core#",
+    "agent": "https://tori-agent.dev/ontology/2026/agent#",
+    "@id": "@id",
+    "@type": "@type",
+    "governedBy": "tori:governedBy",
+    "implements": "tori:implements",
+    "partOf": "tori:partOf",
+    "requires": "tori:requires",
+    "name": "tori:name",
+    "description": "tori:description",
+    "roles": "tori:roles",
+    "capabilities": "tori:capabilities",
+    "tools": "tori:tools",
+    "metadata": "tori:metadata",
+    "permissions": "tori:permissions",
+    "scope": "tori:scope",
+    "required_capabilities": "tori:required_capabilities",
+    "capability_id": "tori:capability_id",
+    "assigned_to": "tori:assigned_to",
+    "status": "tori:status",
+    "stages": "tori:stages",
+    "transitions": "tori:transitions",
+    "workflow_id": "tori:workflow_id",
+    "entry_conditions": "tori:entry_conditions",
+    "exit_conditions": "tori:exit_conditions",
+    "from_stage": "tori:from_stage",
+    "to_stage": "tori:to_stage",
+    "trigger": "tori:trigger",
+    "type": "tori:type",
+    "owner_id": "tori:owner_id",
+    "content": "tori:content",
+    "source_id": "tori:source_id",
+    "rules": "tori:rules",
+    "enforcement_level": "tori:enforcement_level"
+  },
+  "@graph": [
+    {
+      "@id": "capability:orchestration",
+      "@type": "Capability",
+      "name": "Orchestration",
+      "description": "Coordinate and delegate work to specialized agents",
+      "scope": "orchestration"
+    },
+    {
+      "@id": "capability:read_files",
+      "@type": "Capability",
+      "name": "Read Files",
+      "description": "Inspect project artifacts and configuration",
+      "scope": "filesystem"
+    },
+    {
+      "@id": "capability:workflow_management",
+      "@type": "Capability",
+      "name": "Workflow Management",
+      "description": "Manage workflow state, stages, and transitions",
+      "scope": "orchestration"
+    },
+    {
+      "@id": "capability:verification",
+      "@type": "Capability",
+      "name": "Verification",
+      "description": "Run mechanical checks and record verification outcomes",
+      "scope": "quality"
+    },
+    {
+      "@id": "capability:checkpointing",
+      "@type": "Capability",
+      "name": "Checkpointing",
+      "description": "Persist and resume workflow state",
+      "scope": "orchestration"
+    },
+    {
+      "@id": "tool:task",
+      "@type": "Tool",
+      "name": "task",
+      "description": "Delegate substantive work to a worker agent",
+      "capability_id": "capability:orchestration"
+    },
+    {
+      "@id": "tool:read",
+      "@type": "Tool",
+      "name": "read",
+      "description": "Inspect plans, specs, and configuration",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:workflow_state",
+      "@type": "Tool",
+      "name": "workflow_state",
+      "description": "Inspect workflow stage, tasks, and checks",
+      "capability_id": "capability:workflow_management"
+    },
+    {
+      "@id": "tool:transition_stage",
+      "@type": "Tool",
+      "name": "transition_stage",
+      "description": "Advance the workflow state machine",
+      "capability_id": "capability:workflow_management"
+    },
+    {
+      "@id": "tool:run_mechanical_checks",
+      "@type": "Tool",
+      "name": "run_mechanical_checks",
+      "description": "Run the repository lint/test pre-filter",
+      "capability_id": "capability:verification"
+    },
+    {
+      "@id": "tool:record_check_result",
+      "@type": "Tool",
+      "name": "record_check_result",
+      "description": "Record verification outcomes",
+      "capability_id": "capability:verification"
+    },
+    {
+      "@id": "tool:save_checkpoint",
+      "@type": "Tool",
+      "name": "save_checkpoint",
+      "description": "Persist a workflow resume checkpoint",
+      "capability_id": "capability:checkpointing"
+    },
+    {
+      "@id": "tool:scratchpad",
+      "@type": "Tool",
+      "name": "scratchpad",
+      "description": "Persist orchestration notes",
+      "capability_id": "capability:orchestration"
+    },
+    {
+      "@id": "tool:trigger_ci_check",
+      "@type": "Tool",
+      "name": "trigger_ci_check",
+      "description": "Run configured CI at verification entry",
+      "capability_id": "capability:verification"
+    },
+    {
+      "@id": "tool:project_state",
+      "@type": "Tool",
+      "name": "project_state",
+      "description": "Inspect current management artifacts",
+      "capability_id": "capability:read_files"
+    },
+    {
+      "@id": "tool:check_artifacts",
+      "@type": "Tool",
+      "name": "check_artifacts",
+      "description": "Verify cross-artifact consistency",
+      "capability_id": "capability:verification"
+    },
+    {
+      "@id": "tool:skill",
+      "@type": "Tool",
+      "name": "skill",
+      "description": "Load required workflow skill instructions",
+      "capability_id": "capability:orchestration"
+    },
+    {
+      "@id": "tool:todowrite",
+      "@type": "Tool",
+      "name": "todowrite",
+      "description": "Track delegations and compaction work",
+      "capability_id": "capability:orchestration"
+    },
+    {
+      "@id": "tool:question",
+      "@type": "Tool",
+      "name": "question",
+      "description": "Ask the user for clarification",
+      "capability_id": "capability:orchestration"
+    },
+    {
+      "@id": "role:orchestrator",
+      "@type": "Role",
+      "name": "Orchestrator",
+      "description": "Pure workflow orchestrator with read-only direct access",
+      "permissions": [
+        "task", "read", "workflow_state", "transition_stage",
+        "run_mechanical_checks", "record_check_result", "save_checkpoint",
+        "scratchpad", "trigger_ci_check", "project_state", "check_artifacts",
+        "skill", "todowrite", "question"
+      ],
+      "capabilities": [
+        "capability:orchestration",
+        "capability:read_files",
+        "capability:workflow_management",
+        "capability:verification",
+        "capability:checkpointing"
+      ]
+    },
+    {
+      "@id": "skill:orchestration",
+      "@type": "Skill",
+      "name": "Orchestration Skill",
+      "description": "Execute deterministic pipelines with stage gates and guards",
+      "required_capabilities": [
+        "capability:orchestration",
+        "capability:workflow_management",
+        "capability:verification",
+        "capability:checkpointing"
+      ]
+    },
+    {
+      "@id": "agent:tori",
+      "@type": "Agent",
+      "name": "Tori",
+      "description": "Workflow orchestrator. Executes deterministic pipelines (Requirements → Planning → Execution → Verification → Delivery). Manages stages, gates, and guards. Delegates tasks to workers. Pure orchestrator — does not perform substantive work directly.",
+      "roles": ["role:orchestrator"],
+      "capabilities": [
+        "capability:orchestration",
+        "capability:read_files",
+        "capability:workflow_management",
+        "capability:verification",
+        "capability:checkpointing"
+      ],
+      "tools": [
+        "tool:task", "tool:read", "tool:workflow_state", "tool:transition_stage",
+        "tool:run_mechanical_checks", "tool:record_check_result", "tool:save_checkpoint",
+        "tool:scratchpad", "tool:trigger_ci_check", "tool:project_state",
+        "tool:check_artifacts", "tool:skill", "tool:todowrite", "tool:question"
+      ],
+      "metadata": {
+        "temperature": 0.3,
+        "mode": "all",
+        "color": "error",
+        "human_tone": true,
+        "risk_tier": "L0",
+        "platforms": ["opencode", "kilocode"],
+        "implements": ["workflow:orchestration_pipeline"]
+      }
+    },
+    {
+      "@id": "workflow:orchestration_pipeline",
+      "@type": "Workflow",
+      "name": "Orchestration Pipeline",
+      "description": "Deterministic pipeline: Requirements → Planning → Execution → Verification → Delivery",
+      "stages": [
+        "stage:requirements",
+        "stage:planning",
+        "stage:execution",
+        "stage:verification",
+        "stage:delivery"
+      ],
+      "transitions": [
+        "transition:req_to_plan",
+        "transition:plan_to_exec",
+        "transition:exec_to_verify",
+        "transition:verify_to_deliver"
+      ]
+    },
+    {
+      "@id": "stage:requirements",
+      "@type": "Stage",
+      "name": "Requirements",
+      "description": "Understand user intent, determine scope, constraints, acceptance criteria",
+      "workflow_id": "workflow:orchestration_pipeline",
+      "entry_conditions": ["workflow_started"],
+      "exit_conditions": ["requirements_understood", "scope_defined"]
+    },
+    {
+      "@id": "stage:planning",
+      "@type": "Stage",
+      "name": "Planning",
+      "description": "Create exec-plan with tasks, dependencies, acceptance criteria",
+      "workflow_id": "workflow:orchestration_pipeline",
+      "entry_conditions": ["requirements_understood"],
+      "exit_conditions": ["plan_created", "tasks_defined"]
+    },
+    {
+      "@id": "stage:execution",
+      "@type": "Stage",
+      "name": "Execution",
+      "description": "Delegate tasks to specialized agents, track progress",
+      "workflow_id": "workflow:orchestration_pipeline",
+      "entry_conditions": ["plan_created"],
+      "exit_conditions": ["all_tasks_completed"]
+    },
+    {
+      "@id": "stage:verification",
+      "@type": "Stage",
+      "name": "Verification",
+      "description": "Run mechanical checks, verify against requirements",
+      "workflow_id": "workflow:orchestration_pipeline",
+      "entry_conditions": ["all_tasks_completed"],
+      "exit_conditions": ["checks_passed"]
+    },
+    {
+      "@id": "stage:delivery",
+      "@type": "Stage",
+      "name": "Delivery",
+      "description": "Stage changes, commit, push, report completion",
+      "workflow_id": "workflow:orchestration_pipeline",
+      "entry_conditions": ["all_tasks_completed"],
+      "exit_conditions": ["delivered"]
+    },
+    {
+      "@id": "transition:req_to_plan",
+      "@type": "Transition",
+      "from_stage": "stage:requirements",
+      "to_stage": "stage:planning",
+      "trigger": "requirements_understood"
+    },
+    {
+      "@id": "transition:plan_to_exec",
+      "@type": "Transition",
+      "from_stage": "stage:planning",
+      "to_stage": "stage:execution",
+      "trigger": "plan_created"
+    },
+    {
+      "@id": "transition:exec_to_verify",
+      "@type": "Transition",
+      "from_stage": "stage:execution",
+      "to_stage": "stage:verification",
+      "trigger": "all_tasks_completed"
+    },
+    {
+      "@id": "transition:verify_to_deliver",
+      "@type": "Transition",
+      "from_stage": "stage:verification",
+      "to_stage": "stage:delivery",
+      "trigger": "checks_passed"
+    },
+    {
+      "@id": "rule:no_direct_mutation",
+      "@type": "Policy",
+      "name": "No Direct Mutation",
+      "description": "Tori must never mutate project state directly - only delegate",
+      "governedBy": "agent:tori",
+      "rules": [
+        "deny_access(?agent, ?resource) :- has_role(?agent, role:orchestrator), tool_write(?resource), NOT has_capability(?agent, capability:delegation)"
+      ],
+      "enforcement_level": "Strict"
+    },
+    {
+      "@id": "rule:delegate_all_work",
+      "@type": "Policy",
+      "name": "Delegate All Work",
+      "description": "All substantive work must be delegated via task tool",
+      "governedBy": "agent:tori",
+      "rules": [
+        "can_access(?agent, tool:task) :- has_role(?agent, role:orchestrator)",
+        "deny_access(?agent, ?tool) :- has_role(?agent, role:orchestrator), NOT tool_task(?tool), NOT tool_read(?tool), NOT tool_workflow(?tool)"
+      ],
+      "enforcement_level": "Strict"
+    },
+    {
+      "@id": "rule:verify_before_deliver",
+      "@type": "Policy",
+      "name": "Verify Before Deliver",
+      "description": "Must run mechanical checks before delivery",
+      "governedBy": "agent:tori",
+      "rules": [
+        "deny_access(?agent, tool:transition_stage) :- has_role(?agent, role:orchestrator), target_stage(stage:delivery), NOT check_passed(run_mechanical_checks)"
+      ],
+      "enforcement_level": "Mandatory"
+    },
+    {
+      "@id": "rule:checkpoint_on_budget",
+      "@type": "Policy",
+      "name": "Checkpoint on Budget",
+      "description": "Save checkpoint when approaching context limits",
+      "governedBy": "agent:tori",
+      "rules": [
+        "can_access(?agent, tool:save_checkpoint) :- has_role(?agent, role:orchestrator), context_budget_low(true)"
+      ],
+      "enforcement_level": "Advisory"
+    }
+  ]
+}
