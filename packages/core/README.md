@@ -1,6 +1,6 @@
 # @tori-agent/core
 
-Shared core library for `tori-agent`. Owns the deterministic workflow engine, agent spec loading, and artifact tooling.
+Shared core library for `tori-agent`. Owns the deterministic workflow engine, ontology-native agent loading, and artifact tooling.
 
 > **Note:** `npm test` currently fails — no `.test.js` files exist yet. See [AGENTS.md](../AGENTS.md) for the verification flow (`build` → `lint` → `verify-expansion`).
 
@@ -11,7 +11,7 @@ Shared core library for `tori-agent`. Owns the deterministic workflow engine, ag
 ## Plugin assembly
 
 - [`buildPlugin()`](../src/index.ts) — creates the plugin object consumed by OpenCode and Kilo Code runtimes. Call this from a runtime wrapper; pass the project root.
-- Agent spec loading from [`spec/agents/*.yaml`](../spec/agents) and prompt compilation from [`spec/prompts/**`](../spec/prompts)
+- Agent spec loading from [`spec/ontology/*.jsonld`](../spec/ontology) (ontology-native JSON-LD)
 - Runtime tool wrapping (lifecycle + workflow tools)
 
 ## Workflow state machine
@@ -19,7 +19,7 @@ Shared core library for `tori-agent`. Owns the deterministic workflow engine, ag
 Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 
 | Function | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `createWorkflow` | Create a new workflow artifact from a mission brief |
 | `getWorkflowState` | Read current stage, iteration, tasks, and checks |
 | `transitionStage` | Advance to the next stage with guard validation |
@@ -31,7 +31,7 @@ Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
 | Function | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `projectState` | Scan specs, exec-plans, briefs, and workflows |
 | `checkArtifacts` | Cross-artifact consistency scan |
 | `runMechanicalChecks` | Lint + test pre-filter (reads `## Review Checks` from AGENTS.md) |
@@ -41,7 +41,7 @@ Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
 ## Agent compilation
 
-- [`src/codegen/loader.ts`](../src/codegen/loader.ts) — loads YAML specs, compiles prompts with persona modes
+- [`src/codegen/loader.ts`](../src/codegen/loader.ts) — loads ontology-native JSON-LD specs from `spec/ontology/`
 - [`src/codegen/types.ts`](../src/codegen/types.ts) — shared types for compiled agents
 
 ## Artifact paths
@@ -61,7 +61,7 @@ Managed docs are created automatically on `session.created`:
 ## Notes
 
 - This package is the source of truth for shared behavior
-- Runtime packages (`runtime-opencode`, `runtime-kilocode`) are thin adapters — do not add logic there
+- Runtime package (`packages/harness`) is a thin adapter — do not add logic there
 - Do not edit generated `dist/` output
 - If you change shared behavior, update this package first, then validate runtime wrappers
 - For architecture context, see the [parent README](../README.md)

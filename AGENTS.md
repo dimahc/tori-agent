@@ -5,7 +5,7 @@ Compact guide for agents working in this repo.
 ## Commands
 
 | What | Command | Notes |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Install | `npm install` | npm workspaces (4 packages) |
 | Build | `npm run build` | Builds core + both runtimes. Does NOT build cli. |
 | Build cli | `npm run build -w packages/cli` | Separate; cli is a stub |
@@ -13,7 +13,7 @@ Compact guide for agents working in this repo.
 | Test | `npm test` | Currently fails — no `.test.js` files exist yet |
 | Verify agents | `node packages/core/tests/verify-expansion.mjs` | Requires `npm run build` first (imports from `dist/`) |
 | Generate agents | `node packages/cli/dist/cli.js generate` | Expands all agent specs + personas, prints list; output to `.opencode/agents/` or `.kilo/agents/` based on runtime. Also syncs builtin skills to `.opencode/skills/` or `.kilo/skills/` |
-| Generate (format) | `node packages/cli/dist/cli.js generate --format json|yaml|md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json`; builtin skills synced in all formats |
+| Generate (format) | `node packages/cli/dist/cli.js generate --format json | yaml | md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json`; builtin skills synced in all formats |
 
 **Build order matters.** Runtime packages depend on `@tori-agent/core`. `npm run build` compiles core first, then the runtimes. If you build a runtime in isolation, core's `dist/` must already exist.
 
@@ -22,19 +22,22 @@ Compact guide for agents working in this repo.
 ## Review Checks
 
 ### Lint
+
 - eslint: npm run lint
 
 ### Tests
+
 - verify-expansion: node packages/core/tests/verify-expansion.mjs
   on-failure: warn
 
 ## Architecture
 
-npm workspaces monorepo. `packages/core` is the source of truth for shared logic, agent specs, and plugin assembly. The two runtime packages (`runtime-opencode`, `runtime-kilocode`) are thin adapters — **do not add logic there, put it in core**. `packages/cli` is a stub with a `generate` command implemented; `serve` and `doctor` are not yet implemented.
+npm workspaces monorepo. `packages/core` is the source of truth for shared logic, agent specs, and plugin assembly. The runtime package (`packages/harness`) is a thin adapter — **do not add logic there, put it in core**. `packages/cli` is a stub with a `generate` command implemented; `serve` and `doctor` are not yet implemented.
 
 Non-obvious source paths in core:
-- `spec/agents/*.yaml` — agent definitions (permissions, personas, modes); loaded by `src/codegen/loader.ts`
-- `spec/prompts/**` — system prompts loaded at runtime and appended to agent specs
+
+- `spec/ontology/*.jsonld` — ontology-native agent definitions (permissions, personas, modes); loaded by `src/ontology/loader.ts`
+- `spec/ontology/prompts/*.md` — minimal behavioral prompts that reference ontology by @id
 - `src/tools/lifecycle.ts` — exec-plan/spec/brief bookkeeping; also contains `runMechanicalChecks` which reads the `## Review Checks` section above. Artifact paths: `.opencode/specs/`, `.opencode/plans/`, `.opencode/briefs/`, `.opencode/workflows/`.
 - `src/tools/workflow.ts` — workflow state machine (stage transitions, task/check recording)
 

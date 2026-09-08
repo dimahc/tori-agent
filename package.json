@@ -13,15 +13,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run build -w packages/core && npm run build -w packages/runtime",
+    "build": "npm run build -w packages/core && npm run build -w packages/harness",
     "test": "node --test packages/*/tests/*.test.js",
-    "lint": "eslint packages/core/src/ packages/runtime/src/"
+    "lint": "eslint packages/core/src/ packages/harness/src/"
   },
   "workspaces": [
     "packages/core",
-    "packages/runtime",
-    "packages/runtime-opencode",
-    "packages/runtime-kilocode",
+    "packages/harness",
     "packages/cli"
   ],
   "devDependencies": {

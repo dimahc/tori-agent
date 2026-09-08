@@ -1,5 +1,5 @@
 /**
- * @file packages/runtime/src/types.ts
+ * @file packages/harness/src/types.ts
  * @description Type definitions for the Unified Runtime.
  */
 
@@ -12,7 +12,7 @@ export interface PluginInput {
 }
 
 export interface PluginOutput {
-  config?: (input: Record<string, unknown>) => Promise<void>;
+  config?: (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
   tool?: Record<string, unknown>;
   event?: (input: { event: { type: string } }) => Promise<void>;
   'chat.message'?: (input: { sessionID: string; agent?: string }) => Promise<void>;

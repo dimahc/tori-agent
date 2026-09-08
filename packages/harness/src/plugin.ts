@@ -1,7 +1,7 @@
 /**
- * @file packages/runtime/src/plugin.ts
+ * @file packages/harness/src/plugin.ts
  * @description Unified Runtime Plugin - Uses OntologyRuntime from core.
- * 
+ *
  * This replaces the old plugin/index.ts from core.
  * It uses the OntologyRuntime which provides:
  * - OntologyRegistry as system of record
@@ -141,6 +141,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
             }
           }
         }
+        return input;
       },
       tool: {
         ...budgetAwareTools,
@@ -160,20 +161,20 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
       'chat.message': async ({ sessionID, agent }) => {
         log('[CHAT.MESSAGE] called', { sessionID, agent });
         const registry = ontologyRuntime.getRegistry();
-        const agentEntity = registry.getByType("Agent").find(a => a.metadata?.original_spec_id === agent || a['@id'] === agent);
+        const agentEntity = registry.getByType("Agent").find(a => a['@id'] === agent || a['@id'] === `agent:${agent}`);
         if (agentEntity) {
           log('[CHAT.MESSAGE] tracked in ontology', { sessionID, agent: agentEntity['@id'] });
         }
       },
       'permission.ask': async (input, output) => {
         const registry = ontologyRuntime.getRegistry();
-        
+
         // Find agent by session - use the first 'all' mode agent
         const agentEntity = registry.getByType("Agent").find(a => a.metadata?.mode === 'all');
         const agentId = agentEntity ? agentEntity['@id'] : undefined;
-        
+
         log('[PERMISSION.ASK] called', { sessionID: input.sessionID, agentId, type: input.type, pattern: input.pattern });
-        
+
         if (!agentId) {
           log('[PERMISSION.ASK] no agent found → no override');
           return;
@@ -194,7 +195,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
           output.status = 'ask';
           return;
         }
-        
+
         output.status = result;
       },
     };

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { mergePermissionSets } from '../dist/runtime/permissions.js';
+import { mergePermissionSets } from '../dist/harness/permissions.js';
 
 describe('mergePermissionSets', () => {
   test('returns empty object when both inputs are empty', () => {

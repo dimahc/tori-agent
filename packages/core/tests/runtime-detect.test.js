@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { detectRuntime } from '../dist/runtime/detect.js';
+import { detectRuntime } from '../dist/harness/detect.js';
 
 describe('detectRuntime', () => {
   test('returns opencode when TORI_RUNTIME is set to opencode', () => {

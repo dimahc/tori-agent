@@ -17,19 +17,16 @@ npm workspaces monorepo, four packages:
 ```mermaid
 flowchart BT
     Core["@tori-agent/core<br/>(specs, prompts, plugin, tools)"]
-    RO["@tori-agent/runtime-opencode"]
-    RK["@tori-agent/runtime-kilocode"]
+    RT["@tori-agent/harness"]
     CLI["@tori-agent/cli"]
-    RO --> Core
-    RK --> Core
+    RT --> Core
     CLI --> Core
 ```
 
 | Package | Role | Published files |
-|---------|------|-----------------|
+| --------- | ------ | ----------------- |
 | `packages/core` | Source of truth: agent specs, prompts, plugin builder, lifecycle/workflow tools | `dist/`, `spec/` |
-| `packages/runtime-opencode` | Thin adapter: exports `buildPlugin()` for the OpenCode host | `dist/`, `opencode.json` |
-| `packages/runtime-kilocode` | Thin adapter: exports `buildPlugin()` for the Kilo Code host | `dist/`, `kilo.json` |
+| `packages/harness` | Unified thin adapter: exports `buildPlugin()` for both hosts | `dist/` |
 | `packages/cli` | `generate` command (expand agent specs to disk), `config` command; `serve`/`doctor` unimplemented | `dist/` |
 
 **Build order matters.** Runtimes and CLI import from `@tori-agent/core`, which resolves to `dist/`. `npm run build` compiles core first, then both runtimes. The CLI is built separately (`npm run build -w packages/cli`).
@@ -59,7 +56,7 @@ Assembly order inside the returned plugin function:
 The returned hooks (see [Permission model](#permission-model) for the last two):
 
 | Hook | Purpose |
-|------|---------|
+| ------ | --------- |
 | `config(input)` | Injects compiled agents into host config via `registerAgents()` |
 | `tool` | Registry of read-only + write tools |
 | `event` | On `session.created`, creates the four `docs/` artifact directories |
@@ -68,7 +65,7 @@ The returned hooks (see [Permission model](#permission-model) for the last two):
 
 ## Agent specification format
 
-Agents are declared in `packages/core/spec/agents/*.yaml` and loaded by `packages/core/src/codegen/loader.ts`.
+Agents are declared in `packages/core/spec/ontology/*.jsonld` and loaded by `packages/core/src/ontology/loader.ts`.
 
 ```yaml
 id: scribe
@@ -124,7 +121,7 @@ interface CompiledAgent {
 
 ## Prompt composition
 
-Prompts are markdown files under `packages/core/spec/prompts/`, composed at load time:
+Prompts are minimal markdown files under `packages/core/spec/ontology/prompts/`, referencing ontology by @id:
 
 ```
 spec.prompt (e.g. prompts/scribe.md)
@@ -144,7 +141,7 @@ Default-deny: `buildPermissions()` starts every agent from `{ "*": "deny" }` and
 ### Compile-time (spec → permission record)
 
 | YAML field | Compiles to | Example |
-|------------|-------------|---------|
+| ------------ | ------------- | --------- |
 | `allow: [read]` | `{ read: "allow" }` | tool fully allowed |
 | `deny: [bash]` | `{ bash: "deny" }` | tool fully denied |
 | `allow_paths: { edit: ["docs/**"] }` | `{ edit: { "*": "deny", "docs/**": "allow" } }` | path-scoped |
@@ -185,7 +182,7 @@ flowchart TD
 Tools are built per plugin invocation, bound to `projectRoot` and the artifact paths (`packages/core/src/plugin/tools.ts`).
 
 | Category | Tools | Used by |
-|----------|-------|---------|
+| ---------- | ------- | --------- |
 | Read-only | `project_state`, `check_artifacts`, `run_mechanical_checks`, `workflow_state` | Tori directly (zero-LLM-cost bookkeeping) |
 | Write | `mark_block_done`, `complete_plan`, `register_spec`, `transition_stage`, `record_task_result`, `record_check_result` | Delegated to Scribe per Tori's prompt |
 | File write | `write` | Generic file creation, sandboxed by `resolveArtifact()` |
@@ -244,7 +241,7 @@ stateDiagram-v2
 ### States
 
 | State | Meaning |
-|-------|---------|
+| ------- | --------- |
 | `NEW` | Workflow not started |
 | `REQUIREMENTS` | Gathering intent, resolving ambiguities |
 | `PLAN` | Decomposing into tasks |
@@ -264,7 +261,7 @@ Transitions are validated by `transition_stage` — invalid jumps are rejected. 
 
 ## Configuration and runtime detection
 
-**Runtime detection** (`packages/core/src/runtime/detect.ts`): `TORI_RUNTIME` env var → `process.argv` heuristic (`opencode`/`kilocode`) → default `opencode`.
+**Runtime detection** (`packages/core/src/harness/detect.ts`): `TORI_RUNTIME` env var → `process.argv` heuristic (`opencode`/`kilocode`) → default `opencode`.
 
 **Config path resolution** (per runtime wrapper, used for human-tone injection):
 
@@ -275,7 +272,7 @@ Transitions are validated by `transition_stage` — invalid jumps are rejected. 
 
 ```json
 {
-  "plugin": ["@tori-agent/core", "@tori-agent/runtime-kilocode"],
+  "plugin": ["@tori-agent/core", "@tori-agent/harness"],
   "default_agent": "tori"
 }
 ```

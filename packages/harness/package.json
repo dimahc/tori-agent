@@ -1,5 +1,5 @@
 {
-  "name": "@tori-agent/runtime",
+  "name": "@tori-agent/harness",
   "version": "0.1.1",
   "description": "Unified Tori Agent Runtime for OpenCode and KiloCode",
   "author": "@dimahc <dev@dimahc.com>",

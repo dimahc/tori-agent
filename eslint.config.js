@@ -42,7 +42,7 @@ import tsParser from "@typescript-eslint/parser";
 
 export default [
   {
-    files: ["packages/core/src/**/*.{js,ts}", "packages/runtime/src/**/*.{js,ts}"],
+    files: ["packages/core/src/**/*.{js,ts}", "packages/harness/src/**/*.{js,ts}"],
     plugins: {
       local: {
         rules: { "prefer-node-protocol": preferNodeProtocol },
@@ -61,7 +61,7 @@ export default [
     // @typescript-eslint/parser accepts eslint ^10 as a peer (^8.57.0 || ^9.0.0 || ^10.0.0).
     // Only the parser is wired in here — no typescript-eslint recommended rulesets —
     // so the only rule in effect for TS files remains the shared local/prefer-node-protocol.
-    files: ["packages/core/src/**/*.ts", "packages/runtime/src/**/*.ts"],
+    files: ["packages/core/src/**/*.ts", "packages/harness/src/**/*.ts"],
     languageOptions: {
       parser: tsParser,
     },

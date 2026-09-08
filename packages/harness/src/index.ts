@@ -1,10 +1,10 @@
 /**
- * @file packages/runtime/src/index.ts
+ * @file packages/harness/src/index.ts
  * @description Unified Tori Agent Runtime - Works for OpenCode and KiloCode.
- * 
+ *
  * This is the single runtime entry point. It uses the OntologyRuntime
  * from core to provide the plugin interface for both runtimes.
- * 
+ *
  * The runtime detects which environment it's running in (OpenCode vs KiloCode)
  * and loads the appropriate configuration.
  */

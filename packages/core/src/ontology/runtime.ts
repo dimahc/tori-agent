@@ -117,8 +117,9 @@ export class OntologyRuntime {
     const agents = this.registry.getByType("Agent") as Agent[];
 
     for (const agent of agents) {
-      const originalSpecId = agent.metadata?.original_spec_id as string || agent['@id'];
-      const userCfg = (userAgents[originalSpecId] ?? {}) as Record<string, unknown> & { soul?: boolean };
+      // Use @id without 'agent:' prefix as the key for OpenCode
+      const agentKey = agent['@id'].replace(/^agent:/, '');
+      const userCfg = (userAgents[agentKey] ?? {}) as Record<string, unknown> & { soul?: boolean };
       const { soul, ...userCfgRest } = userCfg;
 
       // Get capabilities for this agent
@@ -137,7 +138,7 @@ export class OntologyRuntime {
       // Merge user tool overrides
       const userTools = (userCfgRest.tools ?? {}) as Record<string, boolean>;
 
-      input.agent[originalSpecId] = {
+      input.agent[agentKey] = {
         description: agent.description,
         temperature: agent.metadata?.temperature,
         mode: agent.metadata?.mode,

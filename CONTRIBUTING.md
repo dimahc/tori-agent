@@ -29,6 +29,7 @@ stateDiagram-v2
 ```
 
 Guards:
+
 - Max verify iterations: **2**
 - Task budget: **250k tokens** or **20 tool calls**
 - Task timeout: **20 minutes**
@@ -47,8 +48,7 @@ packages/
       codegen/             # Agent spec loader and compiler
       plugin/              # Plugin assembly (agents, tools, events)
       tools/               # Lifecycle + workflow state management
-  runtime-opencode/        # OpenCode adapter (thin wrapper)
-  runtime-kilocode/        # Kilo Code adapter (thin wrapper)
+  harness/                 # Unified runtime adapter (thin wrapper)
   cli/                     # CLI stub (not yet production-ready)
 docs/
   specs/                   # Agent specification artifacts
@@ -95,7 +95,7 @@ npm run lint
 
 1. **Shared behavior** — always start in `packages/core`
 2. **Runtime adapters** — update after core changes are validated
-3. **Agent specs and prompts** — live in `packages/core/spec/agents/*.yaml` and `packages/core/spec/prompts/**`
+3. **Agent specs and prompts** — live in `packages/core/spec/ontology/*.jsonld` and `packages/core/spec/ontology/prompts/*.md`
 4. **Repo artifacts** — managed under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows`
 
 ### What not to touch

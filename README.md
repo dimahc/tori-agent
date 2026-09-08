@@ -44,7 +44,7 @@ stateDiagram-v2
     DONE --> [*]
 ```
 
-> **Note:** SIMPLE workflow transitions (direct `NEW → EXECUTE`) are conceptual only. No workflow artifact is created at that level. See [`packages/core/spec/prompts/tori.md`](../packages/core/spec/prompts/tori.md) (Effort Scaling).
+> **Note:** SIMPLE workflow transitions (direct `NEW → EXECUTE`) are conceptual only. No workflow artifact is created at that level. See [`packages/core/spec/ontology/prompts/tori.md`](../packages/core/spec/ontology/prompts/tori.md) (Effort Scaling).
 
 ### Guards
 
@@ -77,8 +77,7 @@ core specs/prompts → tori orchestrator → Specialist personas → OpenCode | 
 ## What's in the repo
 
 - `packages/core` — shared source of truth for agent specs, prompts, and core logic
-- `packages/runtime-opencode` — OpenCode runtime wrapper
-- `packages/runtime-kilocode` — Kilo Code runtime wrapper
+- `packages/harness` — Unified runtime adapter
 - `packages/cli` — CLI package (`generate` command implemented, `serve`/`doctor` pending)
 - `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — repo artifacts
 
@@ -90,14 +89,14 @@ core specs/prompts → tori orchestrator → Specialist personas → OpenCode | 
 ```mermaid
 flowchart LR
   Host1[OpenCode host]
-  OpW[runtime-opencode]
-  Host1 --> OpW
-  OpW --> Core[packages/core]
+  RT[runtime]
+  Host1 --> RT
+  RT --> Core[packages/core]
 
   Host2[Kilo Code host]
-  KiW[runtime-kilocode]
-  Host2 --> KiW
-  KiW --> Core
+  RT[runtime]
+  Host2 --> RT
+  RT --> Core
 
   Core --> Agents[agent loader]
   Core --> Tools[lifecycle + workflow tools]
@@ -112,13 +111,12 @@ flowchart LR
 
 - `packages/core` — source of truth for shared logic, agent specs, prompts, and plugin assembly.
 - [`packages/core/src/plugin/index.ts`](../packages/core/src/plugin/index.ts) — builds the plugin object via `buildPlugin()`.
-- [`packages/core/src/codegen/loader.ts`](../packages/core/src/codegen/loader.ts) — loads YAML agent specs from `packages/core/spec/agents/*.yaml` and prompt files from `packages/core/spec/prompts/**`.
+- [`packages/core/src/ontology/loader.ts`](../packages/core/src/ontology/loader.ts) — loads ontology-native JSON-LD specs from `packages/core/spec/ontology/*.jsonld`.
 - [`packages/core/src/tools/lifecycle.ts`](../packages/core/src/tools/lifecycle.ts) — provides lifecycle functions for artifact management (specs, exec-plans, briefs).
 - [`packages/core/src/tools/workflow.ts`](../packages/core/src/tools/workflow.ts) — provides workflow state management (stage transitions, task/check recording).
 - [`packages/core/src/plugin/tools.ts`](../packages/core/src/plugin/tools.ts) — wraps lifecycle and workflow functions as runtime-callable tools.
 - [`packages/core/src/plugin/agents.ts`](../packages/core/src/plugin/agents.ts) — injects compiled agents into host config.
-- [`packages/runtime-opencode/src/index.ts`](../packages/runtime-opencode/src/index.ts) and [`packages/runtime-kilocode/src/index.ts`](../packages/runtime-kilocode/src/index.ts) — thin wrappers that export `buildPlugin()` from core.
-- [`packages/runtime-opencode/src/sdk-adapter.ts`](../packages/runtime-opencode/src/sdk-adapter.ts) and [`packages/runtime-kilocode/src/sdk-adapter.ts`](../packages/runtime-kilocode/src/sdk-adapter.ts) — normalize `serverUrl` into `{ baseUrl: new URL(serverUrl) }`.
+- [`packages/harness/src/plugin.ts`](../packages/harness/src/plugin.ts) — thin wrapper that exports `buildPlugin()` from core.
 - `packages/cli` — currently a stub, not a production runtime path.
 - `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — managed repo artifacts.
 
@@ -152,8 +150,7 @@ packages/
       codegen/             # Agent spec loader and compiler
       plugin/              # Plugin assembly (agents, tools, events)
       tools/               # Lifecycle + workflow state management
-  runtime-opencode/        # OpenCode adapter (thin wrapper)
-  runtime-kilocode/        # Kilo Code adapter (thin wrapper)
+  harness/                 # Unified runtime adapter (thin wrapper)
   cli/                     # CLI stub (not yet production-ready)
 docs/
   specs/                   # Agent specification artifacts
@@ -204,7 +201,7 @@ npm run lint
 
 1. **Shared behavior** — always start in `packages/core`
 2. **Runtime adapters** — update after core changes are validated
-3. **Agent specs and prompts** — live in `packages/core/spec/agents/*.yaml` and `packages/core/spec/prompts/**`
+3. **Agent specs and prompts** — live in `packages/core/spec/ontology/*.jsonld` and `packages/core/spec/ontology/prompts/*.md`
 4. **Repo artifacts** — managed under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows`
 
 ### What not to touch
