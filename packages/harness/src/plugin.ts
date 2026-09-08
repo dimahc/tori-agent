@@ -148,7 +148,7 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         ...discoveryTools,
       } as Record<string, unknown>,
       event: async ({ event }) => {
-        log('[EVENT] event received', { type: event.type, full: JSON.stringify(event) });
+        log('[EVENT] event received', { type: event.type, full: event });
         if (event.type === 'session.created') {
           await Promise.all([
             mkdir(join(projectRoot, paths.execPlans), { recursive: true }),

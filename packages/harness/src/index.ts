@@ -91,5 +91,6 @@ const configPath = join(configDir, 'AGENTS.md');
 
 const plugin = buildPlugin({ runtime, configPath });
 
-export default plugin;
+export const server = plugin;
+export default { server: plugin };
 export { runtime, configDir, configPath };
