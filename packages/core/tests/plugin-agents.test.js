@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
+import { deriveSessionTitle, isDefaultSessionTitle } from "../dist/index.js";
 import { buildReadOnlyTools, buildWriteTools } from "../dist/plugin/index.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
 
@@ -41,6 +42,100 @@ describe("plugin ontology integration", () => {
     const engineerWrite = runtime.authorizeSession("s2", "write", "README.md", runtimePaths);
     assert.equal(toriWrite.effect, "deny");
     assert.equal(engineerWrite.effect, "allow");
+  });
+
+  test("title helpers derive concise stable title and detect placeholders", async () => {
+    assert.equal(
+      deriveSessionTitle("  Fix session naming to use first user request instead of timestamp fallback.  "),
+      "Fix session naming to use first user request instead of timestamp fallback",
+    );
+    assert.equal(isDefaultSessionTitle("Untitled Session"), true);
+    assert.equal(isDefaultSessionTitle("Fix session naming"), false);
+  });
+
+  test("first meaningful user request generates stable session title once", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-title-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const first = {};
+    await plugin["chat.message"]({
+      sessionID: "s-title",
+      role: "user",
+      message: "  Fix session naming to use first user request instead of timestamp fallback.  ",
+      currentTitle: "Untitled Session",
+    }, first);
+
+    assert.deepEqual(first, {
+      title: "Fix session naming to use first user request instead of timestamp fallback",
+      shouldRename: true,
+      source: "first-user-request",
+    });
+
+    const second = {};
+    await plugin["chat.message"]({
+      sessionID: "s-title",
+      role: "user",
+      message: "Actually make it rename on every message",
+      currentTitle: first.title,
+    }, second);
+
+    assert.deepEqual(second, {});
+  });
+
+  test("blank and noise messages do not generate title", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-noise-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const blank = {};
+    await plugin["session.title"]({
+      sessionID: "s-noise",
+      role: "user",
+      message: "   ",
+      currentTitle: "Untitled Session",
+    }, blank);
+    assert.deepEqual(blank, {});
+
+    const noise = {};
+    await plugin["session.title"]({
+      sessionID: "s-noise",
+      role: "user",
+      message: "hello",
+      currentTitle: "Untitled Session",
+    }, noise);
+    assert.deepEqual(noise, {});
+
+    const meaningful = {};
+    await plugin["session.title"]({
+      sessionID: "s-noise",
+      role: "user",
+      message: "Add explicit session title hook to plugin contract",
+      currentTitle: "Untitled Session",
+    }, meaningful);
+    assert.deepEqual(meaningful, {
+      title: "Add explicit session title hook to plugin contract",
+      shouldRename: true,
+      source: "first-user-request",
+    });
+  });
+
+  test("title flow does not affect session auth behavior", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-title-auth-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-auth", agent: "tori" }, {});
+    await plugin["chat.message"]({
+      sessionID: "s-auth",
+      role: "user",
+      message: "Check auth still denies write for tori",
+      currentTitle: "Untitled Session",
+    }, {});
+
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-auth", type: "write", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
   });
 
   test("harness config merge keeps ontology-derived agent config authoritative", async () => {

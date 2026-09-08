@@ -16,6 +16,8 @@ export { OntologyRuntime, initializeOntologyRuntime, getOntologyRuntime } from "
 export { PolicyEngineImpl } from "./policy/engine.js";
 export { JSONLDSerializer } from "./serialization/jsonld.js";
 export { ShaclValidator } from "./validation/shacl.js";
+export { SessionTitleTracker, deriveSessionTitle, isDefaultSessionTitle } from "./plugin/session-title.js";
+export type { SessionTitleInput, SessionTitleOutput } from "./plugin/session-title.js";
 export * from "./plugin/index.js";
 export { ontologySchema } from "./schemas/ontology.schema.js";
 export { ontologyContext } from "./schemas/ontology.context.js";

@@ -39,3 +39,15 @@ Markdown managed artifacts require strict ontology frontmatter fields:
 - `created_at`
 
 Workflow state is JSON-LD under runtime `workflows/`.
+
+## Harness plugin contract
+
+Runtime hook surface stays explicit and deterministic:
+
+- `config`
+- `event`
+- `chat.message`
+- `session.title`
+- `permission.ask`
+
+Session title proposals come from first meaningful user request only. Host may consume `{ title, shouldRename, source }` from `chat.message` or `session.title`.

@@ -7,8 +7,9 @@ import {
   createBudgetAwareToolExecutor,
   initializeOntologyRuntime,
   registerToolInLazyRegistry,
+  SessionTitleTracker,
 } from "@tori-agent/core";
-import type { PluginInput, PluginOutput } from "./types.js";
+import type { PluginInput, PluginOutput, SessionTitleHookInput, SessionTitleMutation } from "./types.js";
 
 export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string } = {}) {
   const runtime = options.runtime ?? "opencode";
@@ -23,10 +24,24 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
     const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths);
     const writeTools = buildWriteTools(projectRoot, runtimePaths, runtime);
     const tools = createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools });
+    const sessionTitleTracker = new SessionTitleTracker();
 
     for (const [name, tool] of Object.entries(tools)) {
       registerToolInLazyRegistry(name, "core", tool.description, tool.args, tool.execute);
     }
+
+    const resolveSessionTitle = async (message: SessionTitleHookInput, output?: SessionTitleMutation): Promise<void> => {
+      const proposal = sessionTitleTracker.observe({
+        sessionID: message.sessionID,
+        role: message.role,
+        message: message.message,
+        currentTitle: message.currentTitle,
+      });
+      if (!output || !proposal.shouldRename || !proposal.title) return;
+      output.title = proposal.title;
+      output.shouldRename = true;
+      output.source = proposal.source;
+    };
 
     return {
       config: async (config) => {
@@ -48,8 +63,12 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
           mkdir(runtimePaths.skillsDir, { recursive: true }),
         ]);
       },
-      "chat.message": async ({ sessionID, agent }) => {
-        ontologyRuntime.bindSession(sessionID, agent);
+      "chat.message": async (message, output) => {
+        ontologyRuntime.bindSession(message.sessionID, message.agent);
+        await resolveSessionTitle(message, output);
+      },
+      "session.title": async (message, output) => {
+        await resolveSessionTitle(message, output);
       },
       "permission.ask": async (request, output) => {
         const decision = ontologyRuntime.authorizeSession(request.sessionID, request.type, request.pattern, runtimePaths);

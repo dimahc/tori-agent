@@ -30,6 +30,24 @@
 - `packages/harness` — thin runtime adapter for OpenCode / Kilo Code
 - `packages/cli` — separate CLI package
 
+## Harness plugin contract
+
+Harness plugin exposes deterministic runtime hooks:
+
+- `config`
+- `event`
+- `chat.message`
+- `session.title`
+- `permission.ask`
+
+Session title contract:
+
+- title proposal derives from first meaningful user message only
+- blank / greeting / placeholder noise does not produce title
+- plugin proposes rename once per session
+- existing non-placeholder title stays authoritative
+- output surface is deterministic: `{ title, shouldRename, source: "first-user-request" }`
+
 ## Managed artifact semantics
 
 Runtime-aware managed roots:
