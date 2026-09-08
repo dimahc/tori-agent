@@ -2,6 +2,67 @@
 
 ## [Unreleased]
 
+### Added
+
+- Replace delegate tool with native task orchestration
+- Add scratchpad tool and update tori orchestration prompts
+- Implement lazy-loading for tools
+- Add agent reference prompt loading
+- Add deny doom loop detection
+- Add verify-to-execute transition guard
+- Add reviewer agent and reference prompts
+- Update agent specs and prompts for references
+- Add signing and content_hash verification module
+- Add content_hash and signature fields to agent specs
+- Verify skill content_hash and signature on load
+- Verify agent spec content_hash and signature on load
+- Add Universal Skill Format metadata fields
+- Add skill install receipts and permission validation
+- Validate skill permissions and emit install receipts
+- Add Universal Skill Format validation and permission extensions
+- Export signing and validation modules
+- Implement granular write/edit permissions and path allowlisting
+- Add ontology types and schema definitions
+- Implement ontology schemas and policy validation
+- Implement ontology-driven architecture and policy engine
+- Add Tori orchestrator ontology and documentation
+- Define agent personas and prompt specifications
+- Add scribe ontology capability definitions
+- Enhance agent capability and tool resolution
+- Align runtime with strict contract
+
+### Changed
+
+- Update tori prompt requirements qualification protocol
+- Optimize tori execution speed and async tool handling
+- Clarify agent delegation and tool distinction in tori.md
+- Redefine tori orchestration workflow and boundaries
+- Specify session naming convention for task tool
+- Simplify tori orchestration logic and delegation rules
+- Support runtime-specific scratchpad paths
+- Update package metadata
+- Add security hardening roadmap
+- Allow docs directory for ADRs
+- Update artifact path references from docs/ to .opencode/
+- Mark Phase 2 signing as completed
+- Mark Phase 6 Universal Skill Format as completed
+- Add execution plans and specifications directories
+- Integrate ontology runtime for agent management
+- Remove legacy core and cli packages
+- Transition compiler and runtime to JSON-LD native processing
+- Remove legacy agent specifications and prompt files
+- Rename runtime to harness and fix agent registration
+- Update plugin export and event logging
+
+### Fixed
+
+- Allow MCP server tools through agent permission model
+- Make subagent delegation actually spawn agents
+- Use runtime-aware artifact paths instead of hardcoded .opencode
+- Remove unused allCoreTools variable
+- Stabilize ontology runtime loading
+## [v0.3.1] - 2026-08-08
+
 ### Fixed
 
 - Prevent silent failure in skills sync (#16)
