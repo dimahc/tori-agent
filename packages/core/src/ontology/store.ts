@@ -29,6 +29,7 @@ export const DEFAULT_STORE_CONFIG: FileSystemStoreConfig = {
 export class FileSystemOntologyStore implements OntologyStore {
   private config: FileSystemStoreConfig;
   private serializer: JSONLDSerializer;
+  private staleFiles = new Set<string>();
 
   constructor(config: Partial<FileSystemStoreConfig> = {}) {
     this.config = { ...DEFAULT_STORE_CONFIG, ...config };
@@ -63,6 +64,16 @@ export class FileSystemOntologyStore implements OntologyStore {
     return join(this.config.baseDir, `${safeId}${this.config.extension}`);
   }
 
+  async beginSave(): Promise<void> {
+    await this.ensureDirectory();
+    const files = await fs.readdir(this.config.baseDir);
+    this.staleFiles = new Set(
+      files
+        .filter((file) => file.endsWith(this.config.extension))
+        .map((file) => join(this.config.baseDir, file)),
+    );
+  }
+
   /**
    * Save all entities to the store.
    * Each entity is written as a separate JSON-LD file.
@@ -72,15 +83,29 @@ export class FileSystemOntologyStore implements OntologyStore {
 
     const writePromises = Array.from(entities.entries()).map(async ([id, entity]) => {
       const filePath = this.getFilePath(id);
+      this.staleFiles.delete(filePath);
       try {
         const jsonld = this.serializer.serialize(entity);
-        await fs.writeFile(filePath, jsonld, 'utf-8');
+        const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+        await fs.writeFile(tempPath, jsonld, 'utf-8');
+        await fs.rename(tempPath, filePath);
       } catch (error) {
         throw new Error(`Failed to write entity ${id}: ${error}`);
       }
     });
 
     await Promise.all(writePromises);
+
+    await Promise.all(
+      Array.from(this.staleFiles).map(async (filePath) => {
+        try {
+          await fs.unlink(filePath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      }),
+    );
+    this.staleFiles.clear();
   }
 
   /**

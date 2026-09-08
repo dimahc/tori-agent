@@ -71,6 +71,9 @@ export class OntologyCompiler {
    * This is the ONLY entry point - no legacy YAML support.
    */
   async compileAll(): Promise<CompilationResult> {
+    await this.registry.clear();
+    await this.store.beginSave?.();
+
     const specs = await this.loadOntologySpecs();
     const result: CompilationResult = {
       agents: [],

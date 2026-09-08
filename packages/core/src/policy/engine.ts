@@ -339,13 +339,16 @@ export class PolicyEngineImpl implements PolicyEngine {
     const id = agent["@id"];
     this.addFact({ predicate: "agent", args: [id] });
     for (const role of agent.roles ?? []) {
-      this.addFact({ predicate: "has_role", args: [id, role["@id"]] });
+      const roleId = this.referenceId(role);
+      if (roleId) this.addFact({ predicate: "has_role", args: [id, roleId] });
     }
     for (const capability of agent.capabilities ?? []) {
-      this.addFact({ predicate: "has_capability", args: [id, capability["@id"]] });
+      const capabilityId = this.referenceId(capability);
+      if (capabilityId) this.addFact({ predicate: "has_capability", args: [id, capabilityId] });
     }
     for (const tool of agent.tools ?? []) {
-      this.addFact({ predicate: "has_tool", args: [id, tool["@id"]] });
+      const toolId = this.referenceId(tool);
+      if (toolId) this.addFact({ predicate: "has_tool", args: [id, toolId] });
     }
   }
 
@@ -356,7 +359,8 @@ export class PolicyEngineImpl implements PolicyEngine {
       this.addFact({ predicate: "has_permission", args: [id, permission] });
     }
     for (const capability of role.capabilities ?? []) {
-      this.addFact({ predicate: "has_capability", args: [id, capability["@id"]] });
+      const capabilityId = this.referenceId(capability);
+      if (capabilityId) this.addFact({ predicate: "has_capability", args: [id, capabilityId] });
     }
   }
 
@@ -372,7 +376,8 @@ export class PolicyEngineImpl implements PolicyEngine {
     const id = skill["@id"];
     this.addFact({ predicate: "skill", args: [id] });
     for (const capability of skill.required_capabilities ?? []) {
-      this.addFact({ predicate: "requires_capability", args: [id, capability["@id"]] });
+      const capabilityId = this.referenceId(capability);
+      if (capabilityId) this.addFact({ predicate: "requires_capability", args: [id, capabilityId] });
     }
   }
 
@@ -388,7 +393,8 @@ export class PolicyEngineImpl implements PolicyEngine {
     const id = task["@id"];
     this.addFact({ predicate: "task", args: [id] });
     for (const assignee of task.assigned_to ?? []) {
-      this.addFact({ predicate: "assigned_to", args: [id, assignee["@id"]] });
+      const assigneeId = this.referenceId(assignee);
+      if (assigneeId) this.addFact({ predicate: "assigned_to", args: [id, assigneeId] });
     }
     if (typeof task.status === "string") {
       this.addFact({ predicate: "task_status", args: [id, task.status] });
@@ -399,11 +405,22 @@ export class PolicyEngineImpl implements PolicyEngine {
     const id = workflow["@id"];
     this.addFact({ predicate: "workflow", args: [id] });
     for (const stage of workflow.stages ?? []) {
-      this.addFact({ predicate: "has_stage", args: [id, stage["@id"]] });
+      const stageId = this.referenceId(stage);
+      if (stageId) this.addFact({ predicate: "has_stage", args: [id, stageId] });
     }
     for (const transition of workflow.transitions ?? []) {
-      this.addFact({ predicate: "has_transition", args: [id, transition["@id"]] });
+      const transitionId = this.referenceId(transition);
+      if (transitionId) this.addFact({ predicate: "has_transition", args: [id, transitionId] });
     }
+  }
+
+  private referenceId(value: unknown): string | null {
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "object" && value !== null) {
+      const id = (value as { "@id"?: unknown })["@id"];
+      if (typeof id === "string" && id.length > 0) return id;
+    }
+    return null;
   }
 
   private ingestStage(stage: Stage): void {

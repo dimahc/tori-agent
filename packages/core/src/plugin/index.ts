@@ -602,6 +602,23 @@ export async function syncBuiltinSkills(targetDir: string): Promise<SyncedSkill[
   const sourceDir = join(__dirname, '../../spec/skills');
   const synced: SyncedSkill[] = [];
 
+  async function copySkillEntry(sourcePath: string, targetPath: string, output: SkillFile[]): Promise<void> {
+    const stat = await fs.stat(sourcePath);
+    if (stat.isDirectory()) {
+      await fs.mkdir(targetPath, { recursive: true });
+      const children = await fs.readdir(sourcePath);
+      for (const child of children) {
+        await copySkillEntry(join(sourcePath, child), join(targetPath, child), output);
+      }
+      return;
+    }
+
+    const content = await fs.readFile(sourcePath, 'utf-8');
+    await fs.mkdir(dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, content, 'utf-8');
+    output.push({ name: targetPath.slice(targetPath.lastIndexOf('/') + 1), path: targetPath, content });
+  }
+
   try {
     const skillDirs = await fs.readdir(sourceDir);
 
@@ -619,9 +636,7 @@ export async function syncBuiltinSkills(targetDir: string): Promise<SyncedSkill[
       for (const file of files) {
         const sourcePath = join(skillSourceDir, file);
         const targetPath = join(skillTargetDir, file);
-        const content = await fs.readFile(sourcePath, 'utf-8');
-        await fs.writeFile(targetPath, content, 'utf-8');
-        skillFiles.push({ name: file, path: targetPath, content });
+        await copySkillEntry(sourcePath, targetPath, skillFiles);
       }
 
       synced.push({ name: skillName, files: skillFiles });

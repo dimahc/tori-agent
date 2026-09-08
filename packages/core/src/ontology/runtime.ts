@@ -28,6 +28,7 @@ export class OntologyRuntime {
   private policyEngine: PolicyEngineImpl;
   private serializer: JSONLDSerializer;
   private initialized = false;
+  private promptCache = new Map<string, string>();
 
   constructor() {
     this.compiler = new OntologyCompiler();
@@ -67,7 +68,6 @@ export class OntologyRuntime {
     await this.serializer.initialize();
 
     this.initialized = true;
-    console.log(`[tori-ontology] Initialized: ${result.agents.length} agents, ${result.roles.length} roles, ${result.capabilities.length} capabilities, ${result.tools.length} tools`);
   }
 
   /**
@@ -119,27 +119,23 @@ export class OntologyRuntime {
     for (const agent of agents) {
       // Use @id as the key for OpenCode (stripping prefix for host-facing key)
       const fullId = agent['@id'] as string;
-      const agentKey = fullId.includes(':') ? fullId.split(':')[1] : fullId;
-      console.log(`[tori-ontology] Registering agent: originalId=${fullId}, agentKey=${agentKey}`);
+      const agentKey = this.getAgentKey(fullId);
       const userCfg = (userAgents[agentKey] ?? {}) as Record<string, unknown> & { soul?: boolean };
       const { soul, ...userCfgRest } = userCfg;
 
        // Get capabilities for this agent
-       const capabilities = (agent.capabilities ?? this.registry.getRelated(fullId, 'governedBy')
-         .filter(e => e['@type'] === 'Capability') as Capability[]) || [];
+       const capabilities = this.resolveCapabilities(agent.capabilities, fullId);
+       const roles = this.resolveRoles(agent.roles, fullId);
  
-       // Get tools for this agent
-       const tools = (agent.tools ?? this.registry.getRelated(fullId, 'governedBy')
-         .filter(e => e['@type'] === 'Tool') as Tool[]) || [];
- 
-       // Build tool map based on capabilities (not string permissions)
-       const toolsMap = this.buildToolsMapFromCapabilities(agent, capabilities, pluginToolNames, tools);
- 
-       // Build host permission object (for runtime compatibility)
-       const hostPermission = await this.buildHostPermissionFromPolicy(agent, pluginToolNames, tools);
-
-      // Get ontology-native behavior for this agent
-      const behavior = this.getAgentBehavior(agent);
+        // Get tools for this agent
+       const tools = this.resolveTools(agent.tools, fullId);
+  
+        // Build tool map based on capabilities (not string permissions)
+       const toolsMap = this.buildToolsMapFromCapabilities(capabilities, roles, pluginToolNames, tools);
+  
+        // Build host permission object (for runtime compatibility)
+       const hostPermission = this.buildHostPermissionFromRoles(roles, pluginToolNames, tools);
+       const prompt = await this.getPromptForAgent(fullId);
 
       // Merge user tool overrides
       const userTools = (userCfgRest.tools ?? {}) as Record<string, boolean>;
@@ -150,12 +146,84 @@ export class OntologyRuntime {
         mode: agent.metadata?.mode,
         color: agent.metadata?.color ?? "info",
         ...userCfgRest,
-        // Ontology-native behavior replaces prompt
-        behavior: behavior,
+        prompt: typeof userCfgRest.prompt === 'string' ? userCfgRest.prompt : prompt,
         tools: { ...toolsMap, ...userTools },
         permission: hostPermission,
       } as never;
     }
+  }
+
+  private getAgentKey(agentId: string): string {
+    return agentId.startsWith('agent:') ? agentId.slice('agent:'.length) : agentId;
+  }
+
+  private async getPromptForAgent(agentId: string): Promise<string> {
+    const cached = this.promptCache.get(agentId);
+    if (cached !== undefined) return cached;
+
+    const promptName = this.getPromptFileName(agentId);
+    const promptUrl = new URL(`../../spec/ontology/prompts/${promptName}`, import.meta.url);
+    const prompt = await import('node:fs/promises').then(({ readFile }) => readFile(promptUrl, 'utf-8'));
+    const trimmed = prompt.trim();
+    this.promptCache.set(agentId, trimmed);
+    return trimmed;
+  }
+
+  private getPromptFileName(agentId: string): string {
+    const key = this.getAgentKey(agentId);
+
+    if (key === 'tori') return 'tori.md';
+    if (key === 'delivery-agent') return 'delivery-agent.md';
+    if (key.startsWith('scribe:')) return 'scribe.md';
+    if (key.startsWith('specialist:')) return 'specialist.md';
+    if (key.startsWith('reviewer:')) return 'reviewer.md';
+
+    throw new Error(`No prompt mapping for agent: ${agentId}`);
+  }
+
+  private resolveCapabilities(values: unknown, fallbackId: string): Capability[] {
+    if (!Array.isArray(values)) {
+      return this.registry.getRelated(fallbackId, 'governedBy').filter(
+        (entity): entity is Capability => entity['@type'] === 'Capability',
+      );
+    }
+
+    return values
+      .map((value) => this.resolveEntityReference(value))
+      .filter((entity): entity is Capability => entity?.['@type'] === 'Capability');
+  }
+
+  private resolveRoles(values: unknown, fallbackId: string): Role[] {
+    if (!Array.isArray(values)) {
+      return this.registry.getRelated(fallbackId, 'governedBy').filter(
+        (entity): entity is Role => entity['@type'] === 'Role',
+      );
+    }
+
+    return values
+      .map((value) => this.resolveEntityReference(value))
+      .filter((entity): entity is Role => entity?.['@type'] === 'Role');
+  }
+
+  private resolveTools(values: unknown, fallbackId: string): Tool[] {
+    if (!Array.isArray(values)) {
+      return this.registry.getRelated(fallbackId, 'governedBy').filter(
+        (entity): entity is Tool => entity['@type'] === 'Tool',
+      );
+    }
+
+    return values
+      .map((value) => this.resolveEntityReference(value))
+      .filter((entity): entity is Tool => entity?.['@type'] === 'Tool');
+  }
+
+  private resolveEntityReference(value: unknown) {
+    if (typeof value === 'string') return this.registry.get(value);
+    if (typeof value === 'object' && value !== null && '@id' in value) {
+      const id = (value as { '@id'?: unknown })['@id'];
+      if (typeof id === 'string') return this.registry.get(id) ?? (value as never);
+    }
+    return undefined;
   }
 
   /**
@@ -215,28 +283,26 @@ export class OntologyRuntime {
    * REPLACES: buildToolsMap() from agents.ts
    */
    private buildToolsMapFromCapabilities(
-     agent: Agent,
-     capabilities: Capability[],
-     pluginToolNames?: Set<string>,
-     explicitTools?: Tool[]
-   ): Record<string, boolean> {
-     const tools: Record<string, boolean> = {};
- 
-     // Get tools governed by this agent or explicitly defined
-     const agentTools = explicitTools ?? this.registry.getRelated(agent['@id'], 'governedBy')
-       .filter(e => e['@type'] === 'Tool') as Tool[];
- 
-     for (const tool of agentTools) {
-       // Check if the agent has the capability for this tool
-       const capId = tool.capability_id;
-       const hasCapability = capabilities.some(c => c['@id'] === capId);
- 
-       if (hasCapability) {
-         tools[tool.name] = true;
-       } else if (pluginToolNames && pluginToolNames.has(tool.name)) {
-         tools[tool.name] = false;
-       }
-     }
+      capabilities: Capability[],
+      roles: Role[],
+      pluginToolNames?: Set<string>,
+      explicitTools?: Tool[]
+    ): Record<string, boolean> {
+      const tools: Record<string, boolean> = {};
+      const allowedPermissions = new Set(roles.flatMap((role) => role.permissions ?? []));
+      const agentTools = explicitTools ?? [];
+  
+      for (const tool of agentTools) {
+        const capId = tool.capability_id;
+        const hasCapability = capabilities.some(c => c['@id'] === capId);
+        const allowedByRole = allowedPermissions.has(tool.name);
+  
+        if (hasCapability || allowedByRole) {
+          tools[tool.name] = true;
+        } else if (pluginToolNames && pluginToolNames.has(tool.name)) {
+          tools[tool.name] = false;
+        }
+      }
  
      // Add MCP tools (always allowed if no explicit deny)
      if (pluginToolNames) {
@@ -256,28 +322,20 @@ export class OntologyRuntime {
    * Build host permission object from policy engine.
    * REPLACES: buildHostPermission() from agents.ts
    */
-   private async buildHostPermissionFromPolicy(
-     agent: Agent,
-     pluginToolNames?: Set<string>,
-     explicitTools?: Tool[]
-   ): Promise<Record<string, unknown>> {
-     const result: Record<string, unknown> = {};
- 
-     // Get all tools this agent can access
-     const agentTools = explicitTools ?? this.registry.getRelated(agent['@id'], 'governedBy')
-       .filter(e => e['@type'] === 'Tool') as Tool[];
- 
-     // Build permission map by querying policy engine for each tool
-     for (const tool of agentTools) {
-       const canAccess = await this.policyEngine.evaluate(
-         agent['@id'],
-         tool.name,
-         "resource:*"
-       );
-       if (canAccess) {
-         result[tool.name] = "allow";
-       }
-     }
+   private buildHostPermissionFromRoles(
+      roles: Role[],
+      pluginToolNames?: Set<string>,
+      explicitTools?: Tool[]
+    ): Record<string, unknown> {
+      const result: Record<string, unknown> = {};
+      const allowedPermissions = new Set(roles.flatMap((role) => role.permissions ?? []));
+      const agentTools = explicitTools ?? [];
+
+      for (const tool of agentTools) {
+        if (allowedPermissions.has(tool.name)) {
+          result[tool.name] = 'allow';
+        }
+      }
  
      // Handle write/edit special case
      if (result.write === undefined && result.edit === "allow") {
