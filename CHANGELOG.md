@@ -61,6 +61,7 @@
 - Use runtime-aware artifact paths instead of hardcoded .opencode
 - Remove unused allCoreTools variable
 - Stabilize ontology runtime loading
+- Support project-local ontology overrides
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
