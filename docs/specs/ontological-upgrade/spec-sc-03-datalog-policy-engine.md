@@ -415,25 +415,25 @@ These unary relations assert class membership, corresponding to `rdf:type` asser
 
 // A stage belongs to a workflow.
 // Source: tori:belongsTo property (or inverse of tori:hasStage)
-// Example: { "@id": "stage:execute", "tori:belongsTo": { "@id": "workflow:main" } }
+// Example: { "@id": "workflow-stage:execution", "tori:belongsTo": { "@id": "workflow:orchestration-pipeline" } }
 .decl stage_belongs_to_workflow(stage: symbol, workflow: symbol)
 .input stage_belongs_to_workflow(filename="stage_belongs_to_workflow.csv", delimiter=",")
 
 // A transition originates from a stage.
 // Source: tori:fromStage property
-// Example: { "@id": "trans:execute-to-verify", "tori:fromStage": { "@id": "stage:execute" } }
+// Example: { "@id": "workflow-transition:exec-to-verify", "tori:fromStage": { "@id": "workflow-stage:execution" } }
 .decl transition_from_stage(trans: symbol, stage: symbol)
 .input transition_from_stage(filename="transition_from_stage.csv", delimiter=",")
 
 // A transition targets a stage.
 // Source: tori:toStage property
-// Example: { "@id": "trans:execute-to-verify", "tori:toStage": { "@id": "stage:verify" } }
+// Example: { "@id": "workflow-transition:exec-to-verify", "tori:toStage": { "@id": "workflow-stage:verification" } }
 .decl transition_to_stage(trans: symbol, stage: symbol)
 .input transition_to_stage(filename="transition_to_stage.csv", delimiter=",")
 
 // A stage is the initial stage of a workflow.
 // Source: tori:initialStage property
-// Example: { "@id": "workflow:main", "tori:initialStage": { "@id": "stage:plan" } }
+// Example: { "@id": "workflow:orchestration-pipeline", "tori:initialStage": { "@id": "workflow-stage:requirements" } }
 .decl workflow_initial_stage(workflow: symbol, stage: symbol)
 .input workflow_initial_stage(filename="workflow_initial_stage.csv", delimiter=",")
 
@@ -445,7 +445,7 @@ These unary relations assert class membership, corresponding to `rdf:type` asser
 
 // The ordinal index of a stage within its workflow (for monotonicity checking).
 // Source: tori:stageIndex property (xsd:integer)
-// Example: { "@id": "stage:execute", "tori:stageIndex": 2 }
+// Example: { "@id": "workflow-stage:execution", "tori:stageIndex": 2 }
 .decl stage_index(stage: symbol, idx: number)
 .input stage_index(filename="stage_index.csv", delimiter=",")
 ```
@@ -476,7 +476,7 @@ These unary relations assert class membership, corresponding to `rdf:type` asser
 
 // A permission is granted at a specific workflow stage.
 // Source: tori:grantedAtStage property on permission node
-// Example: { "@id": "perm:exec-bash", "tori:grantedAtStage": { "@id": "stage:execute" } }
+// Example: { "@id": "perm:exec-bash", "tori:grantedAtStage": { "@id": "workflow-stage:execution" } }
 .decl permission_granted_at_stage(agent: symbol, action: symbol, resource: symbol, stage: symbol)
 .input permission_granted_at_stage(filename="permission_granted_at_stage.csv", delimiter=",")
 ```
@@ -2177,10 +2177,10 @@ agent:tori-scribe,role:scribe
 
 Example `stage_index.csv`:
 ```
-stage:plan,0
-stage:execute,1
-stage:verify,2
-stage:commit,3
+workflow-stage:requirements,0
+workflow-stage:planning,1
+workflow-stage:execution,2
+workflow-stage:verification,3
 ```
 
 The JSON-LD exporter (SC-04) is responsible for generating these CSV files from the in-memory RDF graph. The `exportToEdb` function in Section 7.3 provides the TypeScript implementation.

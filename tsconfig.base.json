@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -14,6 +15,10 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "types": ["node"],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@tori-agent/ontology": ["packages/ontology/src/index.ts"],
+      "@tori-agent/core": ["packages/core/src/index.ts"]
+    }
   }
 }

@@ -1,650 +1,295 @@
-/**
- * @file packages/core/src/plugin/index.ts
- * @description Core Plugin Internals - Tool builders, lazy registry, budget executor.
- *
- * These are internal functions used by the runtime plugin.
- * They are exported from core for the runtime package to consume.
- */
-
-import { promises as fs } from 'node:fs';
-import { join, dirname, isAbsolute, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFile, stat, mkdir, readdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { CHECK_POLICY, WORKFLOW_STAGE, buildRuntimePaths, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
+import { initializeOntologyRuntime } from "../ontology/runtime.js";
 import {
   checkArtifacts,
   completePlan,
-  markBlockDone,
   projectState,
   registerSpecImpl,
   runMechanicalChecks,
   saveCheckpoint,
+  splitCommandLine,
+  truncateOutput,
   writeAppend,
-} from '../tools/lifecycle.js';
-import type { ArtifactPaths } from '../tools/lifecycle.js';
-import type { VerificationPolicy } from '../types/verification.js';
-import type { WorkflowPaths } from '../tools/workflow.js';
+  markBlockDone,
+} from "../tools/lifecycle.js";
 import {
+  createWorkflowRun,
   getWorkflowState,
-  incrementDeliberationCount,
   recordCheckResult,
   recordTaskResult,
   transitionStage,
-} from '../tools/workflow.js';
-import type { PersonaMatch } from '../types/persona.js';
-import type { CIConfig } from '../types/ci.js';
-import { trigger_ci_check } from '../tools/ci-hook.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// ── Lazy-load registry ────────────────────────────────────────────────────────
-
-interface LazyToolMeta {
-  name: string;
-  category: string;
-  description: string;
-  args: Record<string, unknown>;
-  execute: (args: Record<string, unknown>, context?: ToolExecutionContext) => Promise<string>;
-}
-
-const lazyToolRegistry = new Map<string, LazyToolMeta>();
-
-export function registerLazyTool(meta: LazyToolMeta): void {
-  lazyToolRegistry.set(meta.name, meta);
-}
-
-export function getLazyTool(name: string): LazyToolMeta | undefined {
-  return lazyToolRegistry.get(name);
-}
-
-export function getAllLazyTools(): LazyToolMeta[] {
-  return Array.from(lazyToolRegistry.values());
-}
-
-export function buildDiscoveryTools(): Record<string, LazyToolMeta> {
-  const tools: Record<string, LazyToolMeta> = {
-    list_available_tools: {
-      name: 'list_available_tools',
-      category: 'core',
-      description:
-        'List all available tools with their category. ' +
-        'Use this to discover what tools exist before loading extensions. ' +
-        'Returns tool name and category (core, erpnext, jira, confluence, etc.).',
-      args: {},
-      async execute() {
-        try {
-          const coreTools = [
-            'task', 'transition_stage', 'record_task_result', 'record_check_result',
-            'write_checkpoint', 'classify_task', 'question', 'compress',
-            'todowrite', 'skill', 'scratchpad', 'project_state', 'check_artifacts',
-            'workflow_state', 'run_mechanical_checks', 'mark_block_done',
-            'complete_plan', 'register_spec', 'write_append', 'save_checkpoint',
-            'trigger_ci_check', 'list_available_tools', 'load_tools',
-          ];
-          return JSON.stringify({
-            tools: coreTools.map(name => ({ name, category: 'core' })),
-            total: coreTools.length,
-            note: 'Extension tools (erpnext, jira, confluence, etc.) are loaded by the runtime. Use load_tools to request them.',
-          });
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      },
-    },
-    load_tools: {
-      name: 'load_tools',
-      category: 'core',
-      description:
-        'Load extension tools by category or name. ' +
-        'Currently a no-op placeholder — extension tools (erpnext, jira, confluence) ' +
-        'are loaded by the runtime. This tool exists for future lazy-loading support.',
-      args: { categories: {}, names: {} },
-      async execute({ categories, names }: { categories?: string; names?: string }) {
-        return JSON.stringify({
-          message: 'Extension tools are loaded by the runtime, not by this tool.',
-          loaded: [],
-          hint: 'To reduce context, configure your MCP server to load only the tools you need per project.',
-        });
-      },
-    },
-    skill: {
-      name: 'skill',
-      category: 'core',
-      description:
-        'Load and return the instructions for a builtin skill by name. ' +
-        'Use when the agent needs to apply a specific skill (e.g. caveman, spec-writer).',
-      args: { name: {} },
-      async execute({ name }: { name?: string }) {
-        try {
-          if (!name) return JSON.stringify({ error: 'Missing required argument: name' });
-          const skillsDir = join(__dirname, '../../.opencode/skills');
-          const skillPath = join(skillsDir, name, 'SKILL.md');
-          const content = await fs.readFile(skillPath, 'utf-8');
-          return content;
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      },
-    },
-  };
-  return tools;
-}
-
-// ── Tool Execution Context ────────────────────────────────────────────────────
+} from "../tools/workflow.js";
+import { trigger_ci_check } from "../tools/ci-hook.js";
+import type { VerificationPolicy } from "../types/verification.js";
+import type { CIConfig } from "../types/ci.js";
 
 export interface ToolExecutionContext {
   sessionID: string;
   directory: string;
-  worktree: string;
-  agent: string;
+  worktree?: string;
+  agent?: string;
 }
 
-// ── Tool Registry ─────────────────────────────────────────────────────────────
+export interface ToolRegistryEntry {
+  description: string;
+  args: Record<string, unknown>;
+  execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string>;
+}
 
 export interface ToolRegistry {
-  [name: string]: {
-    description: string;
-    args: Record<string, unknown>;
-    execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string>;
-  };
+  [name: string]: ToolRegistryEntry;
+}
+
+interface LazyToolMeta extends ToolRegistryEntry {
+  name: string;
+  category: string;
+}
+
+const lazyRegistry = new Map<string, LazyToolMeta>();
+
+export function registerLazyTool(meta: LazyToolMeta): void {
+  lazyRegistry.set(meta.name, meta);
+}
+
+export function getLazyTool(name: string): LazyToolMeta | undefined {
+  return lazyRegistry.get(name);
+}
+
+export function getAllLazyTools(): LazyToolMeta[] {
+  return Array.from(lazyRegistry.values());
 }
 
 export function registerToolInLazyRegistry(
   name: string,
-  category: LazyToolMeta['category'],
+  category: string,
   description: string,
   args: Record<string, unknown>,
-  execute: LazyToolMeta['execute'],
+  execute: ToolRegistryEntry["execute"],
 ): void {
-  registerLazyTool({
-    name,
-    category,
-    description,
-    args,
-    execute: async (a, c) => execute(a, c) as Promise<string>,
-  });
+  registerLazyTool({ name, category, description, args, execute });
 }
 
-export function getDiscoveryTools(): Record<string, LazyToolMeta> {
-  return buildDiscoveryTools();
-}
-
-// ── Tool Builders ─────────────────────────────────────────────────────────────
-
-export function buildReadOnlyTools(
-  projectRoot: string,
-  paths: ArtifactPaths,
-  skillsDir: string,
-): ToolRegistry {
-  const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
-
+export function buildDiscoveryTools(): Record<string, ToolRegistryEntry> {
   return {
-    project_state: {
-      description:
-        'Return a structured report of the current state of all management artifacts ' +
-        '(exec-plans, specs, briefs, workflows) in the project. Call at the start of every mission.',
+    list_available_tools: {
+      description: "List available tool names and categories.",
       args: {},
       async execute() {
-        try {
-          return JSON.stringify(await projectState(projectRoot, paths));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        return JSON.stringify({ tools: getAllLazyTools().map(({ name, category }) => ({ name, category })), total: lazyRegistry.size });
       },
     },
-    check_artifacts: {
-      description:
-        'Cross-artifact consistency scan — detects dead references, stale statuses, ' +
-        'and missing links between exec-plans, specs, and briefs.',
-      args: {},
-      async execute() {
-        try {
-          return JSON.stringify(await checkArtifacts(projectRoot, paths));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+    load_tools: {
+      description: "Return lazy registry entries for requested tools. No dynamic loading.",
+      args: { categories: {}, names: {} },
+      async execute({ categories, names }) {
+        const categorySet = new Set(Array.isArray(categories) ? categories : categories ? [categories] : []);
+        const nameSet = new Set(Array.isArray(names) ? names : names ? [names] : []);
+        const matches = getAllLazyTools().filter((tool) =>
+          (categorySet.size === 0 || categorySet.has(tool.category)) &&
+          (nameSet.size === 0 || nameSet.has(tool.name)),
+        );
+        return JSON.stringify({ tools: matches.map(({ name, category, description, args }) => ({ name, category, description, args })) });
       },
     },
-    run_mechanical_checks: {
-      description:
-        'Run the project\'s mechanical pre-filter (lint then tests) before spawning ' +
-        'semantic reviewers. Call at the start of every review.',
-      args: {},
-      async execute() {
-        try {
-          return JSON.stringify(await runMechanicalChecks(projectRoot));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      },
-    },
-    workflow_state: {
-      description:
-        'Return the current state of a workflow (stage, iteration, tasks, checks). ' +
-        'Call at the start of each stage transition.',
-      args: { workflow_id: {} },
-      async execute({ workflow_id }: { workflow_id?: string }) {
-        try {
-          const result = await getWorkflowState(projectRoot, workflowPaths, workflow_id!);
-          if (!result) {
-            return JSON.stringify({ error: `Workflow not found: ${workflow_id}` });
-          }
-          const count = await incrementDeliberationCount(projectRoot, workflowPaths, workflow_id!);
-          const stuckWarning = count >= 3
-            ? `Workflow stuck in '${result.state.current_stage}' for ${count} consecutive checks. Stop deliberating and execute the next step now.`
-            : null;
-          return JSON.stringify({ ...result, deliberation_count: count, stuck_warning: stuckWarning });
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      },
-    },
-    skill: {
-      description:
-        'Load and return the instructions for a builtin skill by name. ' +
-        'Use when the agent needs to apply a specific skill (e.g. caveman, spec-writer).',
-      args: { name: {} },
-      async execute({ name }: { name?: string }) {
-        try {
-          if (!name) return JSON.stringify({ error: 'Missing required argument: name' });
-          const skillPath = join(skillsDir, name, 'SKILL.md');
-          const content = await fs.readFile(skillPath, 'utf-8');
-          return content;
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      },
-    },
-    list_available_tools: buildDiscoveryTools().list_available_tools,
-    load_tools: buildDiscoveryTools().load_tools,
   };
 }
 
-function resolveArtifact(projectRoot: string, relPath: string): string {
-  const resolved = isAbsolute(relPath) ? relPath : join(projectRoot, relPath);
+function safeResolve(projectRoot: string, relPath: string): string {
+  const resolved = resolve(projectRoot, relPath);
   const normalizedRoot = resolve(projectRoot) + sep;
-  const normalizedPath = resolve(resolved);
-  if (!normalizedPath.startsWith(normalizedRoot)) {
+  if (!resolved.startsWith(normalizedRoot) && resolved !== resolve(projectRoot)) {
     throw new Error(`Path escapes project root: ${relPath}`);
   }
-  return normalizedPath;
+  return resolved;
+}
+
+export async function syncBuiltinSkills(targetDir: string): Promise<Array<{ name: string; files: string[] }>> {
+  const sourceDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "spec", "skills");
+  await mkdir(targetDir, { recursive: true });
+  const entries = await readdir(sourceDir).catch(() => []);
+  const copied: Array<{ name: string; files: string[] }> = [];
+
+  async function copyTree(sourcePath: string, targetPath: string, relativePrefix = ""): Promise<string[]> {
+    const entryStat = await stat(sourcePath);
+    if (entryStat.isDirectory()) {
+      await mkdir(targetPath, { recursive: true });
+      const children = await readdir(sourcePath);
+      const copiedFiles: string[] = [];
+      for (const child of children) {
+        const childRelative = relativePrefix ? join(relativePrefix, child) : child;
+        copiedFiles.push(...await copyTree(join(sourcePath, child), join(targetPath, child), childRelative));
+      }
+      return copiedFiles;
+    }
+    const content = await readFile(sourcePath, "utf8");
+    await writeFile(targetPath, content, "utf8");
+    return [relativePrefix];
+  }
+
+  for (const entry of entries) {
+    const sourcePath = join(sourceDir, entry);
+    const entryStat = await stat(sourcePath);
+    if (!entryStat.isDirectory()) continue;
+    const targetPath = join(targetDir, entry);
+    const copiedFiles = await copyTree(sourcePath, targetPath);
+    copied.push({ name: entry, files: copiedFiles });
+  }
+  return copied;
+}
+
+export function createBudgetAwareToolExecutor(baseTools: ToolRegistry): ToolRegistry {
+  return baseTools;
+}
+
+export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePaths, skillsDir: string): ToolRegistry {
+  return {
+    project_state: {
+      description: "Return ontology-managed artifact state.",
+      args: {},
+      async execute() {
+        return JSON.stringify(await projectState(projectRoot, runtimePaths));
+      },
+    },
+    check_artifacts: {
+      description: "Run ontology cross-artifact consistency scan.",
+      args: {},
+      async execute() {
+        return JSON.stringify(await checkArtifacts(projectRoot, runtimePaths));
+      },
+    },
+    run_mechanical_checks: {
+      description: "Run AGENTS.md review checks mechanically.",
+      args: {},
+      async execute() {
+        return JSON.stringify(await runMechanicalChecks(projectRoot));
+      },
+    },
+    workflow_state: {
+      description: "Read ontology-native workflow state.",
+      args: { workflow_id: {} },
+      async execute({ workflow_id }) {
+        if (typeof workflow_id !== "string") return JSON.stringify({ error: "workflow_id required" });
+        const state = await getWorkflowState(runtimePaths, workflow_id);
+        return JSON.stringify(state ?? { error: `workflow not found: ${workflow_id}` });
+      },
+    },
+    skill: {
+      description: "Load builtin skill markdown.",
+      args: { name: {} },
+      async execute({ name }) {
+        if (typeof name !== "string") return JSON.stringify({ error: "name required" });
+        return readFile(join(skillsDir, name, "SKILL.md"), "utf8");
+      },
+    },
+    ...buildDiscoveryTools(),
+  };
+}
+
+async function resolveArtifactIdForManagedFile(runtimePaths: RuntimePaths, planFile: string): Promise<string | null> {
+  const candidate = join(runtimePaths.execPlansDir, planFile);
+  try {
+    const content = await readFile(candidate, "utf8");
+    const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (!match) return null;
+    const artifactIdMatch = match[1].match(/^artifact_id:\s*(.+)$/m);
+    return artifactIdMatch ? artifactIdMatch[1].trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function buildWriteTools(
   projectRoot: string,
-  paths: ArtifactPaths,
-  configDir: string,
-  runtime: 'opencode' | 'kilocode' = 'opencode',
+  runtimePaths: RuntimePaths,
+  runtime: RuntimeId,
 ): ToolRegistry {
-  const workflowPaths: WorkflowPaths = { workflows: paths.workflows };
-
   return {
     mark_block_done: {
-      description:
-        'Check a specific block in an exec-plan ([ ] → [x]). Call after each validated delivery.',
+      description: "Check exec-plan block.",
       args: { plan_file: {}, block_name: {} },
-      async execute({
-        plan_file,
-        block_name,
-      }: {
-        plan_file?: string;
-        block_name?: string;
-      }) {
-        try {
-          return JSON.stringify(
-            await markBlockDone(projectRoot, plan_file!, block_name!),
-          );
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ plan_file, block_name }) {
+        return JSON.stringify(await markBlockDone(projectRoot, runtimePaths, String(plan_file), String(block_name)));
       },
     },
     complete_plan: {
-      description:
-        'Set an exec-plan\'s status to "completed" in its frontmatter. ' +
-        'Refuses if any unchecked blocks remain.',
+      description: "Set exec-plan status to completed when blocks done.",
       args: { plan_file: {} },
-      async execute({ plan_file }: { plan_file?: string }) {
-        try {
-          return JSON.stringify(await completePlan(projectRoot, plan_file!));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ plan_file }) {
+        return JSON.stringify(await completePlan(projectRoot, runtimePaths, String(plan_file)));
       },
     },
     register_spec: {
-      description:
-        'Create a new spec file with minimal frontmatter (title, status: draft, created). ' +
-        'Refuses to overwrite existing files.',
-      args: {
-        spec_file: {},
-        title: {},
-      },
-      async execute({
-        spec_file,
-        title,
-      }: {
-        spec_file?: string;
-        title?: string;
-      }) {
-        try {
-          return JSON.stringify(
-            await registerSpecImpl(projectRoot, paths, spec_file!, title!),
-          );
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      description: "Create managed spec artifact.",
+      args: { spec_file: {}, title: {} },
+      async execute({ spec_file, title }) {
+        return JSON.stringify(await registerSpecImpl(projectRoot, runtimePaths, String(spec_file), String(title)));
       },
     },
     write_append: {
-      description:
-        'Append content to a file (creates the file if it doesn\'t exist). ' +
-        'Use for incremental generation of long artifacts — write section by section ' +
-        'instead of generating everything in one shot.',
+      description: "Append content to file inside project root.",
       args: { file: {}, content: {} },
-      async execute({ file, content }: { file?: string; content?: string }) {
-        try {
-          return JSON.stringify(await writeAppend(projectRoot, file!, content!));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ file, content }) {
+        return JSON.stringify(await writeAppend(projectRoot, String(file), String(content)));
       },
     },
     save_checkpoint: {
-      description:
-        'Save a checkpoint file summarizing progress and remaining work. ' +
-        'Call when approaching context limits (budget exhaustion, long mission, ' +
-        'or before returning to Tori for a continuation). Tori will read this ' +
-        'file and spawn a fresh agent to resume.',
+      description: "Persist ontology checkpoint.",
       args: { file: {}, summary: {}, remaining_work: {} },
-      async execute({ file, summary, remaining_work }: { file?: string; summary?: string; remaining_work?: string }) {
-        try {
-          return JSON.stringify(await saveCheckpoint(projectRoot, file!, summary!, remaining_work!));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ file, summary, remaining_work }) {
+        return JSON.stringify(await saveCheckpoint(projectRoot, runtimePaths, String(file), String(summary), String(remaining_work)));
       },
     },
     scratchpad: {
-      description:
-        'Append an entry to the project scratchpad (' + join('.opencode', 'scratchpad.md') + ' or ' + join('.kilocode', 'scratchpad.md') + '). ' +
-        'The scratchpad is Tori\'s central brain — use it to track active work, completed tasks, ' +
-        'decisions, and key artifacts. Call this after every spawn and every delivery.',
+      description: "Append scratchpad entry in runtime root.",
       args: { section: {}, content: {} },
-      async execute({ section, content }: { section?: string; content?: string }) {
-        try {
-          const scratchpadRelPath = join(runtime === 'opencode' ? '.opencode' : '.kilocode', 'scratchpad.md');
-          const timestamp = new Date().toISOString().split('T')[0];
-          const entry = `\n## ${section || 'Entry'} [${timestamp}]\n${content || ''}\n`;
-          return JSON.stringify(await writeAppend(projectRoot, scratchpadRelPath, entry));
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ section, content }) {
+        const entry = `\n## ${String(section)}\n${String(content)}\n`;
+        return JSON.stringify(await writeAppend(projectRoot, runtimePaths.scratchpadFile.replace(`${projectRoot}/`, ""), entry));
       },
     },
     transition_stage: {
-      description:
-        'Transition a workflow to a new stage. Validates the transition against the state machine.',
+      description: "Apply ontology transition semantics to workflow run.",
       args: { workflow_id: {}, to_stage: {}, policy: {} },
-      async execute({
-        workflow_id,
-        to_stage,
-        policy,
-      }: {
-        workflow_id?: string;
-        to_stage?: string;
-        policy?: string;
-      }) {
-        try {
-          let parsedPolicy: VerificationPolicy | undefined;
-          if (policy) {
-            try {
-              parsedPolicy = JSON.parse(policy) as VerificationPolicy;
-            } catch {
-              // ignore invalid policy JSON
-            }
-          }
-          return JSON.stringify(
-            await transitionStage(
-              projectRoot,
-              workflowPaths,
-              workflow_id!,
-              to_stage!,
-              parsedPolicy ? { policy: parsedPolicy } : undefined,
-            ),
-          );
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ workflow_id, to_stage, policy }) {
+        const runtimeApi = await initializeOntologyRuntime();
+        const parsed = typeof policy === "string" && policy ? (JSON.parse(policy) as VerificationPolicy) : undefined;
+        return JSON.stringify(await transitionStage(runtimePaths, runtimeApi, String(workflow_id), String(to_stage), parsed));
       },
     },
     record_task_result: {
-      description: 'Record a task result in a workflow file.',
-      args: { workflow_id: {}, task_id: {}, agent: {}, status: {}, plan_file: {}, block_name: {} },
-      async execute({
-        workflow_id,
-        task_id,
-        agent,
-        status,
-        plan_file,
-        block_name,
-      }: {
-        workflow_id?: string;
-        task_id?: string;
-        agent?: string;
-        status?: string;
-        plan_file?: string;
-        block_name?: string;
-      }) {
-        try {
-          await recordTaskResult(
-            projectRoot,
-            workflowPaths,
-            workflow_id!,
-            task_id!,
-            agent!,
-            status as 'done' | 'failed' | 'running' | 'pending',
-            plan_file,
-            block_name,
-          );
-          return JSON.stringify({ success: true });
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      description: "Persist ontology task record.",
+      args: { workflow_id: {}, task_id: {}, agent: {}, status: {}, plan_file: {}, block_name: {}, detail: {} },
+      async execute({ workflow_id, task_id, agent, status, plan_file, block_name, detail }) {
+        const related = typeof plan_file === "string" && plan_file ? [await resolveArtifactIdForManagedFile(runtimePaths, plan_file)].filter((value): value is string => Boolean(value)) : [];
+        return JSON.stringify(await recordTaskResult(runtimePaths, String(workflow_id), String(task_id), String(agent), String(status), related, block_name ? String(block_name) : undefined, detail ? String(detail) : undefined));
       },
     },
     record_check_result: {
-      description: 'Record a verification check result in a workflow file.',
-      args: { workflow_id: {}, check_name: {}, status: {}, detail: {}, max_iterations: {} },
-      async execute({
-        workflow_id,
-        check_name,
-        status,
-        detail,
-        max_iterations,
-      }: {
-        workflow_id?: string;
-        check_name?: string;
-        status?: string;
-        detail?: string;
-        max_iterations?: string;
-      }) {
-        try {
-          await recordCheckResult(
-            projectRoot,
-            workflowPaths,
-            workflow_id!,
-            check_name!,
-            status as 'PASS' | 'FAIL' | 'SKIP',
-detail || '',
-            max_iterations ? Number(max_iterations) : 1,
-            1,
-          );
-          return JSON.stringify({ success: true });
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      description: "Persist ontology check record.",
+      args: { workflow_id: {}, check_name: {}, status: {}, detail: {}, policy: {} },
+      async execute({ workflow_id, check_name, status, detail, policy }) {
+        return JSON.stringify(await recordCheckResult(runtimePaths, String(workflow_id), String(check_name), String(status), String(detail ?? ""), String(policy ?? CHECK_POLICY.blocking)));
       },
     },
     trigger_ci_check: {
-      description:
-        'Run a CI command and record the result as a workflow check. ' +
-        'Used automatically on verify stage entry when ci_config is present in workflow frontmatter.',
+      description: "Run CI command and persist result.",
       args: { workflow_id: {}, config: {} },
-      async execute({
-        workflow_id,
-        config,
-      }: {
-        workflow_id?: string;
-        config?: string;
-      }) {
-        try {
-          if (!workflow_id || !config) {
-            return JSON.stringify({ error: 'Missing required arguments: workflow_id, config' });
-          }
-          const parsed = JSON.parse(config) as CIConfig;
-          const result = await trigger_ci_check(projectRoot, parsed, workflow_id!);
-          return JSON.stringify(result);
-        } catch (err) {
-          return JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      async execute({ workflow_id, config }) {
+        const parsed = typeof config === "string" ? (JSON.parse(config) as CIConfig) : (config as CIConfig);
+        return JSON.stringify(await trigger_ci_check(projectRoot, runtimePaths, parsed, String(workflow_id)));
       },
     },
   };
 }
 
-// ── Budget-Aware Tool Executor ────────────────────────────────────────────────
-
-export interface Checkpoint {
-  version: string;
-  created_at: string;
-  trigger: string;
-  parent: { task_id: string; agent: string; depth: number };
-  state: {
-    todowrite: unknown[];
-    workflow_stage: string;
-    iteration: number;
-    artifacts_modified: string[];
-    decisions: unknown[];
-  };
-  context_summary: string;
-  resume_instructions: string;
-  child_tasks: unknown[];
-}
-
-export function createBudgetAwareToolExecutor(
-  baseTools: ToolRegistry,
-  projectRoot: string,
-  makeCheckpoint: (sessionId: string) => Checkpoint,
-): ToolRegistry {
-  const wrapped: ToolRegistry = {};
-
-  for (const [name, tool] of Object.entries(baseTools)) {
-    wrapped[name] = {
-      ...tool,
-      async execute(args: Record<string, unknown>, context?: ToolExecutionContext) {
-        // In a full implementation, this would check token budget and create checkpoints
-        // For now, just execute the tool
-        return tool.execute(args, context);
-      },
-    };
+export async function createInitialWorkflowIfMissing(runtimePaths: RuntimePaths, workflowRunId: string): Promise<void> {
+  const current = await getWorkflowState(runtimePaths, workflowRunId);
+  if (!current) {
+    await createWorkflowRun(runtimePaths, workflowRunId, undefined, WORKFLOW_STAGE.requirements);
   }
-
-  return wrapped;
 }
 
-// ── Skills Sync ───────────────────────────────────────────────────────────────
-
-export interface SkillFile {
-  name: string;
-  path: string;
-  content: string;
-}
-
-export interface SyncedSkill {
-  name: string;
-  files: SkillFile[];
-}
-
-export async function syncBuiltinSkills(targetDir: string): Promise<SyncedSkill[]> {
-  const sourceDir = join(__dirname, '../../spec/skills');
-  const synced: SyncedSkill[] = [];
-
-  async function copySkillEntry(sourcePath: string, targetPath: string, output: SkillFile[]): Promise<void> {
-    const stat = await fs.stat(sourcePath);
-    if (stat.isDirectory()) {
-      await fs.mkdir(targetPath, { recursive: true });
-      const children = await fs.readdir(sourcePath);
-      for (const child of children) {
-        await copySkillEntry(join(sourcePath, child), join(targetPath, child), output);
-      }
-      return;
-    }
-
-    const content = await fs.readFile(sourcePath, 'utf-8');
-    await fs.mkdir(dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, content, 'utf-8');
-    output.push({ name: targetPath.slice(targetPath.lastIndexOf('/') + 1), path: targetPath, content });
-  }
-
-  try {
-    const skillDirs = await fs.readdir(sourceDir);
-
-    for (const skillName of skillDirs) {
-      const skillSourceDir = join(sourceDir, skillName);
-      const stat = await fs.stat(skillSourceDir);
-      if (!stat.isDirectory()) continue;
-
-      const skillTargetDir = join(targetDir, skillName);
-      await fs.mkdir(skillTargetDir, { recursive: true });
-
-      const files = await fs.readdir(skillSourceDir);
-      const skillFiles: SkillFile[] = [];
-
-      for (const file of files) {
-        const sourcePath = join(skillSourceDir, file);
-        const targetPath = join(skillTargetDir, file);
-        await copySkillEntry(sourcePath, targetPath, skillFiles);
-      }
-
-      synced.push({ name: skillName, files: skillFiles });
-    }
-  } catch (err) {
-    // Skills directory might not exist
-    console.warn('[tori-core] Failed to sync builtin skills:', (err as Error).message);
-  }
-
-  return synced;
-}   
+export { buildRuntimePaths, safeResolve, splitCommandLine, truncateOutput };

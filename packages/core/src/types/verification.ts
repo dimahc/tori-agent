@@ -1,12 +1,6 @@
-/**
- * @file packages/core/src/types/verification.ts
- * @description Type definitions for verification policies.
- */
+import type { OntologyId } from "@tori-agent/ontology";
 
 export interface VerificationPolicy {
-  require_mechanical_checks?: boolean;
-  require_tests?: boolean;
-  require_lint?: boolean;
-  max_deliberations?: number;
-  auto_advance?: boolean;
+  required_check_ids?: OntologyId[];
+  auto_transition_to?: OntologyId;
 }

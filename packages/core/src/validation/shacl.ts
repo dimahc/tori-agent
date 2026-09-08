@@ -1,218 +1,80 @@
-/**
- * @file packages/core/src/validation/shacl.ts
- * @description Implementation of the SHACL validation engine as defined in SC-02.
- */
+import { ontologyShapes, type OntologyEntity, type OntologyShape } from "@tori-agent/ontology";
+import type {
+  ValidationIssue,
+  ValidationResult,
+} from "../types/validation.js";
 
-import { 
-  ValidationIssue, 
-  ValidationResult, 
-  ShaclShape, 
-  ShaclPropertyConstraint, 
-  Severity 
-} from '../types/validation.js';
+function issue(
+  entityId: string,
+  property: string,
+  constraint: string,
+  message: string,
+  filePath: string,
+): ValidationIssue {
+  return {
+    entityId,
+    property,
+    constraint,
+    severity: "Violation",
+    message,
+    filePath,
+    lineNumber: 1,
+  };
+}
 
-/**
- * A specialized SHACL validator designed for the Neuro-symbolic Triad.
- * It validates ontological entities against structural and semantic constraints.
- */
 export class ShaclValidator {
-  private shapes: Map<string, ShaclShape>;
+  private readonly shapes: Map<string, OntologyShape>;
 
-  constructor(shapes: ShaclShape[]) {
-    this.shapes = new Map(shapes.map(shape => [shape.targetClass, shape]));
+  constructor(shapes: OntologyShape[] = ontologyShapes) {
+    this.shapes = new Map(shapes.map((shape) => [shape.targetType, shape]));
   }
 
-  /**
-   * Validates an entity against the registered SHACL shapes.
-   * 
-   * @param entity The entity to validate.
-   * @param entityId The unique identifier of the entity.
-   * @param entityData The raw data of the entity.
-   * @param filePath The file path where the entity is defined.
-   * @returns A ValidationResult containing any issues found.
-   */
-  public validate(
-    entityId: string,
-    entityData: any,
-    filePath: string
-  ): ValidationResult {
-    const issues: ValidationIssue[] = [];
-    
-    // Determine the class of the entity (assuming 'type' or '@type' property)
-    const entityType = entityData.type || entityData['@type'];
-    
-    if (!entityType) {
-      issues.push(this.createIssue(
-        entityId,
-        'type',
-        'Missing Type',
-        Severity.Violation,
-        'Entity must have a defined type to be validated against shapes.',
-        filePath,
-        1
-      ));
-      return { valid: false, issues };
-    }
-
-    const shape = this.shapes.get(entityType);
+  validate(entityId: string, entityData: OntologyEntity, filePath: string): ValidationResult {
+    const shape = this.shapes.get(entityData["@type"]);
     if (!shape) {
-      // If no shape is defined for this type, we skip validation (Open World assumption for unknown types)
       return { valid: true, issues: [] };
     }
 
-    // 1. Validate Property Constraints
-    if (shape.properties) {
-      for (const [propertyName, constraints] of Object.entries(shape.properties)) {
-        const values = this.getPropertyValues(entityData, propertyName);
-        
-        for (const constraint of constraints) {
-          this.applyConstraint(
+    const issues: ValidationIssue[] = [];
+
+    const data = entityData as unknown as Record<string, unknown>;
+
+    for (const property of shape.required) {
+      const value = data[property];
+      if (value === undefined || value === null || value === "") {
+        issues.push(issue(entityId, property, "required", `Missing required property '${property}'`, filePath));
+      }
+    }
+
+    for (const property of shape.arrayProperties ?? []) {
+      const value = data[property];
+      if (value !== undefined && !Array.isArray(value)) {
+        issues.push(issue(entityId, property, "array", `Property '${property}' must be an array`, filePath));
+      }
+    }
+
+    for (const property of shape.objectProperties ?? []) {
+      const value = data[property];
+      if (value !== undefined && (typeof value !== "object" || value === null || Array.isArray(value))) {
+        issues.push(issue(entityId, property, "object", `Property '${property}' must be an object`, filePath));
+      }
+    }
+
+    for (const [property, allowedValues] of Object.entries(shape.enumProperties ?? {})) {
+      const value = data[property];
+      if (typeof value === "string" && !allowedValues.includes(value)) {
+        issues.push(
+          issue(
             entityId,
-            propertyName,
-            constraint,
-            values,
-            entityData,
+            property,
+            "enum",
+            `Property '${property}' must be one of: ${allowedValues.join(", ")}`,
             filePath,
-            issues
-          );
-        }
+          ),
+        );
       }
     }
 
-    return {
-      valid: issues.filter(i => i.severity === Severity.Violation).length === 0,
-      issues
-    };
-  }
-
-  /**
-   * Internal method to apply specific SHACL constraints.
-   */
-  private applyConstraint(
-    entityId: string,
-    propertyName: string,
-    constraint: ShaclPropertyConstraint,
-    values: any[],
-    entityData: any,
-    filePath: string,
-    issues: ValidationIssue[]
-  ): void {
-    const severity = constraint.severity || Severity.Violation;
-
-    // sh:minCount
-    if (constraint.minCount !== undefined && values.length < constraint.minCount) {
-      issues.push(this.createIssue(
-        entityId,
-        propertyName,
-        `sh:minCount (${constraint.minCount})`,
-        severity,
-        `Property '${propertyName}' must appear at least ${constraint.minCount} times.`,
-        filePath,
-        this.findLineNumber(entityData, propertyName, filePath)
-      ));
-    }
-
-    // sh:maxCount
-    if (constraint.maxCount !== undefined && values.length > constraint.maxCount) {
-      issues.push(this.createIssue(
-        entityId,
-        propertyName,
-        `sh:maxCount (${constraint.maxCount})`,
-        severity,
-        `Property '${propertyName}' must appear at most ${constraint.maxCount} times.`,
-        filePath,
-        this.findLineNumber(entityData, propertyName, filePath)
-      ));
-    }
-
-    // Validate each value against datatype, pattern, and nodeKind
-    for (const value of values) {
-      // sh:datatype
-      if (constraint.datatype && typeof value !== constraint.datatype) {
-        issues.push(this.createIssue(
-          entityId,
-          propertyName,
-          `sh:datatype (${constraint.datatype})`,
-          severity,
-          `Value '${value}' is not of type ${constraint.datatype}.`,
-          filePath,
-          this.findLineNumber(entityData, propertyName, filePath)
-        ));
-      }
-
-      // sh:pattern
-      if (constraint.pattern && typeof value === 'string') {
-        const regex = new RegExp(constraint.pattern);
-        if (!regex.test(value)) {
-          issues.push(this.createIssue(
-            entityId,
-            propertyName,
-            `sh:pattern (${constraint.pattern})`,
-            severity,
-            `Value '${value}' does not match pattern ${constraint.pattern}.`,
-            filePath,
-            this.findLineNumber(entityData, propertyName, filePath)
-          ));
-        }
-      }
-
-      // sh:nodeKind
-      if (constraint.nodeKind) {
-        const actualKind = this.getNodeKind(value);
-        if (actualKind !== constraint.nodeKind) {
-          issues.push(this.createIssue(
-            entityId,
-            propertyName,
-            `sh:nodeKind (${constraint.nodeKind})`,
-            severity,
-            `Value '${value}' is not a ${constraint.nodeKind}.`,
-            filePath,
-            this.findLineNumber(entityData, propertyName, filePath)
-          ));
-        }
-      }
-    }
-  }
-
-  private getPropertyValues(data: any, property: string): any[] {
-    const val = data[property];
-    if (val === undefined || val === null) return [];
-    return Array.isArray(val) ? val : [val];
-  }
-
-  private getNodeKind(value: any): 'uri' | 'blank-node' | 'literal' {
-    if (typeof value === 'string' && value.startsWith('http')) return 'uri';
-    if (typeof value === 'object' && value !== null) return 'blank-node';
-    return 'literal';
-  }
-
-  private createIssue(
-    entityId: string,
-    property: string,
-    constraint: string,
-    severity: Severity,
-    message: string,
-    filePath: string,
-    lineNumber: number
-  ): ValidationIssue {
-    return {
-      entityId,
-      property,
-      constraint,
-      severity,
-      message: `[SHACL Violation] ${entityId}: ${property} ${constraint} (Severity: ${severity}) - ${message}`,
-      filePath,
-      lineNumber
-    };
-  }
-
-  /**
-   * Heuristic to find the line number of a property in a JSON-like object.
-   * In a production environment, this would use a source map or a proper parser.
-   */
-  private findLineNumber(data: any, property: string, filePath: string): number {
-    // For this implementation, we return 1 as a placeholder.
-    // Real implementation would require parsing the file with line info.
-    return 1;
+    return { valid: issues.length === 0, issues };
   }
 }

@@ -18,6 +18,6 @@ export interface PluginOutput {
   'chat.message'?: (input: { sessionID: string; agent?: string }) => Promise<void>;
   'permission.ask'?: (
     input: { type: string; pattern?: string | string[]; sessionID: string },
-    output: { status: 'ask' | 'deny' | 'allow' }
+    output: { status: 'deny' | 'allow' }
   ) => Promise<void>;
 }

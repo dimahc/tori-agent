@@ -1,263 +1,187 @@
-/**
- * @file packages/core/src/ontology/registry.ts
- * @description Main Ontology Registry implementation (SC-05).
- * Central system of record for all ontological entities.
- */
-
-import { OntologicalEntity, OntologyId } from '../types/ontology.js';
 import {
-  RegistryConfig,
-  RegistryResult,
-  QueryOptions,
-  RegistryStats,
-  RegistryEvent,
-  RegistryEventType,
-  RegistryObserver,
+  ENTITY_TYPES,
+  ONTOLOGY_SCHEMA_VERSION,
+  type AgentDefinition,
+  type CapabilityDefinition,
+  type OntologyBundle,
+  type OntologyEntity,
+  type OntologyId,
+  type PolicyDefinition,
+  type RoleDefinition,
+  type ToolDefinition,
+  type WorkflowDefinition,
+  type WorkflowStageDefinition,
+  type WorkflowTransitionDefinition,
+} from "@tori-agent/ontology";
+import type {
   OntologyStore,
-  SemVer,
-  MigrationRule,
-} from '../types/registry.js';
-import { ShaclValidator } from '../validation/shacl.js';
-import { MigrationEngine } from './migration.js';
-import { FileSystemOntologyStore } from './store.js';
+  QueryOptions,
+  RegistryConfig,
+  RegistryObserver,
+  RegistryResult,
+  RegistryStats,
+} from "../types/registry.js";
+import { ShaclValidator } from "../validation/shacl.js";
+import { MigrationEngine } from "./migration.js";
 
-/**
- * Default registry configuration.
- */
 export const DEFAULT_REGISTRY_CONFIG: RegistryConfig = {
-  schemaVersion: '2.0.0',
+  schemaVersion: ONTOLOGY_SCHEMA_VERSION,
   validateOnRegister: true,
-  autoMigrate: true,
+  autoMigrate: false,
   migrationRules: [],
 };
 
-/**
- * Central Ontology Registry - System of Record for the Neuro-symbolic Triad.
- * Manages entities, versions, migrations, validation, and persistence.
- */
 export class OntologyRegistry {
-  private entities: Map<OntologyId, OntologicalEntity> = new Map();
-  private typeIndex: Map<string, Set<OntologyId>> = new Map();
-  private relationIndex: Map<string, Map<OntologyId, Set<OntologyId>>> = new Map();
-  private config: RegistryConfig;
-  private validator: ShaclValidator;
-  private migrationEngine: MigrationEngine;
-  private store: OntologyStore | null = null;
-  private observers: Set<RegistryObserver> = new Set();
-  private lastModified: Date = new Date();
-  private validationErrors: number = 0;
+  private readonly entities = new Map<OntologyId, OntologyEntity>();
+  private readonly typeIndex = new Map<string, Set<OntologyId>>();
+  private readonly observers = new Set<RegistryObserver>();
+  private readonly config: RegistryConfig;
+  private readonly validator: ShaclValidator;
+  private readonly migrationEngine: MigrationEngine;
+  private store: OntologyStore | null;
+  private validationErrors = 0;
+  private lastModified = new Date();
 
   constructor(
     config: Partial<RegistryConfig> = {},
-    validator?: ShaclValidator,
-    migrationEngine?: MigrationEngine,
-    store?: OntologyStore
+    validator = new ShaclValidator(),
+    migrationEngine = new MigrationEngine(),
+    store: OntologyStore | null = null,
   ) {
-    this.config = { ...DEFAULT_REGISTRY_CONFIG, ...config };
-    this.validator = validator || new ShaclValidator([]);
-    this.migrationEngine = migrationEngine || new MigrationEngine(this.config.migrationRules);
-    this.store = store || null;
+    this.config = { ...DEFAULT_REGISTRY_CONFIG, ...config, autoMigrate: false };
+    this.validator = validator;
+    this.migrationEngine = migrationEngine;
+    this.store = store;
   }
 
-  /**
-   * Initialize the registry (load from store if available).
-   */
   async initialize(): Promise<void> {
-    if (this.store) {
-      try {
-        const loaded = await this.store.load();
-        for (const [id, entity] of loaded) {
-          this.indexEntity(entity);
-        }
-        this.lastModified = new Date();
-      } catch (error) {
-        console.warn(`Failed to load registry from store: ${error}`);
-      }
+    if (!this.store) return;
+    const loaded = await this.store.load();
+    this.entities.clear();
+    this.typeIndex.clear();
+    for (const [id, entity] of loaded) {
+      this.entities.set(id, entity);
+      this.indexEntity(entity);
     }
+    this.lastModified = new Date();
   }
 
-  /**
-   * Set the persistence store.
-   */
   setStore(store: OntologyStore): void {
     this.store = store;
   }
 
-  /**
-   * Register an entity in the registry.
-   * Validates via SHACL, migrates if needed, and indexes.
-   */
-  async register(entity: OntologicalEntity, filePath?: string): Promise<RegistryResult<OntologicalEntity>> {
-    // 1. Validate if enabled
+  async register(entity: OntologyEntity, filePath = "unknown"): Promise<RegistryResult<OntologyEntity>> {
     if (this.config.validateOnRegister) {
-      const validation = this.validator.validate(entity['@id'], entity, filePath || 'unknown');
+      const validation = this.validator.validate(entity["@id"], entity, filePath);
       if (!validation.valid) {
-        this.validationErrors++;
-        this.emitEvent('validation_failed', entity['@id'], entity['@type'], { issues: validation.issues });
+        this.validationErrors += validation.issues.length;
         return {
           success: false,
-          error: `SHACL validation failed: ${validation.issues.map(i => i.message).join('; ')}`,
           validation,
+          error: validation.issues.map((issue) => issue.message).join("; "),
         };
       }
     }
 
-    // 2. Auto-migrate if enabled and version differs
-    let finalEntity = entity;
     if (this.config.autoMigrate) {
-      const currentVersion = this.migrationEngine['getEntityVersion'](entity);
-      if (currentVersion !== this.config.schemaVersion && this.migrationEngine.canMigrate(currentVersion, this.config.schemaVersion)) {
-        finalEntity = this.migrationEngine.migrate(entity, this.config.schemaVersion);
-        this.emitEvent('entity_migrated', finalEntity['@id'], finalEntity['@type'], { fromVersion: currentVersion, toVersion: this.config.schemaVersion });
-      }
+      return {
+        success: false,
+        error: "autoMigrate unsupported in strict ontology mode",
+      };
     }
 
-    // 3. Check if updating or inserting
-    const isUpdate = this.entities.has(finalEntity['@id']);
-    const oldEntity = this.entities.get(finalEntity['@id']);
-
-    // 4. Remove old indexes if updating
-    if (isUpdate && oldEntity) {
-      this.removeFromIndexes(oldEntity);
+    const existing = this.entities.get(entity["@id"]);
+    if (existing) {
+      this.unindexEntity(existing);
     }
-
-    // 5. Store and index
-    this.entities.set(finalEntity['@id'], finalEntity);
-    this.indexEntity(finalEntity);
+    this.entities.set(entity["@id"], entity);
+    this.indexEntity(entity);
     this.lastModified = new Date();
-
-    // 6. Persist if store available
-    if (this.store) {
-      try {
-        await this.store.save(this.entities);
-      } catch (error) {
-        console.warn(`Failed to persist registry: ${error}`);
-      }
-    }
-
-    // 7. Emit event
-    this.emitEvent(isUpdate ? 'entity_updated' : 'entity_registered', finalEntity['@id'], finalEntity['@type']);
-
-    return { success: true, data: finalEntity };
+    await this.persist();
+    this.emit({
+      type: existing ? "entity_updated" : "entity_registered",
+      entityId: entity["@id"],
+      entityType: entity["@type"],
+      timestamp: new Date(),
+    });
+    return { success: true, data: entity };
   }
 
-  /**
-   * Get an entity by ID.
-   */
-  get(id: OntologyId): OntologicalEntity | undefined {
-    return this.entities.get(id);
-  }
-
-  /**
-   * Get all entities of a specific type.
-   */
-  getByType(type: string): OntologicalEntity[] {
-    const ids = this.typeIndex.get(type);
-    if (!ids) return [];
-    return Array.from(ids).map(id => this.entities.get(id)!).filter(Boolean);
-  }
-
-  /**
-   * Query entities with flexible options.
-   */
-  query(options: QueryOptions = {}): OntologicalEntity[] {
-    let results: OntologicalEntity[];
-
-    if (options.relation && options.relatedTo) {
-      // Relationship query
-      const relationMap = this.relationIndex.get(options.relation);
-      if (!relationMap) return [];
-      const relatedIds = relationMap.get(options.relatedTo);
-      if (!relatedIds) return [];
-      results = Array.from(relatedIds).map(id => this.entities.get(id)!).filter(Boolean);
-    } else if (options.type) {
-      // Type query
-      results = this.getByType(options.type);
-    } else {
-      // Full scan
-      results = Array.from(this.entities.values());
+  async replaceAll(entities: OntologyEntity[]): Promise<void> {
+    this.entities.clear();
+    this.typeIndex.clear();
+    for (const entity of entities) {
+      this.entities.set(entity["@id"], entity);
+      this.indexEntity(entity);
     }
-
-    // Apply predicate filter
-    if (options.predicate) {
-      results = results.filter(options.predicate);
-    }
-
-    // Apply pagination
-    if (options.offset) {
-      results = results.slice(options.offset);
-    }
-    if (options.limit) {
-      results = results.slice(0, options.limit);
-    }
-
-    return results;
-  }
-
-  /**
-   * Get entities related to a given entity via a specific relation.
-   */
-  getRelated(id: OntologyId, relation: string): OntologicalEntity[] {
-    const relationMap = this.relationIndex.get(relation);
-    if (!relationMap) return [];
-    const relatedIds = relationMap.get(id);
-    if (!relatedIds) return [];
-    return Array.from(relatedIds).map(rid => this.entities.get(rid)!).filter(Boolean);
-  }
-
-  /**
-   * Remove an entity from the registry.
-   */
-  async remove(id: OntologyId): Promise<boolean> {
-    const entity = this.entities.get(id);
-    if (!entity) return false;
-
-    this.removeFromIndexes(entity);
-    this.entities.delete(id);
     this.lastModified = new Date();
-
-    if (this.store) {
-      try {
-        await this.store.save(this.entities);
-      } catch (error) {
-        console.warn(`Failed to persist registry after removal: ${error}`);
-      }
-    }
-
-    this.emitEvent('entity_removed', id, entity['@type']);
-    return true;
+    await this.persist();
   }
 
-  /**
-   * Clear all entities from the registry.
-   */
   async clear(): Promise<void> {
     this.entities.clear();
     this.typeIndex.clear();
-    this.relationIndex.clear();
-    this.lastModified = new Date();
     this.validationErrors = 0;
-
-    if (this.store) {
-      try {
-        await this.store.save(this.entities);
-      } catch (error) {
-        console.warn(`Failed to persist registry after clear: ${error}`);
-      }
-    }
-
-    this.emitEvent('registry_cleared');
+    this.lastModified = new Date();
+    await this.persist();
+    this.emit({ type: "registry_cleared", timestamp: new Date() });
   }
 
-  /**
-   * Get registry statistics.
-   */
+  get(id: OntologyId): OntologyEntity | undefined {
+    return this.entities.get(id);
+  }
+
+  has(id: OntologyId): boolean {
+    return this.entities.has(id);
+  }
+
+  getAll(): OntologyEntity[] {
+    return Array.from(this.entities.values());
+  }
+
+  getAllIds(): OntologyId[] {
+    return Array.from(this.entities.keys());
+  }
+
+  getByType<T extends OntologyEntity = OntologyEntity>(type: string): T[] {
+    const ids = this.typeIndex.get(type) ?? new Set<OntologyId>();
+    return Array.from(ids)
+      .map((id) => this.entities.get(id))
+      .filter((entity): entity is T => Boolean(entity));
+  }
+
+  query(options: QueryOptions = {}): OntologyEntity[] {
+    let results = options.type ? this.getByType(options.type) : this.getAll();
+    if (options.relatedTo && options.relation) {
+      results = results.filter((entity) => {
+        const value = (entity as unknown as Record<string, unknown>)[options.relation!];
+        if (Array.isArray(value)) return value.includes(options.relatedTo);
+        return value === options.relatedTo;
+      });
+    }
+    if (options.predicate) results = results.filter(options.predicate);
+    if (options.offset) results = results.slice(options.offset);
+    if (options.limit) results = results.slice(0, options.limit);
+    return results;
+  }
+
+  getRelated(id: OntologyId, relation: string): OntologyEntity[] {
+    return this.getAll().filter((entity) => {
+      const value = (entity as unknown as Record<string, unknown>)[relation];
+      if (Array.isArray(value)) return value.includes(id);
+      return value === id;
+    });
+  }
+
+  countByType(type: string): number {
+    return this.typeIndex.get(type)?.size ?? 0;
+  }
+
   getStats(): RegistryStats {
     const entitiesByType: Record<string, number> = {};
-    for (const [type, ids] of this.typeIndex) {
+    for (const [type, ids] of this.typeIndex.entries()) {
       entitiesByType[type] = ids.size;
     }
-
     return {
       totalEntities: this.entities.size,
       entitiesByType,
@@ -267,155 +191,75 @@ export class OntologyRegistry {
     };
   }
 
-  /**
-   * Subscribe to registry events.
-   */
   subscribe(observer: RegistryObserver): () => void {
     this.observers.add(observer);
     return () => this.observers.delete(observer);
   }
 
-  /**
-   * Emit an event to all observers.
-   */
-  private emitEvent(
-    type: RegistryEventType,
-    entityId?: OntologyId,
-    entityType?: string,
-    details?: Record<string, unknown>
-  ): void {
-    const event: RegistryEvent = {
-      type,
-      entityId,
-      entityType,
-      timestamp: new Date(),
-      details,
-    };
-    for (const observer of this.observers) {
-      try {
-        observer(event);
-      } catch (error) {
-        console.error(`Registry observer error: ${error}`);
-      }
-    }
-  }
-
-  /**
-   * Index an entity for fast lookups.
-   */
-  private indexEntity(entity: OntologicalEntity): void {
-    // Type index
-    const type = entity['@type'];
-    if (!this.typeIndex.has(type)) {
-      this.typeIndex.set(type, new Set());
-    }
-    this.typeIndex.get(type)!.add(entity['@id']);
-
-    // Relation indexes
-    const relations = ['governedBy', 'implements', 'partOf', 'requires'] as const;
-    for (const relation of relations) {
-      const value = entity[relation];
-      if (value) {
-        const targets = Array.isArray(value) ? value : [value];
-        for (const targetId of targets) {
-          if (!this.relationIndex.has(relation)) {
-            this.relationIndex.set(relation, new Map());
-          }
-          const relMap = this.relationIndex.get(relation)!;
-          if (!relMap.has(targetId)) {
-            relMap.set(targetId, new Set());
-          }
-          relMap.get(targetId)!.add(entity['@id']);
-        }
-      }
-    }
-  }
-
-  /**
-   * Remove an entity from all indexes.
-   */
-  private removeFromIndexes(entity: OntologicalEntity): void {
-    // Type index
-    const type = entity['@type'];
-    const typeIds = this.typeIndex.get(type);
-    if (typeIds) {
-      typeIds.delete(entity['@id']);
-      if (typeIds.size === 0) {
-        this.typeIndex.delete(type);
-      }
-    }
-
-    // Relation indexes
-    const relations = ['governedBy', 'implements', 'partOf', 'requires'] as const;
-    for (const relation of relations) {
-      const value = entity[relation];
-      if (value) {
-        const targets = Array.isArray(value) ? value : [value];
-        for (const targetId of targets) {
-          const relMap = this.relationIndex.get(relation);
-          if (relMap) {
-            const sourceIds = relMap.get(targetId);
-            if (sourceIds) {
-              sourceIds.delete(entity['@id']);
-              if (sourceIds.size === 0) {
-                relMap.delete(targetId);
-              }
-            }
-            if (relMap.size === 0) {
-              this.relationIndex.delete(relation);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Get the current schema version.
-   */
-  getSchemaVersion(): SemVer {
-    return this.config.schemaVersion;
-  }
-
-  /**
-   * Get the migration engine.
-   */
-  getMigrationEngine(): MigrationEngine {
-    return this.migrationEngine;
-  }
-
-  /**
-   * Get the validator.
-   */
   getValidator(): ShaclValidator {
     return this.validator;
   }
 
-  /**
-   * Get all entity IDs.
-   */
-  getAllIds(): OntologyId[] {
-    return Array.from(this.entities.keys());
+  getMigrationEngine(): MigrationEngine {
+    return this.migrationEngine;
   }
 
-  /**
-   * Get all entities.
-   */
-  getAll(): OntologicalEntity[] {
-    return Array.from(this.entities.values());
+  getSchemaVersion(): string {
+    return this.config.schemaVersion;
   }
 
-  /**
-   * Check if an entity exists.
-   */
-  has(id: OntologyId): boolean {
-    return this.entities.has(id);
+  getBundle(): OntologyBundle {
+    const graph = this.getAll();
+    return {
+      graph,
+      agents: this.getByType<AgentDefinition>(ENTITY_TYPES.Agent),
+      roles: this.getByType<RoleDefinition>(ENTITY_TYPES.Role),
+      capabilities: this.getByType<CapabilityDefinition>(ENTITY_TYPES.Capability),
+      tools: this.getByType<ToolDefinition>(ENTITY_TYPES.Tool),
+      workflowDefinitions: this.getByType<WorkflowDefinition>(ENTITY_TYPES.WorkflowDefinition),
+      workflowStages: this.getByType<WorkflowStageDefinition>(ENTITY_TYPES.WorkflowStage),
+      workflowTransitions: this.getByType<WorkflowTransitionDefinition>(ENTITY_TYPES.WorkflowTransition),
+      policies: this.getByType<PolicyDefinition>(ENTITY_TYPES.Policy),
+      byId: new Map(this.entities),
+    };
   }
 
-  /**
-   * Get entity count by type.
-   */
-  countByType(type: string): number {
-    return this.typeIndex.get(type)?.size || 0;
+  getAgent(agentId: OntologyId): AgentDefinition | undefined {
+    const entity = this.entities.get(agentId);
+    return entity?.["@type"] === ENTITY_TYPES.Agent ? (entity as AgentDefinition) : undefined;
+  }
+
+  getRole(roleId: OntologyId): RoleDefinition | undefined {
+    const entity = this.entities.get(roleId);
+    return entity?.["@type"] === ENTITY_TYPES.Role ? (entity as RoleDefinition) : undefined;
+  }
+
+  getTool(toolId: OntologyId): ToolDefinition | undefined {
+    const entity = this.entities.get(toolId);
+    return entity?.["@type"] === ENTITY_TYPES.Tool ? (entity as ToolDefinition) : undefined;
+  }
+
+  private indexEntity(entity: OntologyEntity): void {
+    const bucket = this.typeIndex.get(entity["@type"]) ?? new Set<OntologyId>();
+    bucket.add(entity["@id"]);
+    this.typeIndex.set(entity["@type"], bucket);
+  }
+
+  private unindexEntity(entity: OntologyEntity): void {
+    const bucket = this.typeIndex.get(entity["@type"]);
+    if (!bucket) return;
+    bucket.delete(entity["@id"]);
+    if (bucket.size === 0) this.typeIndex.delete(entity["@type"]);
+  }
+
+  private async persist(): Promise<void> {
+    if (!this.store) return;
+    await this.store.save(new Map(this.entities));
+  }
+
+  private emit(event: Parameters<RegistryObserver>[0]): void {
+    for (const observer of this.observers) {
+      observer(event);
+    }
   }
 }

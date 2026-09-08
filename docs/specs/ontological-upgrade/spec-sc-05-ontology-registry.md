@@ -1735,7 +1735,7 @@ When `node packages/cli/dist/cli.js generate` runs, the following ontology-aware
 
 1. **Load active registry version.** Read `packages/ontology/registry/index.json` and instantiate `OntologyRegistry`.
 2. **Validate all agent specs.** Run `DriftDetector.scan()` over `packages/core/spec/agents/`. Report violations as warnings (non-blocking in the current implementation; will become blocking in a future MAJOR version).
-3. **Generate capability manifest.** Write `capabilities.json` to the output directory (`.opencode/` or `.kilo/`). See Section 7.
+3. **Generate capability manifest.** Write `capabilities.json` to the output directory (`.opencode/` or `.kilocode/`). See Section 7.
 4. **Stamp ontology version.** Write the active ontology version into each generated agent file's metadata.
 5. **Report drift summary.** Print a one-line summary of drift findings at the end of the generate run.
 

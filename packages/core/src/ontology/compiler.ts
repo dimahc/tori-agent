@@ -1,188 +1,127 @@
-/**
- * @file packages/core/src/ontology/compiler.ts
- * @description Compiles ontology-native JSON-LD specifications into ontological entities.
- * 
- * The compiler loads JSON-LD specs from spec/ontology/ and registers
- * all entities directly into the OntologyRegistry.
- */
-
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  OntologyRegistry,
-  DEFAULT_REGISTRY_CONFIG,
-} from "./registry.js";
-import {
-  Agent,
-  Role,
-  Capability,
-  Skill,
-  Tool,
-  OntologyId,
-  OntologicalEntity,
-} from "../types/ontology.js";
-import { ShaclValidator } from "../validation/shacl.js";
-import { MigrationEngine } from "./migration.js";
+import type {
+  AgentDefinition,
+  CapabilityDefinition,
+  OntologyEntity,
+  PolicyDefinition,
+  RoleDefinition,
+  ToolDefinition,
+  WorkflowDefinition,
+  WorkflowStageDefinition,
+  WorkflowTransitionDefinition,
+} from "@tori-agent/ontology";
+import { ENTITY_TYPES } from "@tori-agent/ontology";
+import { OntologyRegistry, DEFAULT_REGISTRY_CONFIG } from "./registry.js";
 import { FileSystemOntologyStore } from "./store.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const SPEC_DIR = join(__dirname, "..", "..", "spec", "ontology");
 
-function resolveSpecDir(): string {
-  return join(__dirname, "..", "..", "spec");
+export interface CompilationResult {
+  graph: OntologyEntity[];
+  agents: AgentDefinition[];
+  roles: RoleDefinition[];
+  capabilities: CapabilityDefinition[];
+  tools: ToolDefinition[];
+  workflowDefinitions: WorkflowDefinition[];
+  workflowStages: WorkflowStageDefinition[];
+  workflowTransitions: WorkflowTransitionDefinition[];
+  policies: PolicyDefinition[];
+  errors: Array<{ specId: string; error: string }>;
+  warnings: string[];
 }
 
-/**
- * OntologyCompiler - Single source of truth for agent compilation.
- * ONLY compiles ontology-native JSON-LD specs from spec/ontology/.
- * No legacy YAML support.
- */
 export class OntologyCompiler {
-  private registry: OntologyRegistry;
-  private validator: ShaclValidator;
-  private migrationEngine: MigrationEngine;
-  private store: FileSystemOntologyStore;
+  private readonly registry: OntologyRegistry;
+  private readonly store: FileSystemOntologyStore;
 
-  constructor(registry?: OntologyRegistry) {
-    this.registry = registry || new OntologyRegistry(DEFAULT_REGISTRY_CONFIG);
-    this.validator = this.registry.getValidator();
-    this.migrationEngine = this.registry.getMigrationEngine();
-    this.store = new FileSystemOntologyStore();
-    this.registry.setStore(this.store);
+  constructor(store = new FileSystemOntologyStore(), registry?: OntologyRegistry) {
+    this.store = store;
+    this.registry = registry ?? new OntologyRegistry(DEFAULT_REGISTRY_CONFIG, undefined, undefined, store);
+    this.registry.setStore(store);
   }
 
-  /**
-   * Initialize the compiler (loads registry from store).
-   */
   async initialize(): Promise<void> {
     await this.store.initialize();
-    await this.registry.initialize();
   }
 
-  /**
-   * Get the registry instance.
-   */
   getRegistry(): OntologyRegistry {
     return this.registry;
   }
 
-  /**
-   * Load and compile ALL ontology-native specs into the ontology.
-   * This is the ONLY entry point - no legacy YAML support.
-   */
   async compileAll(): Promise<CompilationResult> {
+    const warnings: string[] = [];
+    const errors: Array<{ specId: string; error: string }> = [];
+    const entities = await this.loadOntologyEntities(warnings, errors);
+
     await this.registry.clear();
-    await this.store.beginSave?.();
-
-    const specs = await this.loadOntologySpecs();
-    const result: CompilationResult = {
-      agents: [],
-      roles: [],
-      capabilities: [],
-      skills: [],
-      tools: [],
-      errors: [],
-      warnings: [],
-    };
-
-    for (const spec of specs) {
-      for (const entity of spec['@graph']) {
-        try {
-          // Validate entity has required fields
-          if (!entity['@id'] || !entity['@type']) {
-            result.warnings.push(`Skipping entity without @id/@type: ${JSON.stringify(entity).slice(0, 100)}`);
-            continue;
-          }
-
-          // Register directly - entities are already in ontological form
-          const regResult = await this.registry.register(entity);
-          if (!regResult.success) {
-            result.errors.push({
-              specId: entity['@id'],
-              error: regResult.error || 'Registration failed',
-            });
-            continue;
-          }
-
-          // Add to result arrays by type
-          switch (entity['@type']) {
-            case 'Agent':
-              result.agents.push(entity);
-              break;
-            case 'Role':
-              result.roles.push(entity);
-              break;
-            case 'Capability':
-              result.capabilities.push(entity);
-              break;
-            case 'Skill':
-              result.skills.push(entity);
-              break;
-            case 'Tool':
-              result.tools.push(entity);
-              break;
-          }
-        } catch (error) {
-          result.errors.push({
-            specId: entity['@id'] || 'unknown',
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+    for (const entity of entities) {
+      const result = await this.registry.register(entity, SPEC_DIR);
+      if (!result.success) {
+        errors.push({ specId: entity["@id"], error: result.error ?? "registration failed" });
       }
     }
 
-    // Persist all registered entities
-    await this.store.save(this.registry.getAll().reduce((map, e) => map.set(e['@id'], e), new Map()));
-
-    return result;
+    const bundle = this.registry.getBundle();
+    return {
+      graph: bundle.graph,
+      agents: bundle.agents,
+      roles: bundle.roles,
+      capabilities: bundle.capabilities,
+      tools: bundle.tools,
+      workflowDefinitions: bundle.workflowDefinitions,
+      workflowStages: bundle.workflowStages,
+      workflowTransitions: bundle.workflowTransitions,
+      policies: bundle.policies,
+      errors,
+      warnings,
+    };
   }
 
-  /**
-   * Load ontology-native specs from spec/ontology/ directory (JSON-LD format).
-   * This is the ONLY supported format.
-   */
-  async loadOntologySpecs(): Promise<{ '@graph': any[] }[]> {
-    const specDir = resolveSpecDir();
-    const ontologyDir = join(specDir, "ontology");
-
-    let files: string[];
-    try {
-      files = await readdir(ontologyDir);
-    } catch {
-      console.warn("[tori-core] spec/ontology/ not found — no ontology-native specs");
-      return [];
-    }
-
-    const specs: { '@graph': any[] }[] = [];
+  private async loadOntologyEntities(
+    warnings: string[],
+    errors: Array<{ specId: string; error: string }>,
+  ): Promise<OntologyEntity[]> {
+    const files = (await readdir(SPEC_DIR)).filter((file) => file.endsWith(".jsonld"));
+    const entities: OntologyEntity[] = [];
 
     for (const file of files) {
-      if (!file.endsWith(".jsonld") && !file.endsWith(".json")) continue;
-
-      const filePath = join(ontologyDir, file);
       try {
-        const content = await readFile(filePath, "utf-8");
-        const spec = JSON.parse(content);
-        if (spec && spec['@graph'] && Array.isArray(spec['@graph'])) {
-          specs.push(spec);
+        const parsed = JSON.parse(await readFile(join(SPEC_DIR, file), "utf8")) as { "@graph"?: OntologyEntity[] };
+        if (!Array.isArray(parsed["@graph"])) {
+          warnings.push(`${file}: missing @graph`);
+          continue;
         }
-      } catch (err) {
-        console.warn(`[tori-core] Failed to load ontology spec ${file}:`, (err as Error).message);
+        entities.push(...parsed["@graph"]);
+      } catch (error) {
+        errors.push({ specId: file, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
-    return specs;
+    this.assertStrictOntology(entities);
+    return entities;
   }
-}
 
-/**
- * Result of compiling all specs.
- */
-export interface CompilationResult {
-  agents: Agent[];
-  roles: Role[];
-  capabilities: Capability[];
-  skills: Skill[];
-  tools: Tool[];
-  errors: { specId: string; error: string }[];
-  warnings: string[];
+  private assertStrictOntology(entities: OntologyEntity[]): void {
+    for (const entity of entities) {
+      if (!entity["@id"] || !entity["@type"] || !entity.label || !entity.description) {
+        throw new Error(`Invalid ontology entity ${JSON.stringify(entity)}`);
+      }
+      switch (entity["@type"]) {
+        case ENTITY_TYPES.Agent:
+        case ENTITY_TYPES.Role:
+        case ENTITY_TYPES.Tool:
+        case ENTITY_TYPES.Capability:
+        case ENTITY_TYPES.WorkflowDefinition:
+        case ENTITY_TYPES.WorkflowStage:
+        case ENTITY_TYPES.WorkflowTransition:
+        case ENTITY_TYPES.Policy:
+          break;
+        default:
+          throw new Error(`Unsupported ontology entity type: ${entity["@type"]}`);
+      }
+    }
+  }
 }

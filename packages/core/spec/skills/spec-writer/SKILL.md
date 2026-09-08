@@ -19,12 +19,12 @@ exec-plans capture *how*. One spec per concern. Write in English.
 
 1. **Create the stub with the `register_spec` tool.** Never create the file
    manually — the tool refuses to overwrite and writes the canonical minimal
-   frontmatter (`title`, `status: draft`, `created`) plus the `# Title`
+   ontology frontmatter (`artifact_id`, `artifact_type_id`, `status_id`, `title`, `created_at`) plus the `# Title`
    heading. Specs live in the runtime-managed specs directory (`.opencode/specs/` or `.kilocode/specs/`).
 2. **Flesh it out** by editing the file, following `template.md`. Replace the
    stub heading body with the full structure.
 3. **Verify against `checklist.md`** before considering the spec done.
-4. **Promote the status** when ready: `draft` → `active`. Stale drafts
+4. **Promote the status** when ready: `artifact-status:draft` → `artifact-status:active`. Stale drafts
    (30+ days) are flagged by `check_artifacts` — promote or delete them.
 
 ## Rules
@@ -46,4 +46,4 @@ exec-plans capture *how*. One spec per concern. Write in English.
 ## Files
 
 - `template.md` — copy this structure into the spec body.
-- `checklist.md` — run through this before promoting past `draft`.
+- `checklist.md` — run through this before promoting past `artifact-status:draft`.

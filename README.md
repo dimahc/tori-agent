@@ -1,253 +1,90 @@
 # tori-agent
 
-`tori-agent` is a deterministic agent stack for [OpenCode](https://opencode.ai) and Kilo Code.
-It orchestrates work through a workflow/state-machine model: Requirements → Planning → Execution → Verification → Delivery.
+`tori-agent` now runs on strict ontology contract only. No legacy workflow terms, no compatibility shims, no prompt-defined authority.
 
-Instead of chaining agents ad-hoc, tori runs deterministic pipelines where agents are interchangeable workers and the workflow stays stable, observable, and bounded.
+## Core model
 
-“tori” means frog in Bambara, my native language. The project started from [`opencode-team-lead`](https://github.com/azrod/opencode-team-lead) by azrod, then was adapted into something portable and easy to customize for day-to-day use in OpenCode and Kilo Code.
+- Canonical contract package: `packages/ontology`
+- Runtime logic consumes ontology IDs directly
+- Managed workflow state persists as JSON-LD workflow-run records
+- Policy enforcement is mechanical: tool grants, path globs, command globs, workflow transitions, blocking checks
+- Prompts are descriptive only; ontology is authoritative
 
-## The workflow model
+## Canonical ontology terms
 
-The core idea: orchestrate stages, not agents.
+- Workflow definition: `workflow:orchestration-pipeline`
+- Workflow stages:
+  - `workflow-stage:requirements`
+  - `workflow-stage:planning`
+  - `workflow-stage:execution`
+  - `workflow-stage:verification`
+  - `workflow-stage:delivery`
+  - `workflow-stage:completed`
+  - `workflow-stage:needs-human`
+- Blocking check: `check:mechanical`
 
-| Concept | Role |
-| --------- | ------ |
-| **Workflow** | A recipe — which stages run, in what order, with what guards |
-| **Stage** | A fixed phase in the pipeline (Requirements, Planning, Execution, Verification, Delivery) |
-| **Task** | A unit of work within a stage. Tasks in the same stage run in parallel |
-| **Agent** | A worker that executes exactly one task. Never receives a full workflow |
+## Repo architecture
 
-### Built-in workflows
+- `packages/ontology` — canonical IDs, context, schema constants, runtime path semantics, ontology shapes
+- `packages/core` — compiler, registry, serializer, validator, policy engine, lifecycle/workflow tools, plugin assembly
+- `packages/harness` — thin runtime adapter for OpenCode / Kilo Code
+- `packages/cli` — separate CLI package
 
-- **Implement feature** — Requirements → Planning → Execution → Verification → Delivery
-- **Bug fix** — Requirements → Execution → Verification → Delivery
-- **Code review** — Requirements → Verification → Delivery
-- **Documentation** — Requirements → Execution → Delivery
-- **Architecture proposal** — Requirements → Planning → Delivery
+## Managed artifact semantics
 
-### State machine
+Runtime-aware managed roots:
 
-```mermaid
-stateDiagram-v2
-    [*] --> NEW: Request received
-    NEW --> EXECUTE: SIMPLE — explicit intent, one delegation
-    NEW --> REQUIREMENTS: COMPLEX — full workflow
-    REQUIREMENTS --> PLAN: Intent unambiguous
-    PLAN --> EXECUTE: Tasks defined
-    EXECUTE --> VERIFY: All tasks done
-    VERIFY --> DONE: All checks PASS
-    VERIFY --> EXECUTE: Checks FAIL, iterations < max
-    VERIFY --> NEEDS_HUMAN: Checks FAIL, iterations >= max
-    EXECUTE --> NEEDS_HUMAN: Budget / timeout
-    NEEDS_HUMAN --> [*]
-    DONE --> [*]
-```
+- OpenCode: `.opencode/`
+- Kilo Code: `.kilocode/`
 
-> **Note:** SIMPLE workflow transitions (direct `NEW → EXECUTE`) are conceptual only. No workflow artifact is created at that level. See [`packages/core/spec/ontology/prompts/tori.md`](../packages/core/spec/ontology/prompts/tori.md) (Effort Scaling).
+Managed directories under runtime root:
 
-### Guards
+- `ontology/`
+- `specs/`
+- `briefs/`
+- `exec-plans/`
+- `workflows/`
+- `checkpoints/`
+- `scratchpad.md`
 
-- Max verify iterations: **2**
-- Task budget: **250k tokens** or **20 tool calls**
-- Task timeout: **20 minutes**
-- Max delegation depth: **1** (Tori → Specialist)
-- Git lifecycle: delegated to delivery-agent — an `<type>/<description>` branch per mission, conventional commits at stage boundaries, push stays manual
+Markdown artifacts use strict ontology frontmatter:
 
-## Built-in agents
+- `artifact_id`
+- `artifact_type_id`
+- `status_id`
+- `title`
+- `created_at`
+- optional ontology links: `workflow_run_id`, `definition_id`, `related_artifact_ids`
 
-- `Tori` — orchestrates workflows and manages stage transitions
-- `Specialist` — executes single tasks with guards (budget, time, depth)
-- `Scribe` — generates artifacts at each stage (specs, plans, summaries)
-- `Delivery Agent` — git delivery specialist; stages files, creates conventional commits, manages branches. Never pushes.
+Workflow runs persist as JSON-LD under runtime `workflows/`.
 
-`Specialist` is set up through personas for focused domains such as TypeScript, Terraform, Security, or Performance.
+## Verification contract
 
-## What tori does
+`run_mechanical_checks` parses `AGENTS.md` `## Review Checks` section and executes declared commands in order.
 
-- keeps agent specs and prompts in one source of truth
-- uses `tori` as the workflow orchestrator for running deterministic pipelines
-- adds specialized personas through `Specialist` for task execution
-- ships thin runtime wrappers for OpenCode and Kilo Code
+Current repo contract:
 
-```
-core specs/prompts → tori orchestrator → Specialist personas → OpenCode | Kilo Code
-```
+- lint: `npm run lint`
+- tests: `npm test`
+- verify-expansion: `node packages/core/tests/verify-expansion.mjs`
 
-## What's in the repo
+`check_artifacts` performs cross-artifact consistency checks for:
 
-- `packages/core` — shared source of truth for agent specs, prompts, and core logic
-- `packages/harness` — Unified runtime adapter
-- `packages/cli` — CLI package (`generate` command implemented, `serve`/`doctor` pending)
-- `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — repo artifacts
-
-## Architecture
-
-`tori-agent` is a shared agent stack with thin runtime wrappers.
-`packages/core` owns the shared behavior, while OpenCode and Kilo Code only adapt that core plugin to their host SDKs.
-
-```mermaid
-flowchart LR
-  Host1[OpenCode host]
-  RT[runtime]
-  Host1 --> RT
-  RT --> Core[packages/core]
-
-  Host2[Kilo Code host]
-  RT[runtime]
-  Host2 --> RT
-  RT --> Core
-
-  Core --> Agents[agent loader]
-  Core --> Tools[lifecycle + workflow tools]
-  Agents --> Plugin[plugin config]
-  Tools --> Plugin
-  Core --> Plugin
-  Plugin --> Docs[managed docs]
-  Plugin --> Docs
-```
-
-### Components and responsibilities
-
-- `packages/core` — source of truth for shared logic, agent specs, prompts, and plugin assembly.
-- [`packages/core/src/plugin/index.ts`](../packages/core/src/plugin/index.ts) — builds the plugin object via `buildPlugin()`.
-- [`packages/core/src/ontology/loader.ts`](../packages/core/src/ontology/loader.ts) — loads ontology-native JSON-LD specs from `packages/core/spec/ontology/*.jsonld`.
-- [`packages/core/src/tools/lifecycle.ts`](../packages/core/src/tools/lifecycle.ts) — provides lifecycle functions for artifact management (specs, exec-plans, briefs).
-- [`packages/core/src/tools/workflow.ts`](../packages/core/src/tools/workflow.ts) — provides workflow state management (stage transitions, task/check recording).
-- [`packages/core/src/plugin/tools.ts`](../packages/core/src/plugin/tools.ts) — wraps lifecycle and workflow functions as runtime-callable tools.
-- [`packages/core/src/plugin/agents.ts`](../packages/core/src/plugin/agents.ts) — injects compiled agents into host config.
-- [`packages/harness/src/plugin.ts`](../packages/harness/src/plugin.ts) — thin wrapper that exports `buildPlugin()` from core.
-- `packages/cli` — currently a stub, not a production runtime path.
-- `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows` — managed repo artifacts.
-
-### Startup and runtime flow
-
-1. A host runtime loads either runtime wrapper package.
-2. The wrapper passes control to `buildPlugin()` in `packages/core`.
-3. `buildPlugin()` resolves the project root, loads agents and tools, and assembles the plugin object.
-4. The loader reads agent YAML and prompt files from the core spec directories.
-5. Lifecycle and workflow tooling is wrapped into runtime-callable tools, and compiled agents are injected into host config.
-6. On `session.created`, the plugin bootstraps the managed docs artifact directories.
-
-### Constraints and gotchas
-
-- `packages/core` is authoritative for shared behavior.
-- Runtime packages should remain thin adapters.
-- `packages/cli` is not a production entrypoint.
-- Do not edit generated `dist/` output.
-- Managed repo artifacts live under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, and `.opencode/workflows`.
-
-## Project structure
-
-```
-packages/
-  core/                    # Source of truth for shared logic, specs, prompts
-    spec/
-      agents/*.yaml        # Agent definitions (permissions, personas, modes)
-      prompts/             # System prompts for Tori, Scribe, Specialist personas
-      skills/              # Bundled builtin skills
-    src/
-      codegen/             # Agent spec loader and compiler
-      plugin/              # Plugin assembly (agents, tools, events)
-      tools/               # Lifecycle + workflow state management
-  harness/                 # Unified runtime adapter (thin wrapper)
-  cli/                     # CLI stub (not yet production-ready)
-docs/
-  specs/                   # Agent specification artifacts
-  exec-plans/              # Execution plan artifacts
-  briefs/                  # Project brief artifacts
-  workflows/               # Workflow state artifacts
-```
-
-## Requirements
-
-- Node.js 18+
-- ESM / NodeNext
-
-## Install
-
-```bash
-npm install
-```
+- dead references
+- stale completion statuses
+- missing ontology links
+- workflow/artifact completion mismatches
 
 ## Development
 
-- make changes in `packages/core` first; it owns shared agent behavior
-- update the runtime wrapper you need after changing shared logic
-- keep generated files out of version control; `dist/` is build output
-
-## Build
-
 ```bash
+npm install
 npm run build
-```
-
-Note: `packages/cli` builds separately.
-
-```bash
-npm run build -w packages/cli
-```
-
-## Test and lint
-
-```bash
 npm test
 npm run lint
+node packages/core/tests/verify-expansion.mjs
 ```
 
-## Contribution rules
+## Contribution rule
 
-### Where to make changes
-
-1. **Shared behavior** — always start in `packages/core`
-2. **Runtime adapters** — update after core changes are validated
-3. **Agent specs and prompts** — live in `packages/core/spec/ontology/*.jsonld` and `packages/core/spec/ontology/prompts/*.md`
-4. **Repo artifacts** — managed under `.opencode/specs`, `.opencode/plans`, `.opencode/briefs`, `.opencode/workflows`
-
-### What not to touch
-
-- `dist/` — generated build output, never edit directly
-- Generated artifacts in `.opencode/` that are managed by workflow tools
-
-### Permissions model
-
-Agent specs use a default-deny permissions model. Every permission needs a "why" in the spec:
-
-- `allow` — explicitly granted tools
-- `deny` — explicitly blocked tools
-- `allow_paths` — tool + path restrictions
-- `allow_commands` — tool + command restrictions
-
-When adding a new permission to an agent, document the rationale in the agent's YAML description or spec file.
-
-### Prompt conventions
-
-- Prompts are markdown files loaded at runtime
-- Use the delegation template for all subagent prompts
-- Keep prompts deterministic: avoid open-ended instructions that could drift
-- Reference the workflow model (stages, tasks, agents) rather than ad-hoc phase names
-
-## PR checklist
-
-Before opening a PR:
-
-1. [ ] Changes are limited to the smallest sane scope
-2. [ ] `packages/core` changes are made first, runtime wrappers updated after
-3. [ ] `npm run build` passes
-4. [ ] `npm test` passes
-5. [ ] `npm run lint` passes
-6. [ ] `node packages/core/tests/verify-expansion.mjs` confirms all agents compile
-7. [ ] README and ARCHITECTURE are updated if behavior changed
-8. [ ] Agent specs/prompts are consistent with the workflow model
-
-## Git hooks
-
-Install the tracked hooks:
-
-```bash
-.git-hooks/install.sh
-```
-
-## Questions
-
-Open an issue or reach out directly. The project is maintained by [dimahc](https://github.com/dimahc).
+When changing behavior, update ontology contract first. Code, prompts, docs, tests follow ontology — never lead it.

@@ -1,168 +1,291 @@
-/**
- * @file packages/core/src/tools/workflow.ts
- * @description Workflow state machine tools.
- * 
- * Manages workflow state, tasks, and checks.
- */
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import {
+  CHECK_POLICY,
+  CHECK_STATUS,
+  ENTITY_TYPES,
+  ONTOLOGY_CONTEXT_IRI,
+  TASK_STATUS,
+  WELL_KNOWN_IDS,
+  WORKFLOW_STAGE,
+  WORKFLOW_STATUS,
+  type OntologyId,
+  type RuntimePaths,
+  type WorkflowCheckRecord,
+  type WorkflowRun,
+  type WorkflowTaskRecord,
+} from "@tori-agent/ontology";
+import type { WorkflowStateView } from "../types/workflow.js";
+import type { VerificationPolicy } from "../types/verification.js";
+import type { OntologyRuntime } from "../ontology/runtime.js";
 
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { parse as parseYaml } from 'yaml';
-import type { WorkflowPaths, WorkflowStateData, VerificationPolicy } from '../types/workflow.js';
-
-// Re-export types for plugin consumption
-export type { WorkflowPaths };
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const WORKFLOW_DIR = '.opencode/workflows';
-
-function getWorkflowFile(projectRoot: string, workflowId: string): string {
-  return join(projectRoot, WORKFLOW_DIR, `${workflowId}.yaml`);
+interface WorkflowDocument {
+  "@context": string;
+  "@graph": Array<WorkflowRun | WorkflowTaskRecord | WorkflowCheckRecord>;
 }
 
-function parseWorkflow(content: string): WorkflowStateData {
-  const data = parseYaml(content) as WorkflowStateData;
-  return {
-    workflow_id: data.workflow_id,
-    state: data.state || { current_stage: 'init', iteration: 0, status: 'active', started_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    tasks: data.tasks || [],
-    checks: data.checks || [],
-  };
+function workflowFile(runtimePaths: RuntimePaths, workflowRunId: OntologyId): string {
+  return join(runtimePaths.workflowsDir, `${workflowRunId.replace(/[^a-zA-Z0-9._-]/g, "_")}.jsonld`);
 }
 
-function serializeWorkflow(data: WorkflowStateData): string {
-  return `# Workflow: ${data.workflow_id}\nworkflow_id: ${data.workflow_id}\nstate:\n  current_stage: ${data.state.current_stage}\n  iteration: ${data.state.iteration}\n  status: ${data.state.status}\n  started_at: ${data.state.started_at}\n  updated_at: ${data.state.updated_at}\ntasks:\n${data.tasks.map(t => `  - task_id: ${t.task_id}\n    agent: ${t.agent}\n    status: ${t.status}\n    plan_file: ${t.plan_file || ''}\n    block_name: ${t.block_name || ''}\n    started_at: ${t.started_at || ''}\n    completed_at: ${t.completed_at || ''}\n    error: ${t.error || ''}`).join('\n')}\nchecks:\n${data.checks.map(c => `  - check_name: ${c.check_name}\n    status: ${c.status}\n    detail: ${c.detail}\n    max_iterations: ${c.max_iterations}\n    current_iteration: ${c.current_iteration}\n    timestamp: ${c.timestamp}`).join('\n')}\n`;
+function taskStatusId(status: string): OntologyId {
+  switch (status) {
+    case TASK_STATUS.pending:
+    case TASK_STATUS.running:
+    case TASK_STATUS.passed:
+    case TASK_STATUS.failed:
+      return status;
+    default:
+      throw new Error(`Strict ontology status required. Got '${status}'`);
+  }
 }
 
-export async function getWorkflowState(
-  projectRoot: string,
-  paths: WorkflowPaths,
-  workflowId: string
-): Promise<WorkflowStateData | null> {
-  const filePath = getWorkflowFile(projectRoot, workflowId);
+function checkStatusId(status: string): OntologyId {
+  switch (status) {
+    case CHECK_STATUS.passed:
+    case CHECK_STATUS.failed:
+    case CHECK_STATUS.skipped:
+      return status;
+    default:
+      throw new Error(`Strict ontology check status required. Got '${status}'`);
+  }
+}
+
+async function readWorkflowDocument(runtimePaths: RuntimePaths, workflowRunId: OntologyId): Promise<WorkflowDocument | null> {
   try {
-    const content = await readFile(filePath, 'utf-8');
-    return parseWorkflow(content);
+    return JSON.parse(await readFile(workflowFile(runtimePaths, workflowRunId), "utf8")) as WorkflowDocument;
   } catch {
     return null;
   }
 }
 
-export async function transitionStage(
-  projectRoot: string,
-  paths: WorkflowPaths,
-  workflowId: string,
-  toStage: string,
-  options?: { policy?: VerificationPolicy }
-): Promise<WorkflowStateData> {
-  const filePath = getWorkflowFile(projectRoot, workflowId);
-  
-  let workflow: WorkflowStateData;
-  try {
-    const content = await readFile(filePath, 'utf-8');
-    workflow = parseWorkflow(content);
-  } catch {
-    // Create new workflow
-    workflow = {
-      workflow_id: workflowId,
-      state: {
-        current_stage: 'init',
-        iteration: 0,
-        status: 'active',
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      tasks: [],
-      checks: [],
-    };
-  }
-
-  // Validate transition (simplified)
-  const validStages = ['init', 'requirements', 'planning', 'execution', 'verification', 'delivery', 'completed'];
-  if (!validStages.includes(toStage)) {
-    throw new Error(`Invalid stage: ${toStage}`);
-  }
-
-  workflow.state.current_stage = toStage;
-  workflow.state.iteration += 1;
-  workflow.state.updated_at = new Date().toISOString();
-
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, serializeWorkflow(workflow), 'utf-8');
-
-  return workflow;
+async function writeWorkflowDocument(runtimePaths: RuntimePaths, document: WorkflowDocument, workflowRunId: OntologyId): Promise<void> {
+  await mkdir(runtimePaths.workflowsDir, { recursive: true });
+  await writeFile(workflowFile(runtimePaths, workflowRunId), JSON.stringify(document, null, 2), "utf8");
 }
 
-export async function incrementDeliberationCount(
-  projectRoot: string,
-  paths: WorkflowPaths,
-  workflowId: string
-): Promise<number> {
-  const workflow = await getWorkflowState(projectRoot, paths, workflowId);
-  return workflow?.state.iteration || 0;
+function getWorkflowRun(document: WorkflowDocument): WorkflowRun {
+  const run = document["@graph"].find((entry) => entry["@type"] === ENTITY_TYPES.WorkflowRun) as WorkflowRun | undefined;
+  if (!run) throw new Error("Workflow document missing WorkflowRun entity");
+  return run;
+}
+
+function getTaskRecords(document: WorkflowDocument): WorkflowTaskRecord[] {
+  return document["@graph"].filter((entry): entry is WorkflowTaskRecord => entry["@type"] === ENTITY_TYPES.WorkflowTaskRecord);
+}
+
+function getCheckRecords(document: WorkflowDocument): WorkflowCheckRecord[] {
+  return document["@graph"].filter((entry): entry is WorkflowCheckRecord => entry["@type"] === ENTITY_TYPES.WorkflowCheckRecord);
+}
+
+function buildDocument(workflowRun: WorkflowRun, taskRecords: WorkflowTaskRecord[], checkRecords: WorkflowCheckRecord[]): WorkflowDocument {
+  return {
+    "@context": ONTOLOGY_CONTEXT_IRI,
+    "@graph": [workflowRun, ...taskRecords, ...checkRecords],
+  };
+}
+
+export async function createWorkflowRun(
+  runtimePaths: RuntimePaths,
+  workflowRunId: OntologyId,
+  definitionId: OntologyId = WELL_KNOWN_IDS.orchestrationWorkflow,
+  initialStageId: OntologyId = WORKFLOW_STAGE.requirements,
+): Promise<WorkflowRun> {
+  const now = new Date().toISOString();
+  const workflowRun: WorkflowRun = {
+    "@id": workflowRunId,
+    "@type": ENTITY_TYPES.WorkflowRun,
+    label: workflowRunId,
+    description: `Workflow run ${workflowRunId}`,
+    definition_id: definitionId,
+    stage_id: initialStageId,
+    status_id: WORKFLOW_STATUS.active,
+    iteration: 0,
+    task_record_ids: [],
+    check_record_ids: [],
+    check_status_index: {},
+    check_record_index: {},
+    related_artifact_ids: [],
+    created_at: now,
+    updated_at: now,
+    history: [{ from_stage_id: null, to_stage_id: initialStageId, occurred_at: now }],
+  };
+  await writeWorkflowDocument(runtimePaths, buildDocument(workflowRun, [], []), workflowRunId);
+  return workflowRun;
+}
+
+export async function listWorkflowRuns(runtimePaths: RuntimePaths): Promise<WorkflowRun[]> {
+  await mkdir(runtimePaths.workflowsDir, { recursive: true });
+  const files = (await readdir(runtimePaths.workflowsDir)).filter((file) => file.endsWith(".jsonld"));
+  const runs: WorkflowRun[] = [];
+  for (const file of files) {
+    const parsed = JSON.parse(await readFile(join(runtimePaths.workflowsDir, file), "utf8")) as WorkflowDocument;
+    runs.push(getWorkflowRun(parsed));
+  }
+  return runs;
+}
+
+export async function getWorkflowState(runtimePaths: RuntimePaths, workflowRunId: OntologyId): Promise<WorkflowStateView | null> {
+  const document = await readWorkflowDocument(runtimePaths, workflowRunId);
+  if (!document) return null;
+  const workflowRun = getWorkflowRun(document);
+  return {
+    workflow_run: workflowRun,
+    task_records: getTaskRecords(document).map((record) => ({
+      "@id": record["@id"],
+      label: record.label,
+      requesting_agent_id: record.requesting_agent_id,
+      result_status_id: record.result_status_id,
+      plan_block_name: record.plan_block_name,
+      detail: record.detail,
+    })),
+    check_records: getCheckRecords(document).map((record) => ({
+      "@id": record["@id"],
+      label: record.label,
+      check_policy_id: record.check_policy_id,
+      result_status_id: record.result_status_id,
+      detail: record.detail,
+    })),
+  };
+}
+
+export async function transitionStage(
+  runtimePaths: RuntimePaths,
+  ontologyRuntime: OntologyRuntime,
+  workflowRunId: OntologyId,
+  toStageId: OntologyId,
+  _policy?: VerificationPolicy,
+): Promise<WorkflowRun> {
+  let document = await readWorkflowDocument(runtimePaths, workflowRunId);
+  if (!document) {
+    if (toStageId !== WORKFLOW_STAGE.requirements) {
+      throw new Error(`Workflow run ${workflowRunId} does not exist. First stage must be ${WORKFLOW_STAGE.requirements}`);
+    }
+    const created = await createWorkflowRun(runtimePaths, workflowRunId);
+    ontologyRuntime.getPolicyEngine().ingestWorkflowRun(created);
+    return created;
+  }
+
+  const workflowRun = getWorkflowRun(document);
+  ontologyRuntime.getPolicyEngine().ingestWorkflowRun(workflowRun);
+  const decision = ontologyRuntime.getPolicyEngine().canTransition(workflowRun, toStageId);
+  if (!decision.allowed || !decision.transition) {
+    throw new Error(decision.reason);
+  }
+
+  const next: WorkflowRun = {
+    ...workflowRun,
+    stage_id: toStageId,
+    status_id:
+      toStageId === WORKFLOW_STAGE.completed
+        ? WORKFLOW_STATUS.completed
+        : toStageId === WORKFLOW_STAGE.needsHuman
+          ? WORKFLOW_STATUS.blocked
+          : WORKFLOW_STATUS.active,
+    iteration: workflowRun.iteration + (decision.transition.increments_iteration ? 1 : 0),
+    check_record_ids: decision.transition.resets_checks ? [] : workflowRun.check_record_ids,
+    check_status_index: decision.transition.resets_checks ? {} : workflowRun.check_status_index,
+    check_record_index: decision.transition.resets_checks ? {} : workflowRun.check_record_index,
+    updated_at: new Date().toISOString(),
+    history: [
+      ...workflowRun.history,
+      { from_stage_id: workflowRun.stage_id, to_stage_id: toStageId, occurred_at: new Date().toISOString() },
+    ],
+  };
+
+  const taskRecords = getTaskRecords(document);
+  const checkRecords = decision.transition.resets_checks ? [] : getCheckRecords(document);
+  document = buildDocument(next, taskRecords, checkRecords);
+  await writeWorkflowDocument(runtimePaths, document, workflowRunId);
+  ontologyRuntime.getPolicyEngine().ingestWorkflowRun(next);
+  return next;
 }
 
 export async function recordTaskResult(
-  projectRoot: string,
-  paths: WorkflowPaths,
-  workflowId: string,
+  runtimePaths: RuntimePaths,
+  workflowRunId: OntologyId,
   taskId: string,
-  agent: string,
-  status: 'done' | 'failed' | 'running' | 'pending',
-  planFile?: string,
-  blockName?: string
-): Promise<void> {
-  const workflow = await getWorkflowState(projectRoot, paths, workflowId);
-  if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
-
-  const existingIndex = workflow.tasks.findIndex(t => t.task_id === taskId);
-  const task = {
-    task_id: taskId,
-    agent,
-    status,
-    plan_file: planFile,
-    block_name: blockName,
-    started_at: existingIndex >= 0 ? workflow.tasks[existingIndex].started_at : new Date().toISOString(),
-    completed_at: status === 'done' || status === 'failed' ? new Date().toISOString() : undefined,
-    error: status === 'failed' ? 'Task failed' : undefined,
+  agentId: OntologyId,
+  statusId: string,
+  relatedArtifactIds: OntologyId[] = [],
+  planBlockName?: string,
+  detail?: string,
+): Promise<WorkflowTaskRecord> {
+  const document = await readWorkflowDocument(runtimePaths, workflowRunId);
+  if (!document) throw new Error(`Workflow run not found: ${workflowRunId}`);
+  const workflowRun = getWorkflowRun(document);
+  const taskRecords = getTaskRecords(document);
+  const recordId = `workflow-task:${basename(String(workflowRunId))}:${taskId}`;
+  const now = new Date().toISOString();
+  const existing = taskRecords.find((record) => record["@id"] === recordId);
+  const record: WorkflowTaskRecord = {
+    "@id": recordId,
+    "@type": ENTITY_TYPES.WorkflowTaskRecord,
+    label: taskId,
+    description: detail ?? `Task ${taskId}`,
+    requesting_agent_id: agentId,
+    result_status_id: taskStatusId(statusId),
+    created_at: existing?.created_at ?? now,
+    updated_at: now,
+    plan_block_name: planBlockName,
+    related_artifact_ids: relatedArtifactIds,
+    detail,
   };
-
-  if (existingIndex >= 0) {
-    workflow.tasks[existingIndex] = task;
-  } else {
-    workflow.tasks.push(task);
-  }
-
-  const filePath = getWorkflowFile(projectRoot, workflowId);
-  await writeFile(filePath, serializeWorkflow(workflow), 'utf-8');
+  const nextTaskRecords = taskRecords.filter((entry) => entry["@id"] !== recordId).concat(record);
+  const nextWorkflowRun: WorkflowRun = {
+    ...workflowRun,
+    task_record_ids: nextTaskRecords.map((entry) => entry["@id"]),
+    related_artifact_ids: Array.from(new Set([...workflowRun.related_artifact_ids, ...relatedArtifactIds])),
+    updated_at: now,
+  };
+  await writeWorkflowDocument(runtimePaths, buildDocument(nextWorkflowRun, nextTaskRecords, getCheckRecords(document)), workflowRunId);
+  return record;
 }
 
 export async function recordCheckResult(
-  projectRoot: string,
-  paths: WorkflowPaths,
-  workflowId: string,
-  checkName: string,
-  status: 'PASS' | 'FAIL' | 'SKIP',
+  runtimePaths: RuntimePaths,
+  workflowRunId: OntologyId,
+  checkId: OntologyId,
+  statusId: string,
   detail: string,
-  maxIterations: number,
-  currentIteration: number
-): Promise<void> {
-  const workflow = await getWorkflowState(projectRoot, paths, workflowId);
-  if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
-
-  const check = {
-    check_name: checkName,
-    status,
+  checkPolicyId: OntologyId = CHECK_POLICY.blocking,
+): Promise<WorkflowCheckRecord> {
+  const document = await readWorkflowDocument(runtimePaths, workflowRunId);
+  if (!document) throw new Error(`Workflow run not found: ${workflowRunId}`);
+  const workflowRun = getWorkflowRun(document);
+  const checkRecords = getCheckRecords(document);
+  const now = new Date().toISOString();
+  const existing = checkRecords.find((entry) => entry["@id"] === checkId);
+  const record: WorkflowCheckRecord = {
+    "@id": checkId,
+    "@type": ENTITY_TYPES.WorkflowCheckRecord,
+    label: checkId,
+    description: detail,
+    check_policy_id: checkPolicyId,
+    result_status_id: checkStatusId(statusId),
+    created_at: existing?.created_at ?? now,
     detail,
-    max_iterations: maxIterations,
-    current_iteration: currentIteration,
-    timestamp: new Date().toISOString(),
   };
-
-  workflow.checks.push(check);
-
-  const filePath = getWorkflowFile(projectRoot, workflowId);
-  await writeFile(filePath, serializeWorkflow(workflow), 'utf-8');
+  const nextCheckRecords = checkRecords.filter((entry) => entry["@id"] !== checkId).concat(record);
+  const nextWorkflowRun: WorkflowRun = {
+    ...workflowRun,
+    check_record_ids: nextCheckRecords.map((entry) => entry["@id"]),
+    check_status_index: {
+      ...(workflowRun.check_status_index ?? {}),
+      [checkId]: record.result_status_id,
+    },
+    check_record_index: {
+      ...(workflowRun.check_record_index ?? {}),
+      [checkId]: {
+        check_policy_id: record.check_policy_id,
+        result_status_id: record.result_status_id,
+        detail: record.detail,
+        created_at: record.created_at,
+        label: record.label,
+      },
+    },
+    updated_at: now,
+  };
+  await writeWorkflowDocument(runtimePaths, buildDocument(nextWorkflowRun, getTaskRecords(document), nextCheckRecords), workflowRunId);
+  return record;
 }

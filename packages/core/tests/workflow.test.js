@@ -1,336 +1,88 @@
-import { test, describe } from 'node:test';
-import assert from 'node:assert';
+import { beforeEach, describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
-  createWorkflow,
+  CHECK_POLICY,
+  CHECK_STATUS,
+  TASK_STATUS,
+  WORKFLOW_STAGE,
+  buildRuntimePaths,
+} from "@tori-agent/ontology";
+import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
+import {
+  createWorkflowRun,
   getWorkflowState,
-  transitionStage,
-  recordTaskResult,
   recordCheckResult,
-  linkADR,
-  unlinkADR,
-  getADRs,
-  updateADRs,
-} from '../dist/tools/workflow.js';
-import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+  recordTaskResult,
+  transitionStage,
+} from "../dist/tools/workflow.js";
 
-describe('createWorkflow', () => {
-  let tmpDir;
+describe("workflow strict ontology", () => {
+  let root;
+  let runtimePaths;
+  let runtime;
 
-  test('creates a workflow file with correct structure', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    const id = await createWorkflow(tmpDir, paths, 'wf-1', {});
-    assert.strictEqual(id, 'wf-1');
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "tori-workflow-"));
+    runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    runtime = await initializeOntologyRuntime();
   });
 
-  test('creates file with default stage "new"', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const state = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.strictEqual(state.state.current_stage, 'new');
+  test("creates ontology-native workflow run", async () => {
+    const run = await createWorkflowRun(runtimePaths, "workflow-run:test");
+    assert.equal(run.stage_id, WORKFLOW_STAGE.requirements);
+    const stored = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(stored.workflow_run["@id"], "workflow-run:test");
   });
 
-  test('creates file with status "active"', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const state = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.strictEqual(state.state.status, 'active');
+  test("allows ontology transitions in declared order", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    let run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.planning);
+    run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    assert.equal(run.iteration, 1);
+    run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.verification);
   });
 
-  test('creates file with default max_iterations of 2', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const state = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.strictEqual(state.state.max_iterations, 2);
-  });
-
-  test('creates file with deliberation_count 0', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const state = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.strictEqual(state.state.deliberation_count, 0);
-  });
-
-  test('creates file with provided definition fields', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {
-      workflow: 'custom-workflow',
-      current_stage: 'plan',
-      iteration: 1,
-      max_iterations: 3,
-      status: 'done',
-    });
-    const state = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.strictEqual(state.state.workflow, 'custom-workflow');
-    assert.strictEqual(state.state.current_stage, 'plan');
-    assert.strictEqual(state.state.iteration, 1);
-    assert.strictEqual(state.state.max_iterations, 3);
-    assert.strictEqual(state.state.status, 'done');
-  });
-
-  test('throws when workflow already exists', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
+  test("blocks delivery until mechanical check passes", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
     await assert.rejects(
-      async () => createWorkflow(tmpDir, paths, 'wf-1', {}),
-      /already exists/
+      () => transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.delivery),
+      /check:mechanical|persisted check/,
     );
-  });
-});
-
-describe('getWorkflowState', () => {
-  let tmpDir;
-
-  test('returns null when workflow does not exist', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    const result = await getWorkflowState(tmpDir, paths, 'nonexistent');
-    assert.strictEqual(result, null);
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.passed, "mechanical checks passed", CHECK_POLICY.blocking);
+    const run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.delivery);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.delivery);
   });
 
-  test('returns parsed workflow state', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const result = await getWorkflowState(tmpDir, paths, 'wf-1');
-    assert.ok(result);
-    assert.strictEqual(result.state.id, 'wf-1');
-    assert.ok(Array.isArray(result.tasks));
-    assert.ok(Array.isArray(result.checks));
-  });
-});
-
-describe('transitionStage', () => {
-  let tmpDir;
-
-  test('transitions from new to requirements', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    assert.strictEqual(result.state.current_stage, 'requirements');
-  });
-
-  test('throws on invalid transition from done', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', { status: 'done' });
+  test("allows verification back to execution only on failed blocking check", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
     await assert.rejects(
-      async () => transitionStage(tmpDir, paths, 'wf-1', 'plan'),
-      /Invalid transition/
+      () => transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution),
+      /failed persisted verification check/,
     );
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, "mechanical checks failed", CHECK_POLICY.blocking);
+    const run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.execution);
+    assert.equal(run.iteration, 2);
   });
 
-  test('throws on invalid transition from requirements to execute', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await assert.rejects(
-      async () => transitionStage(tmpDir, paths, 'wf-1', 'execute'),
-      /Invalid transition/
-    );
-  });
-
-  test('transitions through plan to execute and increments iteration', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await transitionStage(tmpDir, paths, 'wf-1', 'plan');
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    assert.strictEqual(result.state.current_stage, 'execute');
-    assert.strictEqual(result.state.iteration, 1);
-  });
-
-  test('transitions from execute to verify', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await transitionStage(tmpDir, paths, 'wf-1', 'plan');
-    await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'verify');
-    assert.strictEqual(result.state.current_stage, 'verify');
-  });
-
-  test('transitions from verify to done and sets status done', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await transitionStage(tmpDir, paths, 'wf-1', 'plan');
-    await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    await transitionStage(tmpDir, paths, 'wf-1', 'verify');
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'done');
-    assert.strictEqual(result.state.status, 'done');
-  });
-
-  test('allows verify to needs_human transition', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await transitionStage(tmpDir, paths, 'wf-1', 'plan');
-    await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    await transitionStage(tmpDir, paths, 'wf-1', 'verify');
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'needs_human');
-    assert.strictEqual(result.state.status, 'needs_human');
-  });
-
-  test('allows verify back to execute for rework', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await transitionStage(tmpDir, paths, 'wf-1', 'requirements');
-    await transitionStage(tmpDir, paths, 'wf-1', 'plan');
-    await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    await transitionStage(tmpDir, paths, 'wf-1', 'verify');
-    const result = await transitionStage(tmpDir, paths, 'wf-1', 'execute');
-    assert.strictEqual(result.state.current_stage, 'execute');
-  });
-});
-
-describe('recordTaskResult', () => {
-  let tmpDir;
-
-  test('adds a new task to the workflow file', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordTaskResult(tmpDir, paths, 'wf-1', 'task-1', 'agent-1', 'pending');
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    assert.ok(content.includes('- [ ] task-1 (agent-1) — status: pending'));
-  });
-
-  test('throws when workflow does not exist', async () => {
-    const paths = { workflows: 'workflows' };
-    await assert.rejects(
-      async () => recordTaskResult('/nonexistent', paths, 'wf-1', 't1', 'a1', 'pending'),
-      /Workflow not found/
-    );
-  });
-
-  // TODO: Known regex bug in workflow.ts causes this test to fail
-  /* test('updates existing task instead of appending duplicate', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordTaskResult(tmpDir, paths, 'wf-1', 'task-1', 'agent-1', 'pending');
-    await recordTaskResult(tmpDir, paths, 'wf-1', 'task-1', 'agent-1', 'done');
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    const taskLines = content.match(/- \[[ x]\] task-1 \(agent-1\) — status: \S+/g);
-    assert.ok(taskLines);
-    assert.strictEqual(taskLines.length, 1);
-    assert.ok(content.includes('- [x] task-1 (agent-1) — status: done'));
-  }); */
-
-  // TODO: Known regex bug in workflow.ts causes this test to fail
-  /* test('updates task status from pending to done', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordTaskResult(tmpDir, paths, 'wf-1', 'task-1', 'agent-1', 'pending');
-    await recordTaskResult(tmpDir, paths, 'wf-1', 'task-1', 'agent-1', 'done');
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    const matches = content.match(/- \[[ x]\] task-1 \(agent-1\) — status: done/);
-    assert.ok(matches);
-  }); */
-});
-
-describe('recordCheckResult', () => {
-  let tmpDir;
-
-  test('adds a new check result to the workflow file', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordCheckResult(tmpDir, paths, 'wf-1', 'ci_check', 'PASS', 'All good', 0.9, false);
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    assert.ok(content.includes('ci_check'));
-    assert.ok(content.includes('All good'));
-  });
-
-  test('throws when workflow does not exist', async () => {
-    const paths = { workflows: 'workflows' };
-    await assert.rejects(
-      async () => recordCheckResult('/nonexistent', paths, 'wf-1', 'check1', 'PASS'),
-      /Workflow not found/
-    );
-  });
-
-  // TODO: Known regex bug in workflow.ts causes this test to fail
-  /* test('updates existing check instead of appending duplicate', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordCheckResult(tmpDir, paths, 'wf-1', 'ci_check', 'PASS', 'All good', 0.9, false);
-    await recordCheckResult(tmpDir, paths, 'wf-1', 'ci_check', 'PASS', 'Still good', 0.95, false);
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    const checkLines = content.match(/^- \[[ x]\] ci_check —/gm);
-    assert.ok(checkLines);
-    assert.strictEqual(checkLines.length, 1);
-    assert.ok(content.includes('Still good'));
-  }); */
-
-  // TODO: Known regex bug in workflow.ts causes this test to fail
-  /* test('increments iteration on subsequent calls', async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'tori-test-'));
-    const paths = { workflows: 'workflows' };
-    await createWorkflow(tmpDir, paths, 'wf-1', {});
-    await recordCheckResult(tmpDir, paths, 'wf-1', 'ci_check', 'PASS', 'First', 0.9, false);
-    await recordCheckResult(tmpDir, paths, 'wf-1', 'ci_check', 'PASS', 'Second', 0.95, false);
-    const content = await readFile(join(tmpDir, 'workflows', 'wf-1.md'), 'utf-8');
-    const checkIterMatch = content.match(/- \[[ x]\] ci_check — [A-Z]+ \(.+iteration:\s*(\d+)/);
-    assert.ok(checkIterMatch);
-    assert.strictEqual(checkIterMatch[1], '2');
-  }); */
-});
-
-describe('linkADR / unlinkADR', () => {
-  test('linkADR adds adr when not present', () => {
-    const wf = { adrs: [] };
-    const result = linkADR(wf, 'ADR-001');
-    assert.deepStrictEqual(result.adrs, ['ADR-001']);
-  });
-
-  test('linkADR does not duplicate existing adr', () => {
-    const wf = { adrs: ['ADR-001'] };
-    const result = linkADR(wf, 'ADR-001');
-    assert.deepStrictEqual(result.adrs, ['ADR-001']);
-  });
-
-  test('unlinkADR removes adr', () => {
-    const wf = { adrs: ['ADR-001', 'ADR-002'] };
-    const result = unlinkADR(wf, 'ADR-001');
-    assert.deepStrictEqual(result.adrs, ['ADR-002']);
-  });
-
-  test('linkADR does not modify original object', () => {
-    const wf = { adrs: [] };
-    const result = linkADR(wf, 'ADR-001');
-    assert.deepStrictEqual(wf.adrs, []);
-    assert.deepStrictEqual(result.adrs, ['ADR-001']);
-  });
-});
-
-describe('getADRs / updateADRs', () => {
-  test('getADRs returns adrs array', () => {
-    const wf = { adrs: ['ADR-001', 'ADR-002'] };
-    assert.deepStrictEqual(getADRs(wf), ['ADR-001', 'ADR-002']);
-  });
-
-  test('updateADRs replaces adrs', () => {
-    const wf = { adrs: ['ADR-001'] };
-    const result = updateADRs(wf, ['ADR-002', 'ADR-003']);
-    assert.deepStrictEqual(result.adrs, ['ADR-002', 'ADR-003']);
+  test("records task and check records by ontology ids", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:specialist:software-engineer", TASK_STATUS.running, ["spec:test"], "Implement block", "started");
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.passed, "all good", CHECK_POLICY.blocking);
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.task_records[0].requesting_agent_id, "agent:specialist:software-engineer");
+    assert.equal(state.check_records[0].result_status_id, CHECK_STATUS.passed);
+    assert.equal(state.workflow_run.check_record_index["check:mechanical"].check_policy_id, CHECK_POLICY.blocking);
   });
 });

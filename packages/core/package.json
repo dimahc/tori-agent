@@ -17,6 +17,7 @@
   "bugs": "https://github.com/dimahc/tori-agent/issues",
   "license": "MIT",
   "dependencies": {
+    "@tori-agent/ontology": "0.1.1",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

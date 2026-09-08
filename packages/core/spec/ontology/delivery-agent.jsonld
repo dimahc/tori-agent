@@ -1,93 +1,18 @@
 {
-  "@context": {
-    "tori": "https://tori-agent.dev/ontology/2026/core#",
-    "agent": "https://tori-agent.dev/ontology/2026/agent#",
-    "@id": "@id",
-    "@type": "@type",
-    "governedBy": "tori:governedBy",
-    "implements": "tori:implements",
-    "partOf": "tori:partOf",
-    "requires": "tori:requires",
-    "name": "tori:name",
-    "description": "tori:description",
-    "roles": "tori:roles",
-    "capabilities": "tori:capabilities",
-    "tools": "tori:tools",
-    "metadata": "tori:metadata",
-    "permissions": "tori:permissions",
-    "scope": "tori:scope",
-    "required_capabilities": "tori:required_capabilities",
-    "capability_id": "tori:capability_id",
-    "assigned_to": "tori:assigned_to",
-    "status": "tori:status",
-    "stages": "tori:stages",
-    "transitions": "tori:transitions",
-    "workflow_id": "tori:workflow_id",
-    "entry_conditions": "tori:entry_conditions",
-    "exit_conditions": "tori:exit_conditions",
-    "from_stage": "tori:from_stage",
-    "to_stage": "tori:to_stage",
-    "trigger": "tori:trigger",
-    "type": "tori:type",
-    "owner_id": "tori:owner_id",
-    "content": "tori:content",
-    "source_id": "tori:source_id",
-    "rules": "tori:rules",
-    "enforcement_level": "tori:enforcement_level"
-  },
+  "@context": "https://tori-agent.dev/ontology/2026/core/context",
   "@graph": [
-    {
-      "@id": "capability:git_delivery",
-      "@type": "Capability",
-      "name": "Git Delivery",
-      "description": "Stage files, create conventional commits, manage branches for delivery",
-      "scope": "git"
-    },
-    {
-      "@id": "capability:read_files",
-      "@type": "Capability",
-      "name": "Read Files",
-      "description": "Inspect changes and repository state before delivery",
-      "scope": "filesystem"
-    },
-    {
-      "@id": "tool:read",
-      "@type": "Tool",
-      "name": "read",
-      "description": "Inspect changes before delivery",
-      "capability_id": "capability:read_files"
-    },
-    {
-      "@id": "tool:bash",
-      "@type": "Tool",
-      "name": "bash",
-      "description": "Run allowlisted Git delivery commands",
-      "capability_id": "capability:git_delivery"
-    },
+    { "@id": "capability:delivery", "@type": "Capability", "label": "Delivery", "description": "Inspect and deliver repo state" },
     {
       "@id": "role:delivery_specialist",
       "@type": "Role",
-      "name": "Delivery Specialist",
-      "description": "Git delivery specialist - stages, commits, branches only",
-      "permissions": ["read", "bash"],
-      "capabilities": ["capability:git_delivery", "capability:read_files"]
+      "label": "Delivery specialist",
+      "description": "Read repo and run git inspection commands only",
+      "capability_ids": ["capability:delivery"],
+      "permission_grants": [
+        { "@id": "permission:delivery:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect repo state" },
+        { "@id": "permission:delivery:bash", "@type": "PermissionGrant", "tool_id": "tool:bash", "effect": "policy-effect:allow", "rationale": "Run git inspection/delivery commands", "command_globs": ["git status*", "git diff*", "git log*", "git add *", "git commit *"] }
+      ]
     },
-    {
-      "@id": "agent:delivery-agent",
-      "@type": "Agent",
-      "name": "Delivery Agent",
-      "description": "Git delivery specialist. Stages files, creates conventional commits, manages branches. Never pushes. Never modifies code or content — only delivers what specialists and scribes produced.",
-      "roles": ["role:delivery_specialist"],
-      "capabilities": ["capability:git_delivery", "capability:read_files"],
-      "tools": ["tool:read", "tool:bash"],
-      "metadata": {
-        "temperature": 0.2,
-        "mode": "all",
-        "color": "success",
-        "human_tone": true,
-        "risk_tier": "L1",
-        "platforms": ["opencode", "kilocode"]
-      }
-    }
+    { "@id": "agent:delivery-agent", "@type": "Agent", "label": "Delivery agent", "description": "Delivery specialist", "role_ids": ["role:delivery_specialist"], "capability_ids": ["capability:delivery"], "tool_ids": ["tool:read", "tool:bash"], "prompt_ref": "prompt:delivery-agent", "metadata": { "color": "success", "human_tone": true, "mode": "all", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } }
   ]
 }

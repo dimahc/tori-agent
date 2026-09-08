@@ -5,9 +5,5 @@
     "rootDir": "src",
     "composite": true
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../ontology" },
-    { "path": "../core" }
-  ]
+  "include": ["src"]
 }

@@ -2,7 +2,7 @@
 
 Shared core library for `tori-agent`. Owns the deterministic workflow engine, ontology-native agent loading, and artifact tooling.
 
-> **Note:** `npm test` currently fails — no `.test.js` files exist yet. See [AGENTS.md](../AGENTS.md) for the verification flow (`build` → `lint` → `verify-expansion`).
+Strict ontology core library. Build before tests so `dist/` exists.
 
 ## Entry point
 
@@ -10,7 +10,7 @@ Shared core library for `tori-agent`. Owns the deterministic workflow engine, on
 
 ## Plugin assembly
 
-- [`buildPlugin()`](../src/index.ts) — creates the plugin object consumed by OpenCode and Kilo Code runtimes. Call this from a runtime wrapper; pass the project root.
+- Plugin assembly builds runtime config from ontology records; ontology-derived prompt/tool/permission fields override host config.
 - Agent spec loading from [`spec/ontology/*.jsonld`](../spec/ontology) (ontology-native JSON-LD)
 - Runtime tool wrapping (lifecycle + workflow tools)
 
@@ -20,7 +20,7 @@ Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 
 | Function | Purpose |
 | ---------- | --------- |
-| `createWorkflow` | Create a new workflow artifact from a mission brief |
+| `createWorkflowRun` | Create a new ontology-native workflow run |
 | `getWorkflowState` | Read current stage, iteration, tasks, and checks |
 | `transitionStage` | Advance to the next stage with guard validation |
 | `recordTaskResult` | Log task completion or failure |
@@ -48,15 +48,15 @@ Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
 Managed docs are created automatically on `session.created`:
 
-- `.opencode/specs` or `.kilocode/specs` — agent specifications
-- `.opencode/plans` or `.kilocode/plans` — execution plans
+- `.opencode/specs` or `.kilocode/specs` — managed specs
+- `.opencode/exec-plans` or `.kilocode/exec-plans` — execution plans
 - `.opencode/briefs` or `.kilocode/briefs` — project briefs
 - `.opencode/workflows` or `.kilocode/workflows` — workflow state files
 
 ## Scripts
 
 - `npm run build` — compile TypeScript to `dist/`
-- `npm test` — run `node --test dist/tests/*.test.js` (currently fails; no test files yet)
+- `npm test` — run repo tests from workspace root
 
 ## Notes
 
@@ -64,4 +64,5 @@ Managed docs are created automatically on `session.created`:
 - Runtime package (`packages/harness`) is a thin adapter — do not add logic there
 - Do not edit generated `dist/` output
 - If you change shared behavior, update this package first, then validate runtime wrappers
+- Workflow transition gating reads persisted check metadata from workflow JSON-LD, including blocking vs advisory policy.
 - For architecture context, see the [parent README](../README.md)

@@ -1,7 +1,9 @@
 ---
+artifact_id: spec:<slug>
+artifact_type_id: artifact-type:spec
+status_id: artifact-status:draft
 title: "<Spec title>"
-status: draft
-created: <YYYY-MM-DD>
+created_at: <ISO-8601 timestamp>
 ---
 
 # <Spec title>

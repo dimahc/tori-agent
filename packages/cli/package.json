@@ -20,7 +20,7 @@
     "tori": "./dist/cli.js"
   },
   "dependencies": {
-    "@tori-agent/core": "^0.1.0",
+    "@tori-agent/core": "0.1.1",
     "js-yaml": "^4.1.0"
   },
   "engines": {

@@ -1,12 +1,12 @@
 # Spec completeness checklist
 
-Run through this before promoting a spec past `status: draft`.
+Run through this before promoting a spec past `artifact-status:draft`.
 
 ## Frontmatter
 
-- [ ] Created via `register_spec` (not by hand) — frontmatter has `title`, `status`, `created`
-- [ ] `created` is a valid `YYYY-MM-DD` date
-- [ ] `status` reflects reality: `draft` while being written, `active` once adopted
+- [ ] Created via `register_spec` (not by hand) — frontmatter has `artifact_id`, `artifact_type_id`, `status_id`, `title`, `created_at`
+- [ ] `created_at` is a valid ISO-8601 timestamp
+- [ ] `status_id` reflects reality: `artifact-status:draft` while being written, `artifact-status:active` once adopted
 - [ ] Not a stale draft: `check_artifacts` flags drafts untouched for 30+ days — promote or delete
 
 ## Content

@@ -1,7 +1,7 @@
 {
-  "name": "@tori-agent/harness",
+  "name": "@tori-agent/ontology",
   "version": "0.1.1",
-  "description": "Unified Tori Agent Runtime for OpenCode and KiloCode",
+  "description": "Canonical ontology contract for tori-agent",
   "author": "@dimahc <dev@dimahc.com>",
   "license": "MIT",
   "type": "module",
@@ -11,21 +11,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./plugin": {
-      "import": "./dist/plugin.js",
-      "types": "./dist/plugin.d.ts"
     }
   },
   "scripts": {
     "build": "tsc"
-  },
-  "dependencies": {
-    "@tori-agent/core": "0.1.1",
-    "@tori-agent/ontology": "0.1.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.5.0"
   },
   "engines": {
     "node": ">=20.19.0"

@@ -1,9 +1,9 @@
 /**
  * @file packages/core/src/types/registry.ts
- * @description Type definitions for the Ontology Registry (SC-05).
+ * @description Type definitions for strict ontology registry.
  */
 
-import { OntologicalEntity, OntologyId } from './ontology.js';
+import { OntologyEntity, OntologyId } from './ontology.js';
 import { ValidationResult } from './validation.js';
 
 /**
@@ -15,7 +15,7 @@ export type SemVer = string;
  * Migration function signature.
  * Transforms an entity from one schema version to another.
  */
-export type MigrationFn = (entity: OntologicalEntity) => OntologicalEntity;
+export type MigrationFn = (entity: OntologyEntity) => OntologyEntity;
 
 /**
  * Migration rule mapping a version range to a migration function.
@@ -62,7 +62,7 @@ export interface QueryOptions {
   /** Related entity ID for relationship queries. */
   relatedTo?: OntologyId;
   /** Custom predicate filter function. */
-  predicate?: (entity: OntologicalEntity) => boolean;
+  predicate?: (entity: OntologyEntity) => boolean;
   /** Maximum results to return. */
   limit?: number;
   /** Offset for pagination. */
@@ -76,9 +76,9 @@ export interface OntologyStore {
   /** Prepare for a new full snapshot write. */
   beginSave?(): Promise<void>;
   /** Save all entities to the store. */
-  save(entities: Map<OntologyId, OntologicalEntity>): Promise<void>;
+  save(entities: Map<OntologyId, OntologyEntity>): Promise<void>;
   /** Load all entities from the store. */
-  load(): Promise<Map<OntologyId, OntologicalEntity>>;
+  load(): Promise<Map<OntologyId, OntologyEntity>>;
   /** Create a backup of the current state. */
   backup(): Promise<void>;
   /** Restore from the latest backup. */
