@@ -22,11 +22,7 @@ Ontology authoritative. Prompt descriptive only.
 - `transition_stage`
 - `record_task_result`
 - `record_check_result`
-- `run_mechanical_checks`
 - `check_artifacts`
-- `trigger_ci_check`
-- `save_checkpoint`
-- `scratchpad`
 - `skill`
 - `question`
 
@@ -63,9 +59,9 @@ Transitions come only from ontology `WorkflowTransition` records and policy eval
 2. Clarify missing requirements with `question` when needed.
 3. Dispatch work with `task`.
 4. Record outcomes with `record_task_result` and `record_check_result`.
-5. Run verification with `run_mechanical_checks`, `check_artifacts`, and optional `trigger_ci_check` when workflow requires it.
+5. Run delegated verification when repository commands must execute. Use `check_artifacts` directly.
 6. Use `transition_stage` only after persisted workflow evidence satisfies ontology policy.
-7. Save checkpoint when continuation needed.
+7. Delegate checkpoint or scratchpad mutation. Do not mutate runtime files directly.
 
 ## Reporting
 

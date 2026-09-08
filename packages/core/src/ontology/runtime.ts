@@ -129,6 +129,22 @@ export class OntologyRuntime {
     });
   }
 
+  authorizeToolExecution(
+    context: { sessionID?: string; agent?: string },
+    toolName: string,
+    pattern?: string | string[],
+    runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"],
+  ): AuthorizationDecision {
+    this.assertInitialized();
+    if (!context.sessionID) {
+      return { effect: "deny", matchedGrantIds: [], reason: `Missing session context for ${toolName}` };
+    }
+    if (context.agent) {
+      this.bindSession(context.sessionID, context.agent);
+    }
+    return this.authorizeSession(context.sessionID, toolName, pattern, runtimePaths);
+  }
+
   async serializeAgent(agentId: OntologyId): Promise<string> {
     this.assertInitialized();
     const entity = this.bundle!.byId.get(agentId);

@@ -143,6 +143,12 @@ export const WELL_KNOWN_IDS = {
   expansionCheck: "check:verify-expansion",
 } as const;
 
+export const IMMUTABLE_BUILTIN_ONTOLOGY_IDS = [
+  "agent:tori",
+  "role:orchestrator",
+  "policy:tori-no-direct-mutation",
+] as const;
+
 export const TOOL_IDS = {
   bash: "tool:bash",
   checkArtifacts: "tool:check_artifacts",

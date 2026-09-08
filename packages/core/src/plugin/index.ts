@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { CHECK_POLICY, WORKFLOW_STAGE, buildRuntimePaths, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
+import type { OntologyRuntime } from "../ontology/runtime.js";
 import { initializeOntologyRuntime } from "../ontology/runtime.js";
 import { getBuiltinSkillsDir } from "../ontology/paths.js";
 import {
@@ -108,6 +109,55 @@ function safeResolve(projectRoot: string, relPath: string): string {
 
 export function createBudgetAwareToolExecutor(baseTools: ToolRegistry): ToolRegistry {
   return baseTools;
+}
+
+function deriveAuthorizationPattern(
+  toolName: string,
+  args: Record<string, unknown>,
+  projectRoot: string,
+  runtimePaths: RuntimePaths,
+): string | string[] | undefined {
+  switch (toolName) {
+    case "write_append":
+      return typeof args.file === "string" ? args.file : undefined;
+    case "mark_block_done":
+    case "complete_plan":
+      return typeof args.plan_file === "string" ? join(relative(projectRoot, runtimePaths.execPlansDir), String(args.plan_file)) : undefined;
+    case "register_spec":
+      return typeof args.spec_file === "string" ? join(relative(projectRoot, runtimePaths.specsDir), String(args.spec_file)) : undefined;
+    case "save_checkpoint":
+      return typeof args.file === "string" ? join(relative(projectRoot, runtimePaths.checkpointsDir), String(args.file)) : undefined;
+    case "scratchpad":
+      return relative(projectRoot, runtimePaths.scratchpadFile);
+    default:
+      return undefined;
+  }
+}
+
+export function createAuthorizedToolExecutor(
+  baseTools: ToolRegistry,
+  options: { ontologyRuntime: OntologyRuntime; projectRoot: string; runtimePaths: RuntimePaths },
+): ToolRegistry {
+  return Object.fromEntries(
+    Object.entries(baseTools).map(([name, tool]) => [
+      name,
+      {
+        ...tool,
+        async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string> {
+          const decision = options.ontologyRuntime.authorizeToolExecution(
+            { sessionID: context?.sessionID, agent: context?.agent },
+            name,
+            deriveAuthorizationPattern(name, args, options.projectRoot, options.runtimePaths),
+            options.runtimePaths,
+          );
+          if (decision.effect !== "allow") {
+            throw new Error(`Unauthorized tool execution for ${name}: ${decision.reason}`);
+          }
+          return tool.execute(args, context);
+        },
+      } satisfies ToolRegistryEntry,
+    ]),
+  );
 }
 
 async function loadSkillContent(skillsDir: string, name: string): Promise<string> {

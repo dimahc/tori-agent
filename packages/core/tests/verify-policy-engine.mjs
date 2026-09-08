@@ -38,6 +38,41 @@ if (denyToriWrite.effect !== "deny") {
   process.exit(1);
 }
 
+const denyToriEdit = engine.authorize({
+  agentId: "agent:tori",
+  toolName: "edit",
+  toolId: "tool:edit",
+  pattern: "README.md",
+  runtimePaths,
+});
+if (denyToriEdit.effect !== "deny") {
+  console.error("FAIL tori edit should deny", denyToriEdit);
+  process.exit(1);
+}
+
+const denyToriBash = engine.authorize({
+  agentId: "agent:tori",
+  toolName: "bash",
+  toolId: "tool:bash",
+  pattern: "npm test",
+  runtimePaths,
+});
+if (denyToriBash.effect !== "deny") {
+  console.error("FAIL tori bash should deny", denyToriBash);
+  process.exit(1);
+}
+
+const denyToriCi = engine.authorize({
+  agentId: "agent:tori",
+  toolName: "trigger_ci_check",
+  toolId: "tool:trigger_ci_check",
+  runtimePaths,
+});
+if (denyToriCi.effect !== "deny") {
+  console.error("FAIL tori trigger_ci_check should deny", denyToriCi);
+  process.exit(1);
+}
+
 await transitionStage(runtimePaths, runtime, "workflow-run:policy-test", WORKFLOW_STAGE.planning);
 await transitionStage(runtimePaths, runtime, "workflow-run:policy-test", WORKFLOW_STAGE.execution);
 await transitionStage(runtimePaths, runtime, "workflow-run:policy-test", WORKFLOW_STAGE.verification);
@@ -78,6 +113,6 @@ if (denyEnv.effect !== "deny") {
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, denyToriWrite.effect, transition.allowed],
+  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, transition.allowed],
   sampleStatus: TASK_STATUS.running,
 });

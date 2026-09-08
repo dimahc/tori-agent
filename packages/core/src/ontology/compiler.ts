@@ -11,7 +11,7 @@ import type {
   WorkflowStageDefinition,
   WorkflowTransitionDefinition,
 } from "@tori-agent/ontology";
-import { ENTITY_TYPES } from "@tori-agent/ontology";
+import { ENTITY_TYPES, IMMUTABLE_BUILTIN_ONTOLOGY_IDS as IMMUTABLE_IDS } from "@tori-agent/ontology";
 import { OntologyRegistry, DEFAULT_REGISTRY_CONFIG } from "./registry.js";
 import { NoopOntologyStore } from "./store.js";
 import { getBuiltinOntologySpecDir } from "./paths.js";
@@ -101,6 +101,15 @@ export class OntologyCompiler {
             continue;
           }
           for (const entity of parsed["@graph"]) {
+            const existingSource = this.sourceByEntityId.get(entity["@id"]);
+            if (
+              sourceDir !== this.builtinSpecDir &&
+              existingSource?.startsWith(this.builtinSpecDir) &&
+              (IMMUTABLE_IDS as readonly string[]).includes(entity["@id"])
+            ) {
+              warnings.push(`${join(sourceDir, file)} attempted override of immutable builtin ontology record ${entity["@id"]}; ignored`);
+              continue;
+            }
             entityMap.set(entity["@id"], entity);
             this.sourceByEntityId.set(entity["@id"], join(sourceDir, file));
           }

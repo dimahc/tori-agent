@@ -1,13 +1,15 @@
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ARTIFACT_STATUS, ARTIFACT_TYPE, buildRuntimePaths } from "@tori-agent/ontology";
 import {
   checkArtifacts,
   completePlan,
+  getReviewCheck,
   markBlockDone,
+  parseReviewChecks,
   projectState,
   registerSpecImpl,
   runMechanicalChecks,
@@ -110,6 +112,13 @@ describe("lifecycle strict ontology", () => {
     const result = await runMechanicalChecks(root);
     assert.equal(result.ok, true);
     assert.equal(result.checks.length, 2);
+  });
+
+  test("review checks parse and resolve by id", async () => {
+    const parsed = parseReviewChecks(await readFile(join(root, "AGENTS.md"), "utf8"));
+    assert.deepEqual(parsed.map((check) => check.id), ["lint", "verify-expansion"]);
+    const lint = await getReviewCheck(root, "lint");
+    assert.equal(lint?.command, 'node -e "process.exit(0)"');
   });
 
   test("saveCheckpoint and writeAppend write files", async () => {

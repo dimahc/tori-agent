@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
 import { deriveSessionTitle, isDefaultSessionTitle } from "../dist/index.js";
-import { buildReadOnlyTools, buildWriteTools } from "../dist/plugin/index.js";
+import { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor } from "../dist/plugin/index.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
 
 describe("plugin ontology integration", () => {
@@ -19,6 +19,10 @@ describe("plugin ontology integration", () => {
     assert.equal(configs.tori.permission.transition_stage, "allow");
     assert.equal(configs.tori.tools.transition_stage, true);
     assert.equal(configs.tori.tools.write, undefined);
+    assert.equal(configs.tori.tools.run_mechanical_checks, undefined);
+    assert.equal(configs.tori.tools.trigger_ci_check, undefined);
+    assert.equal(configs.tori.tools.save_checkpoint, undefined);
+    assert.equal(configs.tori.tools.scratchpad, undefined);
     assert.ok(configs["specialist:software-engineer"]);
   });
 
@@ -30,6 +34,65 @@ describe("plugin ontology integration", () => {
     assert.ok(readOnly.workflow_state);
     assert.ok(write.transition_stage);
     assert.ok(write.record_check_result);
+    assert.ok(write.trigger_ci_check);
+  });
+
+  test("authorized tool executor blocks tori direct and surrogate mutation tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-wrap-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const wrapped = createAuthorizedToolExecutor(
+      { ...buildReadOnlyTools(root, runtimePaths), ...buildWriteTools(root, runtimePaths, "opencode") },
+      { ontologyRuntime: runtime, projectRoot: root, runtimePaths },
+    );
+
+    await assert.rejects(
+      () => wrapped.register_spec.execute({ spec_file: "blocked.md", title: "Blocked" }, { sessionID: "s-block", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for register_spec/,
+    );
+    await assert.rejects(
+      () => wrapped.run_mechanical_checks.execute({}, { sessionID: "s-block", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for run_mechanical_checks/,
+    );
+    await assert.rejects(
+      () => wrapped.trigger_ci_check.execute({ workflow_id: "workflow-run:test", config: { check_id: "lint" } }, { sessionID: "s-block", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for trigger_ci_check/,
+    );
+    await assert.rejects(
+      () => wrapped.save_checkpoint.execute({ file: "blocked.json", summary: "x", remaining_work: "y" }, { sessionID: "s-block", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for save_checkpoint/,
+    );
+  });
+
+  test("authorized tool executor blocks direct unauthorized invocation without permission.ask", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-direct-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const wrapped = createAuthorizedToolExecutor(
+      { ...buildReadOnlyTools(root, runtimePaths), ...buildWriteTools(root, runtimePaths, "opencode") },
+      { ontologyRuntime: runtime, projectRoot: root, runtimePaths },
+    );
+
+    await assert.rejects(
+      () => wrapped.register_spec.execute({ spec_file: "blocked.md", title: "Blocked" }, { sessionID: "s-direct", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for register_spec/,
+    );
+  });
+
+  test("authorized specialist path still works", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-specialist-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const wrapped = createAuthorizedToolExecutor(
+      { ...buildReadOnlyTools(root, runtimePaths), ...buildWriteTools(root, runtimePaths, "opencode") },
+      { ontologyRuntime: runtime, projectRoot: root, runtimePaths },
+    );
+
+    const result = JSON.parse(await wrapped.save_checkpoint.execute(
+      { file: "resume.json", summary: "sum", remaining_work: "remain" },
+      { sessionID: "s-spec", directory: root, agent: "specialist:software-engineer" },
+    ));
+    assert.match(result.file, /resume\.json$/);
   });
 
   test("session authorization binds to actual tracked agent", async () => {
@@ -165,7 +228,7 @@ describe("plugin ontology integration", () => {
     assert.equal(tori.label, "Tori");
   });
 
-  test("local ontology override changes builtin agent config and prompt", async () => {
+  test("local ontology override cannot relax builtin tori safety policy", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-override-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
     await mkdir(runtimePaths.ontologyDir, { recursive: true });
@@ -177,7 +240,7 @@ describe("plugin ontology integration", () => {
           "@id": "agent:tori",
           "@type": "Agent",
           "label": "Tori Override",
-          "description": "Project-local Tori override",
+          "description": "Project-local Tori override attempt",
           "role_ids": ["role:orchestrator"],
           "capability_ids": [
             "capability:orchestration",
@@ -194,8 +257,8 @@ describe("plugin ontology integration", () => {
             "tool:transition_stage",
             "tool:record_task_result",
             "tool:record_check_result",
-            "tool:run_mechanical_checks",
             "tool:check_artifacts",
+            "tool:write_append",
             "tool:trigger_ci_check",
             "tool:save_checkpoint",
             "tool:scratchpad",
@@ -210,6 +273,16 @@ describe("plugin ontology integration", () => {
             "temperature": 0.9,
             "runtime_ids": ["opencode", "kilocode"]
           }
+        },
+        {
+          "@id": "policy:tori-no-direct-mutation",
+          "@type": "Policy",
+          "label": "Relaxed policy override",
+          "description": "Attempt to relax builtin deny policy",
+          "policy_kind_id": "policy-kind:authorization",
+          "effect": "policy-effect:deny",
+          "subject_agent_ids": ["agent:tori"],
+          "tool_ids": []
         }
       ]
     }, null, 2), "utf8");
@@ -217,10 +290,14 @@ describe("plugin ontology integration", () => {
 
     const runtime = await initializeOntologyRuntime({ runtimePaths });
     const configs = await runtime.buildRuntimeAgentConfigs("opencode");
-    assert.equal(runtime.getRegistry().getAgent("agent:tori")?.label, "Tori Override");
-    assert.equal(configs.tori.temperature, 0.9);
-    assert.equal(configs.tori.color, "info");
+    assert.equal(runtime.getRegistry().getAgent("agent:tori")?.label, "Tori");
+    assert.equal(configs.tori.temperature, 0.3);
+    assert.equal(configs.tori.color, "error");
     assert.equal(configs.tori.prompt, "LOCAL Tori prompt");
+    assert.equal(runtime.getRegistry().get("policy:tori-no-direct-mutation")?.label, "Tori no direct mutation");
+    assert.equal(configs.tori.tools.trigger_ci_check, undefined);
+    assert.equal(configs.tori.tools.save_checkpoint, undefined);
+    assert.equal(configs.tori.tools.scratchpad, undefined);
   });
 
   test("local ontology can add new agent", async () => {

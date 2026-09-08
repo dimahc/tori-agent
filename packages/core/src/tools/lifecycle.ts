@@ -294,11 +294,17 @@ export function truncateOutput(output: string | null | undefined, maxLines = 80)
   return `${head.join("\n")}\n... (${lines.length - 40} lines omitted) ...\n${tail.join("\n")}`;
 }
 
-function parseReviewChecks(content: string): Array<{ id: string; command: string; onFailure: "warn" | "fail" }> {
+export interface ReviewCheckDefinition {
+  id: string;
+  command: string;
+  onFailure: "warn" | "fail";
+}
+
+export function parseReviewChecks(content: string): ReviewCheckDefinition[] {
   const lines = content.split(/\r?\n/);
-  const checks: Array<{ id: string; command: string; onFailure: "warn" | "fail" }> = [];
+  const checks: ReviewCheckDefinition[] = [];
   let inSection = false;
-  let pending: { id: string; command: string; onFailure: "warn" | "fail" } | null = null;
+  let pending: ReviewCheckDefinition | null = null;
   for (const line of lines) {
     if (line.startsWith("## Review Checks")) {
       inSection = true;
@@ -322,12 +328,21 @@ function parseReviewChecks(content: string): Array<{ id: string; command: string
   return checks;
 }
 
+export async function loadReviewChecks(projectRoot: string): Promise<ReviewCheckDefinition[]> {
+  const agentsMd = await readFile(join(projectRoot, "AGENTS.md"), "utf8");
+  return parseReviewChecks(agentsMd);
+}
+
+export async function getReviewCheck(projectRoot: string, checkId: string): Promise<ReviewCheckDefinition | null> {
+  const checks = await loadReviewChecks(projectRoot);
+  return checks.find((check) => check.id === checkId) ?? null;
+}
+
 export async function runMechanicalChecks(projectRoot: string): Promise<{
   ok: boolean;
   checks: Array<{ id: string; command: string; ok: boolean; onFailure: "warn" | "fail"; stdout: string; stderr: string }>;
 }> {
-  const agentsMd = await readFile(join(projectRoot, "AGENTS.md"), "utf8");
-  const checks = parseReviewChecks(agentsMd);
+  const checks = await loadReviewChecks(projectRoot);
   const results: Array<{ id: string; command: string; ok: boolean; onFailure: "warn" | "fail"; stdout: string; stderr: string }> = [];
   let ok = true;
   for (const check of checks) {

@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildRuntimePaths, type RuntimeId } from "@tori-agent/ontology";
 import {
+  createAuthorizedToolExecutor,
   buildReadOnlyTools,
   buildWriteTools,
   createBudgetAwareToolExecutor,
@@ -23,7 +24,10 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
 
     const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths);
     const writeTools = buildWriteTools(projectRoot, runtimePaths, runtime);
-    const tools = createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools });
+    const tools = createAuthorizedToolExecutor(
+      createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }),
+      { ontologyRuntime, projectRoot, runtimePaths },
+    );
     const sessionTitleTracker = new SessionTitleTracker();
 
     for (const [name, tool] of Object.entries(tools)) {

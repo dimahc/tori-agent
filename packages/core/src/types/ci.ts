@@ -4,9 +4,5 @@
  */
 
 export interface CIConfig {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  timeout?: number;
-  working_dir?: string;
+  check_id: string;
 }

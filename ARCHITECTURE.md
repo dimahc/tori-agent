@@ -43,12 +43,12 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 
 - `run_mechanical_checks`: executes repo-declared commands from `AGENTS.md`
 - `check_artifacts`: scans ontology links/status consistency across markdown artifacts and workflow runs
-- `trigger_ci_check`: executes configured CI command and records ontology-native check result
+- `trigger_ci_check`: executes predeclared safe verification check by id and records ontology-native check result
 
 ## Test coverage added/updated
 
 - workflow transition semantics
-- policy enforcement by bound session agent
+- policy enforcement by bound session agent at permission.ask and tool execution boundary
 - strict SHACL-like shape validation
 - lifecycle/path/consistency behavior
 - ontology compilation / expansion verification

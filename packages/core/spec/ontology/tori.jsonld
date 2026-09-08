@@ -98,7 +98,7 @@
       "@id": "tool:trigger_ci_check",
       "@type": "Tool",
       "label": "trigger_ci_check",
-      "description": "Run configured CI check",
+      "description": "Run predeclared safe verification check",
       "capability_ids": ["capability:verification"]
     },
     {
@@ -149,11 +149,7 @@
         { "@id": "permission:orchestrator:transition", "@type": "PermissionGrant", "tool_id": "tool:transition_stage", "effect": "policy-effect:allow", "rationale": "Advance workflow by ontology transition semantics" },
         { "@id": "permission:orchestrator:record-task", "@type": "PermissionGrant", "tool_id": "tool:record_task_result", "effect": "policy-effect:allow", "rationale": "Persist delegated task evidence" },
         { "@id": "permission:orchestrator:record-check", "@type": "PermissionGrant", "tool_id": "tool:record_check_result", "effect": "policy-effect:allow", "rationale": "Persist verification evidence" },
-        { "@id": "permission:orchestrator:mechanical", "@type": "PermissionGrant", "tool_id": "tool:run_mechanical_checks", "effect": "policy-effect:allow", "rationale": "Run repo contract checks" },
         { "@id": "permission:orchestrator:artifacts", "@type": "PermissionGrant", "tool_id": "tool:check_artifacts", "effect": "policy-effect:allow", "rationale": "Validate artifact graph" },
-        { "@id": "permission:orchestrator:ci", "@type": "PermissionGrant", "tool_id": "tool:trigger_ci_check", "effect": "policy-effect:allow", "rationale": "Run configured CI when required" },
-        { "@id": "permission:orchestrator:checkpoint", "@type": "PermissionGrant", "tool_id": "tool:save_checkpoint", "effect": "policy-effect:allow", "rationale": "Persist continuation state" },
-        { "@id": "permission:orchestrator:scratchpad", "@type": "PermissionGrant", "tool_id": "tool:scratchpad", "effect": "policy-effect:allow", "rationale": "Track orchestration notes" },
         { "@id": "permission:orchestrator:skill", "@type": "PermissionGrant", "tool_id": "tool:skill", "effect": "policy-effect:allow", "rationale": "Load builtin skills" },
         { "@id": "permission:orchestrator:question", "@type": "PermissionGrant", "tool_id": "tool:question", "effect": "policy-effect:allow", "rationale": "Clarify requirements" }
       ]
@@ -216,7 +212,7 @@
       "policy_kind_id": "policy-kind:authorization",
       "effect": "policy-effect:deny",
       "subject_agent_ids": ["agent:tori"],
-      "tool_ids": ["tool:write", "tool:edit", "tool:bash", "tool:register_spec", "tool:mark_block_done", "tool:complete_plan", "tool:write_append"]
+      "tool_ids": ["tool:write", "tool:edit", "tool:bash", "tool:register_spec", "tool:mark_block_done", "tool:complete_plan", "tool:write_append", "tool:trigger_ci_check", "tool:run_mechanical_checks", "tool:save_checkpoint", "tool:scratchpad"]
     },
     {
       "@id": "policy:delivery-requires-mechanical-check",
@@ -262,11 +258,7 @@
         "tool:transition_stage",
         "tool:record_task_result",
         "tool:record_check_result",
-        "tool:run_mechanical_checks",
         "tool:check_artifacts",
-        "tool:trigger_ci_check",
-        "tool:save_checkpoint",
-        "tool:scratchpad",
         "tool:skill",
         "tool:question"
       ],
