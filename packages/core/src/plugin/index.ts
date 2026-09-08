@@ -1,8 +1,8 @@
-import { readFile, stat, mkdir, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import { CHECK_POLICY, WORKFLOW_STAGE, buildRuntimePaths, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../ontology/runtime.js";
+import { getBuiltinSkillsDir } from "../ontology/paths.js";
 import {
   checkArtifacts,
   completePlan,
@@ -106,45 +106,24 @@ function safeResolve(projectRoot: string, relPath: string): string {
   return resolved;
 }
 
-export async function syncBuiltinSkills(targetDir: string): Promise<Array<{ name: string; files: string[] }>> {
-  const sourceDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "spec", "skills");
-  await mkdir(targetDir, { recursive: true });
-  const entries = await readdir(sourceDir).catch(() => []);
-  const copied: Array<{ name: string; files: string[] }> = [];
-
-  async function copyTree(sourcePath: string, targetPath: string, relativePrefix = ""): Promise<string[]> {
-    const entryStat = await stat(sourcePath);
-    if (entryStat.isDirectory()) {
-      await mkdir(targetPath, { recursive: true });
-      const children = await readdir(sourcePath);
-      const copiedFiles: string[] = [];
-      for (const child of children) {
-        const childRelative = relativePrefix ? join(relativePrefix, child) : child;
-        copiedFiles.push(...await copyTree(join(sourcePath, child), join(targetPath, child), childRelative));
-      }
-      return copiedFiles;
-    }
-    const content = await readFile(sourcePath, "utf8");
-    await writeFile(targetPath, content, "utf8");
-    return [relativePrefix];
-  }
-
-  for (const entry of entries) {
-    const sourcePath = join(sourceDir, entry);
-    const entryStat = await stat(sourcePath);
-    if (!entryStat.isDirectory()) continue;
-    const targetPath = join(targetDir, entry);
-    const copiedFiles = await copyTree(sourcePath, targetPath);
-    copied.push({ name: entry, files: copiedFiles });
-  }
-  return copied;
-}
-
 export function createBudgetAwareToolExecutor(baseTools: ToolRegistry): ToolRegistry {
   return baseTools;
 }
 
-export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePaths, skillsDir: string): ToolRegistry {
+async function loadSkillContent(skillsDir: string, name: string): Promise<string> {
+  const localPath = join(skillsDir, name, "SKILL.md");
+  const builtinPath = join(getBuiltinSkillsDir(), name, "SKILL.md");
+  for (const candidate of [localPath, builtinPath]) {
+    try {
+      return await readFile(candidate, "utf8");
+    } catch {
+      // fallback
+    }
+  }
+  throw new Error(`Unknown skill ${name}`);
+}
+
+export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePaths): ToolRegistry {
   return {
     project_state: {
       description: "Return ontology-managed artifact state.",
@@ -177,11 +156,11 @@ export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePat
       },
     },
     skill: {
-      description: "Load builtin skill markdown.",
+      description: "Load skill markdown with local override and builtin fallback.",
       args: { name: {} },
       async execute({ name }) {
         if (typeof name !== "string") return JSON.stringify({ error: "name required" });
-        return readFile(join(skillsDir, name, "SKILL.md"), "utf8");
+        return loadSkillContent(runtimePaths.skillsDir, name);
       },
     },
     ...buildDiscoveryTools(),
@@ -254,7 +233,7 @@ export function buildWriteTools(
       description: "Apply ontology transition semantics to workflow run.",
       args: { workflow_id: {}, to_stage: {}, policy: {} },
       async execute({ workflow_id, to_stage, policy }) {
-        const runtimeApi = await initializeOntologyRuntime();
+        const runtimeApi = await initializeOntologyRuntime({ runtimePaths });
         const parsed = typeof policy === "string" && policy ? (JSON.parse(policy) as VerificationPolicy) : undefined;
         return JSON.stringify(await transitionStage(runtimePaths, runtimeApi, String(workflow_id), String(to_stage), parsed));
       },

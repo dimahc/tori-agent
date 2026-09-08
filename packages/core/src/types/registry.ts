@@ -73,6 +73,8 @@ export interface QueryOptions {
  * Interface for ontology persistence stores.
  */
 export interface OntologyStore {
+  /** Initialize store backing resources if needed. */
+  initialize?(): Promise<void>;
   /** Prepare for a new full snapshot write. */
   beginSave?(): Promise<void>;
   /** Save all entities to the store. */

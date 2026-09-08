@@ -11,7 +11,11 @@ Strict ontology core library. Build before tests so `dist/` exists.
 ## Plugin assembly
 
 - Plugin assembly builds runtime config from ontology records; ontology-derived prompt/tool/permission fields override host config.
-- Agent spec loading from [`spec/ontology/*.jsonld`](../spec/ontology) (ontology-native JSON-LD)
+- Builtin agent spec loading always starts from packaged [`spec/ontology/*.jsonld`](../spec/ontology).
+- Project-local ontology from `.opencode/ontology/` or `.kilocode/ontology/` loads after builtin graph; matching `@id` overrides builtin entity, new `@id` extends graph.
+- Builtin prompts resolve from packaged `spec/ontology/prompts/`; project-local `ontology/prompts/` wins when same prompt file exists.
+- Builtin skills resolve from packaged `spec/skills/`; project-local `skills/` wins when same skill exists.
+- Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 
 ## Workflow state machine

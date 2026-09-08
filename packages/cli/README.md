@@ -6,7 +6,7 @@ CLI for `tori-agent`. Currently implements `generate`; `serve` and `doctor` are 
 
 ### `generate` (implemented)
 
-Expands all agent specs + personas, prints a list of generated files. Outputs to `.opencode/agents/` or `.kilocode/agents/` depending on the active runtime. Also syncs builtin skills to `.opencode/skills/` or `.kilocode/skills/`.
+Expands all agent specs + personas, prints a list of generated files. Outputs to `.opencode/agents/` or `.kilocode/agents/` depending on the active runtime. Builtin skills remain package-resolved at runtime; project-local `skills/` entries override them when present.
 
 ```bash
 node packages/cli/dist/cli.js generate
@@ -16,7 +16,7 @@ node packages/cli/dist/cli.js generate
 
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
-| `--format` | `json` (default), `yaml`, `md` | `json` | Output format for agent files. Index is always `index.json`. Builtin skills sync in all formats. |
+| `--format` | `json` (default), `yaml`, `md` | `json` | Output format for agent files. Index is always `index.json`. |
 
 ```bash
 # JSON output (default)

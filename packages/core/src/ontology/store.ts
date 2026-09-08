@@ -93,3 +93,25 @@ export class FileSystemOntologyStore implements OntologyStore {
     return (await readdir(this.config.baseDir)).filter((file) => file.endsWith(this.config.extension));
   }
 }
+
+export class NoopOntologyStore implements OntologyStore {
+  async save(): Promise<void> {
+    // strict runtime bootstrap never persists builtin or merged ontology into project directories
+  }
+
+  async load(): Promise<Map<OntologyId, OntologyEntity>> {
+    return new Map();
+  }
+
+  async backup(): Promise<void> {
+    throw new Error("Backup unsupported for noop ontology store.");
+  }
+
+  async restore(): Promise<void> {
+    throw new Error("Restore unsupported for noop ontology store.");
+  }
+
+  async exists(): Promise<boolean> {
+    return false;
+  }
+}

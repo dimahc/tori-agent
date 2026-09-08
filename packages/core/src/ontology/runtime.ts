@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   ENTITY_TYPES,
   ONTOLOGY_SCHEMA_VERSION,
@@ -10,10 +9,17 @@ import {
   type OntologyBundle,
   type OntologyId,
   type RuntimeId,
+  type RuntimePaths,
 } from "@tori-agent/ontology";
 import { OntologyCompiler } from "./compiler.js";
 import { PolicyEngineImpl } from "../policy/engine.js";
 import { JSONLDSerializer } from "../serialization/jsonld.js";
+import { getBuiltinOntologyPromptDir, getBuiltinOntologySpecDir } from "./paths.js";
+
+export interface OntologyRuntimeOptions {
+  projectRoot?: string;
+  runtimePaths?: RuntimePaths;
+}
 
 export interface RuntimeAgentConfig {
   description: string;
@@ -28,13 +34,15 @@ export interface RuntimeAgentConfig {
 export class OntologyRuntime {
   private readonly compiler: OntologyCompiler;
   private readonly serializer = new JSONLDSerializer();
+  private readonly runtimePaths?: RuntimePaths;
   private initialized = false;
   private bundle: OntologyBundle | null = null;
   private policyEngine: PolicyEngineImpl | null = null;
   private readonly sessionAgents = new Map<string, OntologyId>();
 
-  constructor(compiler = new OntologyCompiler()) {
+  constructor(compiler = new OntologyCompiler(), options: OntologyRuntimeOptions = {}) {
     this.compiler = compiler;
+    this.runtimePaths = options.runtimePaths;
   }
 
   async initialize(): Promise<void> {
@@ -156,9 +164,17 @@ export class OntologyRuntime {
 
   private async loadPrompt(promptRef: OntologyId): Promise<string> {
     const fileName = promptRef.replace("prompt:", "") + ".md";
-    const baseDir = dirname(fileURLToPath(import.meta.url));
-    const content = await readFile(join(baseDir, "..", "..", "spec", "ontology", "prompts", fileName), "utf8");
-    return content.trim();
+    const localPrompt = this.runtimePaths ? join(this.runtimePaths.ontologyDir, "prompts", fileName) : null;
+    const candidates = [localPrompt, join(getBuiltinOntologyPromptDir(), fileName)].filter((value): value is string => Boolean(value));
+    for (const candidate of candidates) {
+      try {
+        const content = await readFile(candidate, "utf8");
+        return content.trim();
+      } catch {
+        // try next candidate
+      }
+    }
+    throw new Error(`Prompt not found for ${promptRef}`);
   }
 
   private buildToolsMap(agent: AgentDefinition): Record<string, boolean> {
@@ -191,15 +207,40 @@ export class OntologyRuntime {
   }
 }
 
-let runtimeInstance: OntologyRuntime | null = null;
+const runtimeInstances = new Map<string, OntologyRuntime>();
 
-export function getOntologyRuntime(): OntologyRuntime {
-  runtimeInstance ??= new OntologyRuntime();
-  return runtimeInstance;
+function runtimeCacheKey(options: OntologyRuntimeOptions = {}): string {
+  if (options.runtimePaths) {
+    return JSON.stringify({
+      runtimeRoot: options.runtimePaths.runtimeRoot,
+      ontologyDir: options.runtimePaths.ontologyDir,
+      skillsDir: options.runtimePaths.skillsDir,
+      runtimeId: options.runtimePaths.runtimeId,
+    });
+  }
+  return "builtin-runtime";
 }
 
-export async function initializeOntologyRuntime(): Promise<OntologyRuntime> {
-  const runtime = getOntologyRuntime();
+function buildCompiler(options: OntologyRuntimeOptions = {}): OntologyCompiler {
+  const sourceDirs = [getBuiltinOntologySpecDir()];
+  if (options.runtimePaths) {
+    sourceDirs.push(options.runtimePaths.ontologyDir);
+  }
+  return new OntologyCompiler({ sourceDirs });
+}
+
+export function getOntologyRuntime(options: OntologyRuntimeOptions = {}): OntologyRuntime {
+  const key = runtimeCacheKey(options);
+  let runtime = runtimeInstances.get(key);
+  if (!runtime) {
+    runtime = new OntologyRuntime(buildCompiler(options), options);
+    runtimeInstances.set(key, runtime);
+  }
+  return runtime;
+}
+
+export async function initializeOntologyRuntime(options: OntologyRuntimeOptions = {}): Promise<OntologyRuntime> {
+  const runtime = getOntologyRuntime(options);
   await runtime.initialize();
   return runtime;
 }

@@ -12,8 +12,8 @@ Compact guide for agents working in this repo.
 | Lint | `npm run lint` | `eslint packages/*/src/` |
 | Test | `npm test` | Runs strict ontology lifecycle/workflow/plugin tests |
 | Verify agents | `node packages/core/tests/verify-expansion.mjs` | Requires `npm run build` first (imports from `dist/`) |
-| Generate agents | `node packages/cli/dist/cli.js generate` | Expands all agent specs + personas, prints list; output to `.opencode/agents/` or `.kilocode/agents/` based on runtime. Also syncs builtin skills to `.opencode/skills/` or `.kilocode/skills/` |
-| Generate (format) | `node packages/cli/dist/cli.js generate --format json | yaml | md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json`; builtin skills synced in all formats |
+| Generate agents | `node packages/cli/dist/cli.js generate` | Expands all agent specs + personas, prints list; output to `.opencode/agents/` or `.kilocode/agents/` based on runtime. Runtime still resolves builtin skills from packaged core spec; local `skills/` overrides when present |
+| Generate (format) | `node packages/cli/dist/cli.js generate --format json | yaml | md` | Output agent files in JSON (default), YAML, or Markdown; index is always `index.json` |
 
 **Build order matters.** Harness depends on core; core depends on ontology. Build ontology first.
 

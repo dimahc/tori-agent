@@ -7,7 +7,6 @@ import {
   createBudgetAwareToolExecutor,
   initializeOntologyRuntime,
   registerToolInLazyRegistry,
-  syncBuiltinSkills,
 } from "@tori-agent/core";
 import type { PluginInput, PluginOutput } from "./types.js";
 
@@ -19,11 +18,9 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
     const projectRoot = input.worktree && input.worktree !== "/" ? input.worktree : input.directory ?? ".";
     const configDir = configPath ? dirname(configPath) : join(projectRoot, runtime === "opencode" ? ".opencode" : ".kilocode");
     const runtimePaths = buildRuntimePaths(projectRoot, runtime, configDir);
-    const ontologyRuntime = await initializeOntologyRuntime();
+    const ontologyRuntime = await initializeOntologyRuntime({ runtimePaths });
 
-    await syncBuiltinSkills(runtimePaths.skillsDir);
-
-    const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths, runtimePaths.skillsDir);
+    const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths);
     const writeTools = buildWriteTools(projectRoot, runtimePaths, runtime);
     const tools = createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools });
 
@@ -43,12 +40,12 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
         if (event.type !== "session.created") return;
         await Promise.all([
           mkdir(runtimePaths.runtimeRoot, { recursive: true }),
-          mkdir(runtimePaths.ontologyDir, { recursive: true }),
           mkdir(runtimePaths.specsDir, { recursive: true }),
           mkdir(runtimePaths.briefsDir, { recursive: true }),
           mkdir(runtimePaths.execPlansDir, { recursive: true }),
           mkdir(runtimePaths.workflowsDir, { recursive: true }),
           mkdir(runtimePaths.checkpointsDir, { recursive: true }),
+          mkdir(runtimePaths.skillsDir, { recursive: true }),
         ]);
       },
       "chat.message": async ({ sessionID, agent }) => {

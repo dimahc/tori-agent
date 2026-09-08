@@ -1,6 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type {
   AgentDefinition,
   CapabilityDefinition,
@@ -14,10 +13,9 @@ import type {
 } from "@tori-agent/ontology";
 import { ENTITY_TYPES } from "@tori-agent/ontology";
 import { OntologyRegistry, DEFAULT_REGISTRY_CONFIG } from "./registry.js";
-import { FileSystemOntologyStore } from "./store.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SPEC_DIR = join(__dirname, "..", "..", "spec", "ontology");
+import { NoopOntologyStore } from "./store.js";
+import { getBuiltinOntologySpecDir } from "./paths.js";
+import type { OntologyStore } from "../types/registry.js";
 
 export interface CompilationResult {
   graph: OntologyEntity[];
@@ -35,16 +33,22 @@ export interface CompilationResult {
 
 export class OntologyCompiler {
   private readonly registry: OntologyRegistry;
-  private readonly store: FileSystemOntologyStore;
+  private readonly store: OntologyStore;
+  private readonly builtinSpecDir: string;
+  private readonly sourceDirs: string[];
+  private readonly sourceByEntityId = new Map<string, string>();
 
-  constructor(store = new FileSystemOntologyStore(), registry?: OntologyRegistry) {
+  constructor(options: { sourceDirs?: string[]; store?: OntologyStore; registry?: OntologyRegistry } = {}) {
+    const store = options.store ?? new NoopOntologyStore();
     this.store = store;
-    this.registry = registry ?? new OntologyRegistry(DEFAULT_REGISTRY_CONFIG, undefined, undefined, store);
+    this.registry = options.registry ?? new OntologyRegistry(DEFAULT_REGISTRY_CONFIG, undefined, undefined, store);
     this.registry.setStore(store);
+    this.builtinSpecDir = getBuiltinOntologySpecDir();
+    this.sourceDirs = options.sourceDirs?.length ? [...options.sourceDirs] : [this.builtinSpecDir];
   }
 
   async initialize(): Promise<void> {
-    await this.store.initialize();
+    await this.store.initialize?.();
   }
 
   getRegistry(): OntologyRegistry {
@@ -54,11 +58,12 @@ export class OntologyCompiler {
   async compileAll(): Promise<CompilationResult> {
     const warnings: string[] = [];
     const errors: Array<{ specId: string; error: string }> = [];
+    this.sourceByEntityId.clear();
     const entities = await this.loadOntologyEntities(warnings, errors);
 
     await this.registry.clear();
     for (const entity of entities) {
-      const result = await this.registry.register(entity, SPEC_DIR);
+      const result = await this.registry.register(entity, this.resolveEntitySourcePath(entity["@id"]));
       if (!result.success) {
         errors.push({ specId: entity["@id"], error: result.error ?? "registration failed" });
       }
@@ -84,24 +89,34 @@ export class OntologyCompiler {
     warnings: string[],
     errors: Array<{ specId: string; error: string }>,
   ): Promise<OntologyEntity[]> {
-    const files = (await readdir(SPEC_DIR)).filter((file) => file.endsWith(".jsonld"));
-    const entities: OntologyEntity[] = [];
+    const entityMap = new Map<string, OntologyEntity>();
 
-    for (const file of files) {
-      try {
-        const parsed = JSON.parse(await readFile(join(SPEC_DIR, file), "utf8")) as { "@graph"?: OntologyEntity[] };
-        if (!Array.isArray(parsed["@graph"])) {
-          warnings.push(`${file}: missing @graph`);
-          continue;
+    for (const sourceDir of this.sourceDirs) {
+      const files = await readdir(sourceDir).catch(() => []);
+      for (const file of files.filter((entry) => entry.endsWith(".jsonld"))) {
+        try {
+          const parsed = JSON.parse(await readFile(join(sourceDir, file), "utf8")) as { "@graph"?: OntologyEntity[] };
+          if (!Array.isArray(parsed["@graph"])) {
+            warnings.push(`${join(sourceDir, file)}: missing @graph`);
+            continue;
+          }
+          for (const entity of parsed["@graph"]) {
+            entityMap.set(entity["@id"], entity);
+            this.sourceByEntityId.set(entity["@id"], join(sourceDir, file));
+          }
+        } catch (error) {
+          errors.push({ specId: join(sourceDir, file), error: error instanceof Error ? error.message : String(error) });
         }
-        entities.push(...parsed["@graph"]);
-      } catch (error) {
-        errors.push({ specId: file, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
+    const entities = Array.from(entityMap.values());
     this.assertStrictOntology(entities);
     return entities;
+  }
+
+  private resolveEntitySourcePath(entityId: string): string {
+    return this.sourceByEntityId.get(entityId) ?? this.builtinSpecDir;
   }
 
   private assertStrictOntology(entities: OntologyEntity[]): void {
