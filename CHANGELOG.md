@@ -62,6 +62,7 @@
 - Remove unused allCoreTools variable
 - Stabilize ontology runtime loading
 - Support project-local ontology overrides
+- Derive title from first user request
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
