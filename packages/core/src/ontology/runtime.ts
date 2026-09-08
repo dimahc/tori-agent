@@ -117,20 +117,26 @@ export class OntologyRuntime {
     const agents = this.registry.getByType("Agent") as Agent[];
 
     for (const agent of agents) {
-      // Use @id without 'agent:' prefix as the key for OpenCode
-      const agentKey = agent['@id'].replace(/^agent:/, '');
+      // Use @id as the key for OpenCode (stripping prefix for host-facing key)
+      const fullId = agent['@id'] as string;
+      const agentKey = fullId.includes(':') ? fullId.split(':')[1] : fullId;
+      console.log(`[tori-ontology] Registering agent: originalId=${fullId}, agentKey=${agentKey}`);
       const userCfg = (userAgents[agentKey] ?? {}) as Record<string, unknown> & { soul?: boolean };
       const { soul, ...userCfgRest } = userCfg;
 
-      // Get capabilities for this agent
-      const capabilities = this.registry.getRelated(agent['@id'], 'governedBy')
-        .filter(e => e['@type'] === 'Capability') as Capability[];
-
-      // Build tool map based on capabilities (not string permissions)
-      const toolsMap = this.buildToolsMapFromCapabilities(agent, capabilities, pluginToolNames);
-
-      // Build host permission object (for runtime compatibility)
-      const hostPermission = await this.buildHostPermissionFromPolicy(agent, pluginToolNames);
+       // Get capabilities for this agent
+       const capabilities = (agent.capabilities ?? this.registry.getRelated(fullId, 'governedBy')
+         .filter(e => e['@type'] === 'Capability') as Capability[]) || [];
+ 
+       // Get tools for this agent
+       const tools = (agent.tools ?? this.registry.getRelated(fullId, 'governedBy')
+         .filter(e => e['@type'] === 'Tool') as Tool[]) || [];
+ 
+       // Build tool map based on capabilities (not string permissions)
+       const toolsMap = this.buildToolsMapFromCapabilities(agent, capabilities, pluginToolNames, tools);
+ 
+       // Build host permission object (for runtime compatibility)
+       const hostPermission = await this.buildHostPermissionFromPolicy(agent, pluginToolNames, tools);
 
       // Get ontology-native behavior for this agent
       const behavior = this.getAgentBehavior(agent);
@@ -208,95 +214,97 @@ export class OntologyRuntime {
    * Build tool map from agent's capabilities.
    * REPLACES: buildToolsMap() from agents.ts
    */
-  private buildToolsMapFromCapabilities(
-    agent: Agent,
-    capabilities: Capability[],
-    pluginToolNames?: Set<string>
-  ): Record<string, boolean> {
-    const tools: Record<string, boolean> = {};
-
-    // Get tools governed by this agent
-    const agentTools = this.registry.getRelated(agent['@id'], 'governedBy')
-      .filter(e => e['@type'] === 'Tool') as Tool[];
-
-    for (const tool of agentTools) {
-      // Check if the agent has the capability for this tool
-      const capId = tool.capability_id;
-      const hasCapability = capabilities.some(c => c['@id'] === capId);
-
-      if (hasCapability) {
-        tools[tool.name] = true;
-      } else if (pluginToolNames && pluginToolNames.has(tool.name)) {
-        tools[tool.name] = false;
-      }
-    }
-
-    // Add MCP tools (always allowed if no explicit deny)
-    if (pluginToolNames) {
-      for (const toolName of pluginToolNames) {
-        if (toolName.includes('__') || toolName.startsWith('mcp_') || toolName.startsWith('list_mcp_') || toolName.startsWith('read_mcp_')) {
-          if (tools[toolName] === undefined) {
-            tools[toolName] = true;
-          }
-        }
-      }
-    }
-
-    return tools;
-  }
+   private buildToolsMapFromCapabilities(
+     agent: Agent,
+     capabilities: Capability[],
+     pluginToolNames?: Set<string>,
+     explicitTools?: Tool[]
+   ): Record<string, boolean> {
+     const tools: Record<string, boolean> = {};
+ 
+     // Get tools governed by this agent or explicitly defined
+     const agentTools = explicitTools ?? this.registry.getRelated(agent['@id'], 'governedBy')
+       .filter(e => e['@type'] === 'Tool') as Tool[];
+ 
+     for (const tool of agentTools) {
+       // Check if the agent has the capability for this tool
+       const capId = tool.capability_id;
+       const hasCapability = capabilities.some(c => c['@id'] === capId);
+ 
+       if (hasCapability) {
+         tools[tool.name] = true;
+       } else if (pluginToolNames && pluginToolNames.has(tool.name)) {
+         tools[tool.name] = false;
+       }
+     }
+ 
+     // Add MCP tools (always allowed if no explicit deny)
+     if (pluginToolNames) {
+       for (const toolName of pluginToolNames) {
+         if (toolName.includes('__') || toolName.startsWith('mcp_') || toolName.startsWith('list_mcp_') || toolName.startsWith('read_mcp_')) {
+           if (tools[toolName] === undefined) {
+             tools[toolName] = true;
+           }
+         }
+       }
+     }
+ 
+     return tools;
+   }
 
   /**
    * Build host permission object from policy engine.
    * REPLACES: buildHostPermission() from agents.ts
    */
-  private async buildHostPermissionFromPolicy(
-    agent: Agent,
-    pluginToolNames?: Set<string>
-  ): Promise<Record<string, unknown>> {
-    const result: Record<string, unknown> = {};
-
-    // Get all tools this agent can access
-    const agentTools = this.registry.getRelated(agent['@id'], 'governedBy')
-      .filter(e => e['@type'] === 'Tool') as Tool[];
-
-    // Build permission map by querying policy engine for each tool
-    for (const tool of agentTools) {
-      const canAccess = await this.policyEngine.evaluate(
-        agent['@id'],
-        tool.name,
-        "resource:*"
-      );
-      if (canAccess) {
-        result[tool.name] = "allow";
-      }
-    }
-
-    // Handle write/edit special case
-    if (result.write === undefined && result.edit === "allow") {
-      result.write = "allow";
-    }
-    if (result.edit === undefined && result.write === "allow") {
-      result.edit = "allow";
-    }
-
-    // External directory access
-    if (result.external_directory === undefined) {
-      result.external_directory = "deny";
-    }
-
-    // MCP tools pass through
-    if (pluginToolNames) {
-      for (const toolName of pluginToolNames) {
-        if (toolName.includes('__') || toolName.startsWith('mcp_')) {
-          if (result[toolName] === undefined) {
-            result[toolName] = "allow";
-          }
-        }
-      }
-    }
-
-    return result;
-  }
+   private async buildHostPermissionFromPolicy(
+     agent: Agent,
+     pluginToolNames?: Set<string>,
+     explicitTools?: Tool[]
+   ): Promise<Record<string, unknown>> {
+     const result: Record<string, unknown> = {};
+ 
+     // Get all tools this agent can access
+     const agentTools = explicitTools ?? this.registry.getRelated(agent['@id'], 'governedBy')
+       .filter(e => e['@type'] === 'Tool') as Tool[];
+ 
+     // Build permission map by querying policy engine for each tool
+     for (const tool of agentTools) {
+       const canAccess = await this.policyEngine.evaluate(
+         agent['@id'],
+         tool.name,
+         "resource:*"
+       );
+       if (canAccess) {
+         result[tool.name] = "allow";
+       }
+     }
+ 
+     // Handle write/edit special case
+     if (result.write === undefined && result.edit === "allow") {
+       result.write = "allow";
+     }
+     if (result.edit === undefined && result.write === "allow") {
+       result.edit = "allow";
+     }
+ 
+     // External directory access
+     if (result.external_directory === undefined) {
+       result.external_directory = "deny";
+     }
+ 
+     // MCP tools pass through
+     if (pluginToolNames) {
+       for (const toolName of pluginToolNames) {
+         if (toolName.includes('__') || toolName.startsWith('mcp_')) {
+           if (result[toolName] === undefined) {
+             result[toolName] = "allow";
+           }
+         }
+       }
+     }
+ 
+     return result;
+   }
 
   /**
    * Evaluate permission using the policy engine.

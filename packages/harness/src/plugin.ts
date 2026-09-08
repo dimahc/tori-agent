@@ -133,8 +133,15 @@ export function buildPlugin(options: { runtime?: 'opencode' | 'kilocode'; config
         const agents = input.agent as Record<string, Record<string, unknown>> | undefined;
         if (agents) {
           for (const [id, cfg] of Object.entries(agents)) {
-            if (id === 'tori' || id.startsWith('specialist') || id.startsWith('scribe')) {
-              log(`[CONFIG] ${id} config keys:`, Object.keys(cfg));
+            const registry = ontologyRuntime.getRegistry();
+            const agentEntity = registry.getByType("Agent").find(a => 
+              a['@id'] === id || 
+              a['@id'] === `agent:${id}` || 
+              id === a['@id'].split(':').pop()
+            );
+
+            if (agentEntity) {
+              log(`[CONFIG] ${id} (recognized as ${agentEntity['@id']}) config keys:`, Object.keys(cfg));
               const c = cfg as { tools?: unknown; permission?: unknown };
               if (c.tools) log(`[CONFIG] ${id} tools:`, c.tools);
               if (c.permission) log(`[CONFIG] ${id} permission:`, c.permission);
