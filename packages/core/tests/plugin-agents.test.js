@@ -26,6 +26,16 @@ describe("plugin ontology integration", () => {
     assert.ok(configs["specialist:software-engineer"]);
   });
 
+  test("runtime resolves default main-session agent as tori", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-default-agent-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    assert.deepEqual(runtime.getDefaultMainSessionAgent("opencode"), {
+      agentId: "agent:tori",
+      hostAgentName: "tori",
+    });
+  });
+
   test("tool builders expose ontology-native tool set", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
@@ -245,6 +255,54 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "deny");
   });
 
+  test("session.agent exposes authoritative tori binding before first turn", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const binding = {};
+    await plugin["session.agent"]({ sessionID: "s-bind" }, binding);
+    assert.deepEqual(binding, {
+      agent: "tori",
+      agentId: "agent:tori",
+      authoritative: true,
+      source: "ontology-default-main-agent",
+    });
+
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-bind", type: "write", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
+  });
+
+  test("session.created can bind session to tori before first message when host consumes output", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const binding = {};
+    await plugin.event({ event: { type: "session.created", sessionID: "s-created" } }, binding);
+    assert.deepEqual(binding, {
+      agent: "tori",
+      agentId: "agent:tori",
+      authoritative: true,
+      source: "ontology-default-main-agent",
+    });
+
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-created", type: "write", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
+  });
+
+  test("unbound session still denies mutation tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-unbound-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-unbound", type: "write", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
+  });
+
   test("assistant output hook rewrites repeated self-talk paragraphs", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
@@ -282,7 +340,7 @@ describe("plugin ontology integration", () => {
     assert.match(output.reason, /self-talk persists|Repeated self-talk/);
   });
 
-  test("harness config merge keeps ontology-derived agent config authoritative", async () => {
+  test("harness config output keeps compiled ontology agents authoritative", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-merge-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
@@ -293,11 +351,24 @@ describe("plugin ontology integration", () => {
           tools: { write: true },
           permission: { write: "allow" },
         },
+        rogue: {
+          prompt: "rogue",
+        },
       },
     });
     assert.notEqual(config.agent.tori.prompt, "host override");
     assert.equal(config.agent.tori.tools.write, undefined);
     assert.equal(config.agent.tori.permission.write, undefined);
+    assert.equal(config.agent.rogue, undefined);
+    assert.equal(config.defaultAgent, "tori");
+    assert.deepEqual(config.session, {
+      defaultAgent: "tori",
+      defaultAgentId: "agent:tori",
+      authoritative: true,
+      source: "ontology",
+    });
+    assert.equal(config.ontology.authoritative, true);
+    assert.ok(config.ontology.authoritativeAgentKeys.includes("tori"));
   });
 
   test("fresh project with no local ontology still loads builtin tori", async () => {

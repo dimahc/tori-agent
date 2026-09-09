@@ -11,7 +11,15 @@ import {
   registerToolInLazyRegistry,
   SessionTitleTracker,
 } from "@tori-agent/core";
-import type { AssistantOutputMutation, PluginInput, PluginOutput, SessionTitleHookInput, SessionTitleMutation } from "./types.js";
+import type {
+  AssistantOutputMutation,
+  PluginInput,
+  PluginOutput,
+  SessionAgentHookInput,
+  SessionAgentMutation,
+  SessionTitleHookInput,
+  SessionTitleMutation,
+} from "./types.js";
 
 export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string } = {}) {
   const runtime = options.runtime ?? "opencode";
@@ -30,6 +38,17 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
       { ontologyRuntime, projectRoot, runtimePaths },
     );
     const sessionTitleTracker = new SessionTitleTracker();
+
+    const resolveSessionAgent = async (
+      message: SessionAgentHookInput,
+      output: SessionAgentMutation,
+    ): Promise<void> => {
+      const binding = ontologyRuntime.bindSessionToDefaultMainAgent(message.sessionID, runtime);
+      output.agent = binding.agent;
+      output.agentId = binding.agentId;
+      output.authoritative = binding.authoritative;
+      output.source = binding.source;
+    };
 
     for (const [name, tool] of Object.entries(tools)) {
       registerToolInLazyRegistry(name, "core", tool.description, tool.args, tool.execute);
@@ -72,13 +91,17 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
 
     return {
       config: async (config) => {
-        const compiled = await ontologyRuntime.buildRuntimeAgentConfigs(runtime);
-        const existing = (config.agent ?? {}) as Record<string, unknown>;
-        config.agent = { ...existing, ...compiled };
-        return config;
+        const compiled = await ontologyRuntime.buildRuntimeConfigEnvelope(runtime);
+        return {
+          ...config,
+          agent: compiled.agent,
+          defaultAgent: compiled.defaultAgent,
+          session: compiled.session,
+          ontology: compiled.ontology,
+        };
       },
       tool: tools as Record<string, unknown>,
-      event: async ({ event }) => {
+      event: async ({ event, sessionID, agent }, output) => {
         if (event.type !== "session.created") return;
         await Promise.all([
           mkdir(runtimePaths.runtimeRoot, { recursive: true }),
@@ -89,6 +112,13 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
           mkdir(runtimePaths.checkpointsDir, { recursive: true }),
           mkdir(runtimePaths.skillsDir, { recursive: true }),
         ]);
+        const resolvedSessionID = event.sessionID ?? sessionID;
+        if (resolvedSessionID && output) {
+          await resolveSessionAgent({ sessionID: resolvedSessionID, agent: event.agent ?? agent }, output);
+        }
+      },
+      "session.agent": async (message, output) => {
+        await resolveSessionAgent(message, output);
       },
       "chat.message": async (message, output) => {
         ontologyRuntime.bindSession(message.sessionID, message.agent);

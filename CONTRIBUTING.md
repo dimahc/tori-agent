@@ -46,11 +46,16 @@ Runtime hook surface stays explicit and deterministic:
 
 - `config`
 - `event`
+- `session.agent`
 - `chat.message`
 - `session.title`
 - `assistant.output`
 - `permission.ask`
 
+`session.agent` is canonical pre-first-turn binding hook for main sessions. Host should call it on new session and bind returned agent before first user message. `event` on `session.created` may return same binding when host passes `sessionID` and consumes output.
+
 Session title proposals come from first meaningful user request only. Host may consume `{ title, shouldRename, source }` from `chat.message` or `session.title`.
 
 Assistant output suppression is host-enforced through `assistant.output`. Host must honor `allow | retry | block` and permit at most one regeneration attempt.
+
+Repo guarantees ontology-derived agent config, canonical default main-session agent metadata, and deny-by-default behavior for unbound sessions. Repo cannot force host-native `write` / `edit` / `bash` execution if host skips `permission.ask`.

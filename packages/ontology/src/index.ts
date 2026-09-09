@@ -258,6 +258,7 @@ export interface AgentDefinition extends OntologyEntity {
   prompt_ref: OntologyId;
   metadata: {
     color: string;
+    default_main_session?: boolean;
     human_tone: boolean;
     mode: "all" | "subagent";
     temperature: number;

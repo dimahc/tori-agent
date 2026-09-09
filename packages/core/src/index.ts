@@ -12,7 +12,16 @@ export { OntologyCompiler } from "./ontology/compiler.js";
 export { MigrationEngine, defaultMigrations } from "./ontology/migration.js";
 export { FileSystemOntologyStore, NoopOntologyStore, DEFAULT_STORE_CONFIG } from "./ontology/store.js";
 export { getBuiltinOntologyPromptDir, getBuiltinOntologySpecDir, getBuiltinSkillsDir } from "./ontology/paths.js";
-export { OntologyRuntime, initializeOntologyRuntime, getOntologyRuntime } from "./ontology/runtime.js";
+export {
+  OntologyRuntime,
+  initializeOntologyRuntime,
+  getOntologyRuntime,
+} from "./ontology/runtime.js";
+export type {
+  DefaultMainSessionAgent,
+  RuntimeConfigEnvelope,
+  SessionAgentBinding,
+} from "./ontology/runtime.js";
 export { PolicyEngineImpl } from "./policy/engine.js";
 export { JSONLDSerializer } from "./serialization/jsonld.js";
 export { ShaclValidator } from "./validation/shacl.js";

@@ -302,6 +302,7 @@
       "prompt_ref": "prompt:tori",
       "metadata": {
         "color": "error",
+        "default_main_session": true,
         "human_tone": true,
         "mode": "all",
         "temperature": 0.3,

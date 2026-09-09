@@ -36,10 +36,21 @@ Harness plugin exposes deterministic runtime hooks:
 
 - `config`
 - `event`
+- `session.agent`
 - `chat.message`
 - `session.title`
 - `assistant.output`
 - `permission.ask`
+
+Main-session binding contract:
+
+- ontology declares exactly one default main-session agent per runtime
+- builtin default main-session agent is `agent:tori` -> host key `tori`
+- `session.agent` returns canonical binding payload before first turn: `{ agent, agentId, authoritative: true, source: "ontology-default-main-agent" }`
+- `event` on `session.created` can return same binding payload when host passes `sessionID` and consumes output
+- `config` returns authoritative compiled `agent` map plus `defaultAgent`, `session.defaultAgent`, and `ontology.authoritativeAgentKeys`
+- unbound sessions stay denied at `permission.ask` and repo-owned mutation-tool wrappers
+- host-native mutation tools (`write` / `edit` / `bash`) still require host to call `permission.ask`; repo cannot intercept host-native execution if host skips that boundary
 
 Session title contract:
 

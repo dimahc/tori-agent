@@ -17,7 +17,7 @@ describe("ShaclValidator strict ontology", () => {
         capability_ids: ["capability:test"],
         tool_ids: ["tool:read"],
         prompt_ref: "prompt:test",
-        metadata: { color: "info", human_tone: false, mode: "subagent", temperature: 0.1, runtime_ids: ["opencode"] },
+        metadata: { color: "info", default_main_session: false, human_tone: false, mode: "subagent", temperature: 0.1, runtime_ids: ["opencode"] },
       } as any,
       "agent.jsonld",
     );

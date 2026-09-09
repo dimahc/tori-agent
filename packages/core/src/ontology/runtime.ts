@@ -33,6 +33,35 @@ export interface RuntimeAgentConfig {
   permission: Record<string, "allow" | "deny">;
 }
 
+export interface DefaultMainSessionAgent {
+  agentId: OntologyId;
+  hostAgentName: string;
+}
+
+export interface RuntimeConfigEnvelope {
+  agent: Record<string, RuntimeAgentConfig>;
+  defaultAgent: string;
+  session: {
+    defaultAgent: string;
+    defaultAgentId: OntologyId;
+    authoritative: true;
+    source: "ontology";
+  };
+  ontology: {
+    authoritative: true;
+    defaultMainAgent: string;
+    defaultMainAgentId: OntologyId;
+    authoritativeAgentKeys: string[];
+  };
+}
+
+export interface SessionAgentBinding {
+  agent: string;
+  agentId: OntologyId;
+  authoritative: true;
+  source: "ontology-default-main-agent";
+}
+
 export class OntologyRuntime {
   private readonly compiler: OntologyCompiler;
   private readonly serializer = new JSONLDSerializer();
@@ -111,6 +140,54 @@ export class OntologyRuntime {
       };
     }
     return configs;
+  }
+
+  async buildRuntimeConfigEnvelope(runtimeId: RuntimeId): Promise<RuntimeConfigEnvelope> {
+    const agent = await this.buildRuntimeAgentConfigs(runtimeId);
+    const binding = this.getDefaultMainSessionAgent(runtimeId);
+    return {
+      agent,
+      defaultAgent: binding.hostAgentName,
+      session: {
+        defaultAgent: binding.hostAgentName,
+        defaultAgentId: binding.agentId,
+        authoritative: true,
+        source: "ontology",
+      },
+      ontology: {
+        authoritative: true,
+        defaultMainAgent: binding.hostAgentName,
+        defaultMainAgentId: binding.agentId,
+        authoritativeAgentKeys: Object.keys(agent),
+      },
+    };
+  }
+
+  getDefaultMainSessionAgent(runtimeId: RuntimeId): DefaultMainSessionAgent {
+    this.assertInitialized();
+    const candidates = this.bundle!.agents.filter(
+      (agent) => agent.metadata.runtime_ids.includes(runtimeId) && agent.metadata.mode === "all" && agent.metadata.default_main_session === true,
+    );
+    if (candidates.length !== 1) {
+      throw new Error(
+        `Ontology must define exactly one default main-session agent for runtime ${runtimeId}; found ${candidates.length}`,
+      );
+    }
+    return {
+      agentId: candidates[0]["@id"],
+      hostAgentName: this.toHostAgentKey(candidates[0]["@id"]),
+    };
+  }
+
+  bindSessionToDefaultMainAgent(sessionId: string, runtimeId: RuntimeId): SessionAgentBinding {
+    const binding = this.getDefaultMainSessionAgent(runtimeId);
+    this.sessionAgents.set(sessionId, binding.agentId);
+    return {
+      agent: binding.hostAgentName,
+      agentId: binding.agentId,
+      authoritative: true,
+      source: "ontology-default-main-agent",
+    };
   }
 
   authorizeSession(sessionId: string, toolName: string, pattern?: string | string[], runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"]): AuthorizationDecision {

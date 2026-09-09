@@ -11,6 +11,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 ## Plugin assembly
 
 - Plugin assembly builds runtime config from ontology records; ontology-derived prompt/tool/permission fields override host config.
+- Plugin assembly now replaces host `agent` map with compiled ontology agents and emits canonical default-main-agent metadata.
 - Builtin agent spec loading always starts from packaged [`spec/ontology/*.jsonld`](../spec/ontology).
 - Project-local ontology from `.opencode/ontology/` or `.kilocode/ontology/` loads after builtin graph; matching `@id` overrides builtin entity, new `@id` extends graph.
 - Builtin prompts resolve from packaged `spec/ontology/prompts/`; project-local `ontology/prompts/` wins when same prompt file exists.
@@ -18,6 +19,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 - Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
+- Runtime exposes single default main-session agent resolver. Host should bind that agent before first turn through `session.agent` or `session.created` output.
 - Session-title helper derives deterministic rename proposals from first meaningful user request and never falls back to random or timestamp naming.
 - Assistant-output helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `assistant.output`.
 

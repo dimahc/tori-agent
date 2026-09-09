@@ -17,6 +17,24 @@ export interface SessionTitleMutation {
   source?: 'first-user-request';
 }
 
+export interface SessionAgentHookInput {
+  sessionID: string;
+  agent?: string;
+}
+
+export interface SessionAgentMutation {
+  agent?: string;
+  agentId?: string;
+  authoritative?: true;
+  source?: 'ontology-default-main-agent';
+}
+
+export interface PluginEventInput {
+  event: { type: string; sessionID?: string; agent?: string };
+  sessionID?: string;
+  agent?: string;
+}
+
 export interface SessionTitleHookInput {
   sessionID: string;
   agent?: string;
@@ -42,7 +60,8 @@ export interface AssistantOutputMutation {
 export interface PluginOutput {
   config?: (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
   tool?: Record<string, unknown>;
-  event?: (input: { event: { type: string } }) => Promise<void>;
+  event?: (input: PluginEventInput, output?: SessionAgentMutation) => Promise<void>;
+  'session.agent'?: (input: SessionAgentHookInput, output: SessionAgentMutation) => Promise<void>;
   'chat.message'?: (input: SessionTitleHookInput, output?: SessionTitleMutation) => Promise<void>;
   'session.title'?: (input: SessionTitleHookInput, output: SessionTitleMutation) => Promise<void>;
   'assistant.output'?: (input: AssistantOutputHookInput, output: AssistantOutputMutation) => Promise<void>;
