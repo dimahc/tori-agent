@@ -26,14 +26,15 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
    - authorization deny policies
    - execution loop caps by session-bound agent
    - transition policies over persisted workflow checks, retry counters, no-progress counters, iteration caps
-5. Lifecycle/workflow tools persist runtime-managed artifacts and workflow-run JSON-LD
+5. Lifecycle/workflow tools persist runtime-managed artifacts and per-run workflow snapshot/journal JSON-LD
 6. Harness `experimental.text.complete` hook applies best-effort final-response dedup/self-talk rewrite before host emits assistant text
 
 ## Workflow persistence
 
-- Formal workflow state file: JSON-LD in runtime `workflows/`
+- Formal workflow state layout: runtime `workflows/<workflow-run-slug>/snapshot.jsonld` plus append-only `journal/*.jsonld`
+- Any top-level `workflows/*.jsonld` artifact is invalid legacy format and must be rejected without migration
 - Formal workflow terms: `workflow-stage:*`, `workflow-status:*`, `task-status:*`, `check-status:*`
-- Transition validation uses declared `WorkflowTransition` entities plus ontology `Policy` records and persisted check metadata
+- Transition validation uses declared `WorkflowTransition` entities plus ontology `Policy` records and snapshot current-state check metadata
 
 ## Path semantics
 
@@ -47,8 +48,15 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 ## Verification semantics
 
 - `run_mechanical_checks`: executes repo-declared commands from `AGENTS.md`
-- `check_artifacts`: scans ontology links/status consistency across markdown artifacts and workflow runs
+- `check_artifacts`: derived scan report with provenance over ontology links/status consistency across markdown artifacts and workflow runs
 - `trigger_ci_check`: executes predeclared safe verification check by id and records ontology-native check result
+
+## Derived operational surfaces
+
+- `workflow_state`: non-authoritative projection with explicit sections for `snapshot` authority, `journal_evidence`, and `latest_projections`
+- `project_state`: non-authoritative filesystem scan projection with source provenance
+- `check_artifacts`: non-authoritative consistency projection derived from `project_state`
+- `save_checkpoint`, `scratchpad`, `write_append`: narrative-only outputs, never live policy or current-state authority
 
 ## Test coverage added/updated
 

@@ -133,7 +133,7 @@ export function buildWorkflowProgressSignature(workflowRun: WorkflowRun): string
   if (cached) return cached;
   const signature = stableStringify({
     related_artifact_ids: [...workflowRun.related_artifact_ids].sort(),
-    task_record_index: workflowRun.task_record_index ?? {},
+    task_state_index: workflowRun.task_state_index ?? {},
   });
   workflowProgressSignatureCache.set(workflowRun, signature);
   return signature;

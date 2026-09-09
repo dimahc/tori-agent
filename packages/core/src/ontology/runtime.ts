@@ -380,14 +380,15 @@ export class OntologyRuntime {
 
   private async buildRuntimeAgentConfigsCanonical(runtimeId: RuntimeId): Promise<Record<string, RuntimeAgentConfig>> {
     const configs: Record<string, RuntimeAgentConfig> = {};
-    for (const agent of this.bundle!.agents) {
-      if (!agent.metadata.runtime_ids.includes(runtimeId)) continue;
+    const agents = this.bundle!.agents.filter((agent) => agent.metadata.runtime_ids.includes(runtimeId));
+    const prompts = await Promise.all(agents.map((agent) => this.loadPrompt(agent.prompt_ref)));
+    for (const [index, agent] of agents.entries()) {
       configs[this.toHostAgentKey(agent["@id"])] = {
         description: agent.description,
         temperature: agent.metadata.temperature,
         mode: agent.metadata.mode,
         color: agent.metadata.color,
-        prompt: await this.loadPrompt(agent.prompt_ref),
+        prompt: prompts[index],
         tools: this.buildToolsMap(agent),
         permission: this.buildHostPermission(agent),
       };
@@ -431,8 +432,6 @@ export class OntologyRuntime {
           permissions[toolName] = grant.effect === "policy-effect:allow" ? "allow" : "deny";
         }
       }
-      if (permissions.write === "allow" && permissions.edit === undefined) permissions.edit = "allow";
-      if (permissions.edit === "allow" && permissions.write === undefined) permissions.write = "allow";
       permissionMapByAgentId.set(agent["@id"], permissions);
 
       for (const capabilityId of agent.capability_ids) {

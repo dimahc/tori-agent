@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildRuntimePaths } from "@tori-agent/ontology";
+import { CHECK_STATUS, WORKFLOW_STAGE, buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
-import { createWorkflowRun, getWorkflowState } from "../dist/tools/workflow.js";
+import { createWorkflowRun, getWorkflowState, transitionStage } from "../dist/tools/workflow.js";
 import {
   deriveNativeMutationAuthorizationPattern,
   deriveSessionTitle,
@@ -34,6 +34,15 @@ describe("plugin ontology integration", () => {
     assert.equal(configs.tori.tools.save_checkpoint, undefined);
     assert.equal(configs.tori.tools.scratchpad, undefined);
     assert.ok(configs["specialist:software-engineer"]);
+  });
+
+  test("runtime permission map does not synthesize write/edit symmetry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-permission-shape-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const configs = await runtime.buildRuntimeAgentConfigs("opencode");
+    assert.equal(configs.tori.permission.write, undefined);
+    assert.equal(configs.tori.permission.edit, undefined);
   });
 
   test("runtime resolves default main-session agent as tori", async () => {
@@ -87,7 +96,7 @@ describe("plugin ontology integration", () => {
       plan_file: "plan.md",
     });
     let state = await getWorkflowState(runtimePaths, "workflow-run:test");
-    assert.ok(state.workflow_run.related_artifact_ids.includes("exec-plan:one"));
+    assert.ok(state.snapshot.workflow_run.related_artifact_ids.includes("exec-plan:one"));
     await new Promise((resolve) => setTimeout(resolve, 5));
     await writeFile(
       planPath,
@@ -113,7 +122,7 @@ describe("plugin ontology integration", () => {
       plan_file: "plan.md",
     });
     state = await getWorkflowState(runtimePaths, "workflow-run:test");
-    assert.ok(state.workflow_run.related_artifact_ids.includes("exec-plan:two"));
+    assert.ok(state.snapshot.workflow_run.related_artifact_ids.includes("exec-plan:two"));
   });
 
   test("authorized tool executor blocks tori direct and surrogate mutation tools", async () => {
@@ -172,6 +181,7 @@ describe("plugin ontology integration", () => {
       { sessionID: "s-spec", directory: root, agent: "specialist:software-engineer" },
     ));
     assert.match(result.file, /resume\.json$/);
+    assert.equal(result.projection.surface, "checkpoint");
   });
 
   test("loop guard denies repeated identical tool calls after cap", async () => {
@@ -216,6 +226,60 @@ describe("plugin ontology integration", () => {
       () => tools.skill.execute({}, { sessionID: "loop-b", directory: root, agent: "tori" }),
       /identical invocation cap 2 exceeded|identical failure cap 2 exceeded/,
     );
+  });
+
+  test("loop guard enforces speculation cap and escalates through workflow state", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-spec-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    const tools = createBudgetAwareToolExecutor({
+      question: {
+        description: "question tool",
+        args: {},
+        async execute() {
+          return "ok";
+        },
+      },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    await tools.question.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-spec", directory: root, agent: "tori" });
+    await tools.question.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-spec", directory: root, agent: "tori" });
+    await assert.rejects(
+      () => tools.question.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-spec", directory: root, agent: "tori" }),
+      /speculation cap 2 exceeded/,
+    );
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.snapshot.workflow_run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.speculation_actions, 3);
+    const escalationCheck = state.latest_projections.check_records.find((record) => record.check_key === "check:workflow-escalation:question");
+    assert.equal(escalationCheck?.result_status_id, CHECK_STATUS.failed);
+  });
+
+  test("loop guard records missing bound agent as workflow-native escalation when workflow_id exists", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-missing-agent-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    const tools = createBudgetAwareToolExecutor({
+      read: {
+        description: "read tool",
+        args: {},
+        async execute() {
+          return "ok";
+        },
+      },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    await assert.rejects(
+      () => tools.read.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-missing-agent", directory: root }),
+      /missing bound agent/,
+    );
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.snapshot.workflow_run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.missing_context_failures, 1);
   });
 
   test("session authorization binds to actual tracked agent", async () => {

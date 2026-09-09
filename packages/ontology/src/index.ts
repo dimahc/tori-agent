@@ -14,29 +14,42 @@ export const ontologyContext = {
   artifact_id: "tori:artifact_id",
   artifact_ids: "tori:artifact_ids",
   artifact_type_id: "tori:artifact_type_id",
+  anchor_detail: "tori:anchor_detail",
+  anchor_kind_id: "tori:anchor_kind_id",
+  anchor_label: "tori:anchor_label",
+  anchor_target: "tori:anchor_target",
   capability_ids: "tori:capability_ids",
   check_policy_id: "tori:check_policy_id",
-  check_record_ids: "tori:check_record_ids",
-  check_record_index: "tori:check_record_index",
+  check_key: "tori:check_key",
+  check_keys: "tori:check_keys",
+  check_state_index: "tori:check_state_index",
   command_globs: "tori:command_globs",
   created_at: "tori:created_at",
   definition_id: "tori:definition_id",
   detail: "tori:detail",
   effect: "tori:effect",
+  evidence_anchors: "tori:evidence_anchors",
+  field_path: "tori:field_path",
   from_stage_id: "tori:from_stage_id",
   from_stage_ids: "tori:from_stage_ids",
-  history: "tori:history",
   iteration: "tori:iteration",
+  journal_state: "tori:journal_state",
   label: "tori:label",
   loop_state: "tori:loop_state",
+  last_applied_sequence: "tori:last_applied_sequence",
+  last_record_id: "tori:last_record_id",
   max_consecutive_failures: "tori:max_consecutive_failures",
   max_identical_failures: "tori:max_identical_failures",
   max_identical_invocations: "tori:max_identical_invocations",
+  max_investigation_actions: "tori:max_investigation_actions",
   max_iteration: "tori:max_iteration",
+  max_missing_context_failures: "tori:max_missing_context_failures",
   max_no_progress_retries: "tori:max_no_progress_retries",
   max_repeated_paragraphs: "tori:max_repeated_paragraphs",
   max_repeated_sentences: "tori:max_repeated_sentences",
+  max_search_actions: "tori:max_search_actions",
   max_self_talk_markers: "tori:max_self_talk_markers",
+  max_speculation_actions: "tori:max_speculation_actions",
   max_transition_retries: "tori:max_transition_retries",
   next_status_id: "tori:next_status_id",
   escalation_stage_id: "tori:escalation_stage_id",
@@ -46,6 +59,7 @@ export const ontologyContext = {
   plan_block_name: "tori:plan_block_name",
   prompt_ref: "tori:prompt_ref",
   rationale: "tori:rationale",
+  record_id: "tori:record_id",
   related_artifact_ids: "tori:related_artifact_ids",
   requesting_agent_id: "tori:requesting_agent_id",
   required_capability_ids: "tori:required_capability_ids",
@@ -55,6 +69,7 @@ export const ontologyContext = {
   resets_checks: "tori:resets_checks",
   result_status_id: "tori:result_status_id",
   role_ids: "tori:role_ids",
+  sequence_number: "tori:sequence_number",
   session_id: "tori:session_id",
   stage_id: "tori:stage_id",
   stage_ids: "tori:stage_ids",
@@ -62,8 +77,9 @@ export const ontologyContext = {
   status_id: "tori:status_id",
   subject_agent_ids: "tori:subject_agent_ids",
   subject_role_ids: "tori:subject_role_ids",
-  task_record_ids: "tori:task_record_ids",
-  task_record_index: "tori:task_record_index",
+  task_key: "tori:task_key",
+  task_keys: "tori:task_keys",
+  task_state_index: "tori:task_state_index",
   tool_id: "tori:tool_id",
   tool_ids: "tori:tool_ids",
   to_stage_id: "tori:to_stage_id",
@@ -85,6 +101,7 @@ export const ENTITY_TYPES = {
   WorkflowTransition: "WorkflowTransition",
   Policy: "Policy",
   WorkflowRun: "WorkflowRun",
+  WorkflowTransitionRecord: "WorkflowTransitionRecord",
   WorkflowTaskRecord: "WorkflowTaskRecord",
   WorkflowCheckRecord: "WorkflowCheckRecord",
 } as const;
@@ -148,6 +165,14 @@ export const CHECK_STATUS = {
 export const CHECK_POLICY = {
   blocking: "check-policy:blocking",
   advisory: "check-policy:advisory",
+} as const;
+
+export const EVIDENCE_ANCHOR_KIND = {
+  artifact: "evidence-anchor-kind:artifact",
+  workflowField: "evidence-anchor-kind:workflow-field",
+  journalRecord: "evidence-anchor-kind:journal-record",
+  toolInvocation: "evidence-anchor-kind:tool-invocation",
+  policy: "evidence-anchor-kind:policy",
 } as const;
 
 export const WELL_KNOWN_IDS = {
@@ -308,8 +333,12 @@ export interface PolicyDefinition extends OntologyEntity {
   max_identical_invocations?: number;
   max_identical_failures?: number;
   max_consecutive_failures?: number;
+  max_investigation_actions?: number;
+  max_search_actions?: number;
+  max_missing_context_failures?: number;
   max_transition_retries?: number;
   max_no_progress_retries?: number;
+  max_speculation_actions?: number;
   max_iteration?: number;
   escalation_stage_id?: OntologyId;
   max_repeated_paragraphs?: number;
@@ -317,10 +346,23 @@ export interface PolicyDefinition extends OntologyEntity {
   max_self_talk_markers?: number;
 }
 
+export interface EvidenceAnchor {
+  anchor_kind_id: OntologyId;
+  anchor_target: string;
+  anchor_label: string;
+  field_path?: string;
+  anchor_detail?: string;
+}
+
 export interface ExecutionLoopPolicy {
   max_identical_invocations?: number;
   max_identical_failures?: number;
   max_consecutive_failures?: number;
+  max_investigation_actions?: number;
+  max_search_actions?: number;
+  max_speculation_actions?: number;
+  max_missing_context_failures?: number;
+  escalation_stage_id?: OntologyId;
 }
 
 export interface OutputGovernancePolicy {
@@ -336,18 +378,50 @@ export interface WorkflowLoopState {
   progress_signatures: Record<string, string>;
   failure_signatures: Record<string, string>;
   identical_failure_counts: Record<string, number>;
+  bounded_cognition: {
+    investigation_actions: number;
+    search_actions: number;
+    speculation_actions: number;
+    missing_context_failures: number;
+    budget_exhaustion_failures: number;
+    escalation_count: number;
+    last_tool_name?: string;
+    last_failure_kind?: "budget-exhausted" | "missing-context";
+    last_failure_detail?: string;
+    last_failure_at?: string;
+  };
 }
 
 export interface PersistedWorkflowCheckSnapshot {
+  record_id: OntologyId;
   check_policy_id: OntologyId;
   result_status_id: OntologyId;
   detail: string;
   created_at: string;
   label: string;
+  evidence_anchors: EvidenceAnchor[];
+}
+
+export interface PersistedWorkflowJournalState {
+  last_applied_sequence: number;
+  last_record_id: OntologyId;
+}
+
+export interface WorkflowTransitionRecord extends OntologyEntity {
+  "@type": typeof ENTITY_TYPES.WorkflowTransitionRecord;
+  from_stage_id: OntologyId | null;
+  to_stage_id: OntologyId;
+  next_status_id: OntologyId;
+  occurred_at: string;
+  sequence_number: number;
+  iteration: number;
+  resets_checks?: boolean;
 }
 
 export interface WorkflowTaskRecord extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.WorkflowTaskRecord;
+  task_key: string;
+  sequence_number: number;
   requesting_agent_id: OntologyId;
   result_status_id: OntologyId;
   created_at: string;
@@ -355,24 +429,31 @@ export interface WorkflowTaskRecord extends OntologyEntity {
   plan_block_name?: string;
   related_artifact_ids?: OntologyId[];
   detail?: string;
+  evidence_anchors: EvidenceAnchor[];
 }
 
 export interface PersistedWorkflowTaskSnapshot {
+  record_id: OntologyId;
   requesting_agent_id: OntologyId;
   result_status_id: OntologyId;
+  created_at: string;
   updated_at: string;
   plan_block_name?: string;
   detail?: string;
   related_artifact_ids?: OntologyId[];
   label: string;
+  evidence_anchors: EvidenceAnchor[];
 }
 
 export interface WorkflowCheckRecord extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.WorkflowCheckRecord;
+  check_key: OntologyId;
+  sequence_number: number;
   check_policy_id: OntologyId;
   result_status_id: OntologyId;
   created_at: string;
   detail: string;
+  evidence_anchors: EvidenceAnchor[];
 }
 
 export interface WorkflowRun extends OntologyEntity {
@@ -381,20 +462,15 @@ export interface WorkflowRun extends OntologyEntity {
   stage_id: OntologyId;
   status_id: OntologyId;
   iteration: number;
-  task_record_ids: OntologyId[];
-  task_record_index?: Record<string, PersistedWorkflowTaskSnapshot>;
-  check_record_ids: OntologyId[];
-  check_status_index?: Record<string, OntologyId>;
-  check_record_index?: Record<string, PersistedWorkflowCheckSnapshot>;
+  task_keys: string[];
+  task_state_index?: Record<string, PersistedWorkflowTaskSnapshot>;
+  check_keys: OntologyId[];
+  check_state_index?: Record<string, PersistedWorkflowCheckSnapshot>;
+  journal_state: PersistedWorkflowJournalState;
   related_artifact_ids: OntologyId[];
   created_at: string;
   updated_at: string;
   loop_state?: WorkflowLoopState;
-  history: Array<{
-    from_stage_id: OntologyId | null;
-    to_stage_id: OntologyId;
-    occurred_at: string;
-  }>;
   session_id?: string;
 }
 
@@ -515,24 +591,40 @@ export const ontologyShapes: OntologyShape[] = [
       "stage_id",
       "status_id",
       "iteration",
-      "task_record_ids",
-      "check_record_ids",
+      "task_keys",
+      "check_keys",
+      "journal_state",
       "related_artifact_ids",
       "created_at",
       "updated_at",
-      "history",
     ],
-    arrayProperties: ["task_record_ids", "check_record_ids", "related_artifact_ids", "history"],
-    objectProperties: ["task_record_index", "check_status_index", "check_record_index", "loop_state"],
+    arrayProperties: ["task_keys", "check_keys", "related_artifact_ids"],
+    objectProperties: ["task_state_index", "check_state_index", "journal_state", "loop_state"],
+  },
+  {
+    targetType: ENTITY_TYPES.WorkflowTransitionRecord,
+    required: [
+      "@id",
+      "@type",
+      "label",
+      "description",
+      "from_stage_id",
+      "to_stage_id",
+      "next_status_id",
+      "occurred_at",
+      "sequence_number",
+      "iteration",
+    ],
   },
   {
     targetType: ENTITY_TYPES.WorkflowTaskRecord,
-    required: ["@id", "@type", "label", "description", "requesting_agent_id", "result_status_id", "created_at", "updated_at"],
-    arrayProperties: ["related_artifact_ids"],
+    required: ["@id", "@type", "label", "description", "task_key", "sequence_number", "requesting_agent_id", "result_status_id", "created_at", "updated_at", "evidence_anchors"],
+    arrayProperties: ["related_artifact_ids", "evidence_anchors"],
   },
   {
     targetType: ENTITY_TYPES.WorkflowCheckRecord,
-    required: ["@id", "@type", "label", "description", "check_policy_id", "result_status_id", "created_at", "detail"],
+    required: ["@id", "@type", "label", "description", "check_key", "sequence_number", "check_policy_id", "result_status_id", "created_at", "detail", "evidence_anchors"],
+    arrayProperties: ["evidence_anchors"],
   },
   {
     targetType: ENTITY_TYPES.Policy,

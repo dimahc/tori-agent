@@ -61,6 +61,8 @@ describe("lifecycle strict ontology", () => {
     const result = await registerSpecImpl(root, runtimePaths, "feature.md", "Feature Spec");
     assert.equal(result.artifact_id, "spec:feature");
     const state = await projectState(root, runtimePaths);
+    assert.equal(state.projection.surface, "project_state");
+    assert.equal(state.provenance.scan_mode, "filesystem-scan");
     assert.equal(state.specs[0].artifact_type_id, ARTIFACT_TYPE.spec);
   });
 
@@ -105,6 +107,8 @@ describe("lifecycle strict ontology", () => {
     );
     const result = await checkArtifacts(root, runtimePaths);
     assert.equal(result.valid, false);
+    assert.equal(result.projection.surface, "check_artifacts");
+    assert.equal(result.provenance.scan_mode, "filesystem-scan");
     assert.ok(result.issues.some((issue) => issue.type === "stale_status"));
   });
 
@@ -188,7 +192,18 @@ describe("lifecycle strict ontology", () => {
   test("saveCheckpoint and writeAppend write files", async () => {
     const checkpoint = await saveCheckpoint(root, runtimePaths, "resume.json", "sum", "remain");
     assert.ok(checkpoint.bytes > 0);
+    assert.equal(checkpoint.projection.surface, "checkpoint");
+    assert.equal(checkpoint.projection.narrative_only, true);
     const appended = await writeAppend(root, "notes.md", "hello");
     assert.ok(appended.bytes > 0);
+    assert.equal(appended.projection.surface, "write_append");
+    assert.equal(appended.projection.narrative_only, true);
+  });
+
+  test("checkpoint payload persists explicit narrative-only projection label", async () => {
+    await saveCheckpoint(root, runtimePaths, "resume.json", "sum", "remain");
+    const payload = JSON.parse(await readFile(join(runtimePaths.checkpointsDir, "resume.json"), "utf8"));
+    assert.equal(payload.projection.classification, "narrative-checkpoint");
+    assert.equal(payload.projection.narrative_only, true);
   });
 });

@@ -1,10 +1,14 @@
 import {
   CHECK_POLICY,
   CHECK_STATUS,
+  EVIDENCE_ANCHOR_KIND,
   TASK_STATUS,
   WORKFLOW_STAGE,
   buildRuntimePaths,
 } from "@tori-agent/ontology";
+import { mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
 import { createWorkflowRun, recordCheckResult, transitionStage } from "../dist/tools/workflow.js";
 
@@ -12,7 +16,8 @@ const runtime = await initializeOntologyRuntime();
 const bundle = runtime.getBundle();
 const engine = runtime.getPolicyEngine();
 
-const runtimePaths = buildRuntimePaths("/tmp/tori-policy-test", "opencode", "/tmp/tori-policy-test/.opencode");
+const root = await mkdtemp(join(tmpdir(), "tori-policy-test-"));
+const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
 await createWorkflowRun(runtimePaths, "workflow-run:policy-test");
 
 const allowRead = engine.authorize({
@@ -78,21 +83,32 @@ await transitionStage(runtimePaths, runtime, "workflow-run:policy-test", WORKFLO
 await transitionStage(runtimePaths, runtime, "workflow-run:policy-test", WORKFLOW_STAGE.verification);
 
 let workflowState = await import("../dist/tools/workflow.js").then((mod) => mod.getWorkflowState(runtimePaths, "workflow-run:policy-test"));
-let transition = engine.canTransition(workflowState.workflow_run, WORKFLOW_STAGE.delivery);
+let transition = engine.canTransition(workflowState.snapshot.workflow_run, WORKFLOW_STAGE.delivery);
 if (transition.allowed) {
   console.error("FAIL delivery should block before mechanical check");
   process.exit(1);
 }
 
-await recordCheckResult(runtimePaths, "workflow-run:policy-test", "check:mechanical", CHECK_STATUS.passed, "ok", CHECK_POLICY.blocking);
+const loopAnchors = [{
+  anchor_kind_id: EVIDENCE_ANCHOR_KIND.toolInvocation,
+  anchor_target: "check:mechanical",
+  anchor_label: "mechanical check",
+  anchor_detail: "ok",
+}];
+await recordCheckResult(runtimePaths, "workflow-run:policy-test", "check:mechanical", CHECK_STATUS.passed, "ok", CHECK_POLICY.blocking, loopAnchors);
 workflowState = await import("../dist/tools/workflow.js").then((mod) => mod.getWorkflowState(runtimePaths, "workflow-run:policy-test"));
-transition = engine.canTransition(workflowState.workflow_run, WORKFLOW_STAGE.delivery);
+transition = engine.canTransition(workflowState.snapshot.workflow_run, WORKFLOW_STAGE.delivery);
 if (!transition.allowed) {
   console.error("FAIL delivery should allow after mechanical check", transition);
   process.exit(1);
 }
 
-transition = engine.canTransition(workflowState.workflow_run, WORKFLOW_STAGE.execution);
+if (workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].record_id !== workflowState.latest_projections.check_records[0]["@id"]) {
+  console.error("FAIL snapshot should point to latest check record", workflowState.snapshot.workflow_run.check_state_index, workflowState.latest_projections.check_records);
+  process.exit(1);
+}
+
+transition = engine.canTransition(workflowState.snapshot.workflow_run, WORKFLOW_STAGE.execution);
 if (transition.allowed) {
   console.error("FAIL verification to execution should block without failed blocking check", transition);
   process.exit(1);
@@ -111,7 +127,15 @@ if (denyEnv.effect !== "deny") {
 }
 
 const loopPolicy = engine.getExecutionLoopPolicy("agent:tori", "tool:skill");
-if (loopPolicy.max_identical_invocations !== 2 || loopPolicy.max_identical_failures !== 2 || loopPolicy.max_consecutive_failures !== 3) {
+if (
+  loopPolicy.max_identical_invocations !== 2 ||
+  loopPolicy.max_identical_failures !== 2 ||
+  loopPolicy.max_consecutive_failures !== 3 ||
+  loopPolicy.max_investigation_actions !== 6 ||
+  loopPolicy.max_search_actions !== 4 ||
+  loopPolicy.max_speculation_actions !== 2 ||
+  loopPolicy.max_missing_context_failures !== 1
+) {
   console.error("FAIL tori loop policy missing", loopPolicy);
   process.exit(1);
 }
@@ -128,3 +152,12 @@ console.log("ALL CHECKS PASSED", {
   checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });
+const anchorKinds = workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].evidence_anchors.map((anchor) => anchor.anchor_kind_id).sort();
+if (JSON.stringify(anchorKinds) !== JSON.stringify([
+  EVIDENCE_ANCHOR_KIND.journalRecord,
+  EVIDENCE_ANCHOR_KIND.toolInvocation,
+  EVIDENCE_ANCHOR_KIND.workflowField,
+].sort())) {
+  console.error("FAIL check snapshot should persist evidence anchors", workflowState.snapshot.workflow_run.check_state_index["check:mechanical"]);
+  process.exit(1);
+}

@@ -7,8 +7,10 @@ import { ARTIFACT_STATUS, ARTIFACT_TYPE, ONTOLOGY_CONTEXT_IRI, WORKFLOW_STAGE, b
 import type {
   ArtifactConsistencyReport,
   ArtifactState,
+  CheckpointWriteResult,
   ConsistencyIssue,
   ProjectStateReport,
+  ScratchpadWriteResult,
 } from "../types/lifecycle.js";
 import { listWorkflowRuns } from "./workflow.js";
 
@@ -193,6 +195,61 @@ function resolveWithin(root: string, file: string): string {
   return resolved;
 }
 
+function buildProjectStateProjectionMetadata(): ProjectStateReport["projection"] {
+  return {
+    surface: "project_state",
+    classification: "derived-operational-view",
+    authoritative: false,
+    generated_at: new Date().toISOString(),
+    reproducible_from: ["managed artifact frontmatter", "workflow snapshots", "workflow journals"],
+  };
+}
+
+function buildCheckArtifactsProjectionMetadata(): ArtifactConsistencyReport["projection"] {
+  return {
+    surface: "check_artifacts",
+    classification: "derived-operational-view",
+    authoritative: false,
+    generated_at: new Date().toISOString(),
+    reproducible_from: ["project_state projection"],
+  };
+}
+
+function buildScanProvenance(runtimePaths: RuntimePaths): ProjectStateReport["provenance"] {
+  return {
+    scan_mode: "filesystem-scan",
+    runtime_root: runtimePaths.runtimeRoot,
+    sources: [
+      runtimePaths.specsDir,
+      runtimePaths.execPlansDir,
+      runtimePaths.briefsDir,
+      runtimePaths.workflowsDir,
+    ],
+  };
+}
+
+function buildCheckpointProjection(): CheckpointWriteResult["projection"] {
+  return {
+    surface: "checkpoint",
+    classification: "narrative-checkpoint",
+    authoritative: false,
+    generated_at: new Date().toISOString(),
+    narrative_only: true,
+    reproducible_from: [],
+  };
+}
+
+function buildScratchpadProjection(surface: "scratchpad" | "write_append"): ScratchpadWriteResult["projection"] {
+  return {
+    surface,
+    classification: "narrative-append",
+    authoritative: false,
+    generated_at: new Date().toISOString(),
+    narrative_only: true,
+    reproducible_from: [],
+  };
+}
+
 export async function projectState(_projectRoot: string, runtimePaths: RuntimePaths): Promise<ProjectStateReport> {
   const [specs, execPlans, briefs, workflowRuns] = await Promise.all([
     readArtifactDir(runtimePaths.specsDir, runtimePaths),
@@ -201,6 +258,8 @@ export async function projectState(_projectRoot: string, runtimePaths: RuntimePa
     listWorkflowRuns(runtimePaths),
   ]);
   return {
+    projection: buildProjectStateProjectionMetadata(),
+    provenance: buildScanProvenance(runtimePaths),
     runtime_id: runtimePaths.runtimeId,
     specs,
     exec_plans: execPlans,
@@ -252,6 +311,11 @@ export async function checkArtifacts(_projectRoot: string, runtimePaths: Runtime
   }
 
   return {
+    projection: buildCheckArtifactsProjectionMetadata(),
+    provenance: {
+      ...state.provenance,
+      based_on_project_state_generated_at: state.projection.generated_at,
+    },
     valid: !issues.some((issue) => issue.severity === "error"),
     issues,
     summary: issues.length === 0 ? "All ontology-managed artifacts consistent." : `${issues.length} ontology consistency issue(s) found.`,
@@ -335,28 +399,34 @@ export async function saveCheckpoint(
   file: string,
   summary: string,
   remainingWork: string,
-): Promise<{ file: string; bytes: number }> {
+): Promise<CheckpointWriteResult> {
   await mkdir(runtimePaths.checkpointsDir, { recursive: true });
   const target = resolveWithin(runtimePaths.checkpointsDir, file);
   const payload = {
     "@context": ONTOLOGY_CONTEXT_IRI,
     "@id": `checkpoint:${basename(file).replace(/\.[^.]+$/, "")}`,
     "@type": "Checkpoint",
+    projection: buildCheckpointProjection(),
     summary,
     remaining_work: remainingWork,
     created_at: new Date().toISOString(),
   };
   const content = JSON.stringify(payload, null, 2);
   await writeFile(target, content, "utf8");
-  return { file: target, bytes: Buffer.byteLength(content) };
+  return { file: target, bytes: Buffer.byteLength(content), projection: payload.projection };
 }
 
-export async function writeAppend(projectRoot: string, file: string, content: string): Promise<{ file: string; bytes: number }> {
+export async function writeAppend(
+  projectRoot: string,
+  file: string,
+  content: string,
+  projectionSurface: "scratchpad" | "write_append" = "write_append",
+): Promise<ScratchpadWriteResult> {
   const target = resolveWithin(projectRoot, file);
   await mkdir(dirname(target), { recursive: true });
   await appendFile(target, content, "utf8");
   const data = await stat(target);
-  return { file: target, bytes: data.size };
+  return { file: target, bytes: data.size, projection: buildScratchpadProjection(projectionSurface) };
 }
 
 export function splitCommandLine(command: string): string[] {

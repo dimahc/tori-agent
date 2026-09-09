@@ -85,13 +85,32 @@ async function getCachedPluginSetup(projectRoot: string, runtime: RuntimeId, con
 async function createPluginSetup(projectRoot: string, runtime: RuntimeId, configDir: string): Promise<CachedPluginSetup> {
   const runtimePaths = buildRuntimePaths(projectRoot, runtime, configDir);
   const ontologyRuntime = await initializeOntologyRuntime({ runtimePaths });
+  let runtimeDirsReady: Promise<void> | null = null;
   const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths);
   const writeTools = buildWriteTools(projectRoot, runtimePaths, runtime);
   const tools = createAuthorizedToolExecutor(
-    createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }, { ontologyRuntime }),
+    createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }, { ontologyRuntime, runtimePaths }),
     { ontologyRuntime, projectRoot, runtimePaths },
   );
   ensureToolRegistryRegistered(tools);
+
+  const ensureRuntimeDirs = async (): Promise<void> => {
+    if (!runtimeDirsReady) {
+      runtimeDirsReady = Promise.all([
+        mkdir(runtimePaths.runtimeRoot, { recursive: true }),
+        mkdir(runtimePaths.specsDir, { recursive: true }),
+        mkdir(runtimePaths.briefsDir, { recursive: true }),
+        mkdir(runtimePaths.execPlansDir, { recursive: true }),
+        mkdir(runtimePaths.workflowsDir, { recursive: true }),
+        mkdir(runtimePaths.checkpointsDir, { recursive: true }),
+        mkdir(runtimePaths.skillsDir, { recursive: true }),
+      ]).then(() => undefined);
+      runtimeDirsReady.catch(() => {
+        runtimeDirsReady = null;
+      });
+    }
+    await runtimeDirsReady;
+  };
 
   const bindSessionFromChatMessage = async (message: ChatMessageHookInput, _output: ChatMessageHookOutput): Promise<void> => {
     if (message.agent) ontologyRuntime.bindSession(message.sessionID, message.agent);
@@ -133,15 +152,7 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
 
   const event: PluginOutput["event"] = async ({ event }) => {
     if (event.type !== "session.created") return;
-    await Promise.all([
-      mkdir(runtimePaths.runtimeRoot, { recursive: true }),
-      mkdir(runtimePaths.specsDir, { recursive: true }),
-      mkdir(runtimePaths.briefsDir, { recursive: true }),
-      mkdir(runtimePaths.execPlansDir, { recursive: true }),
-      mkdir(runtimePaths.workflowsDir, { recursive: true }),
-      mkdir(runtimePaths.checkpointsDir, { recursive: true }),
-      mkdir(runtimePaths.skillsDir, { recursive: true }),
-    ]);
+    await ensureRuntimeDirs();
     const resolvedSessionID = typeof event.properties?.sessionID === "string" ? event.properties.sessionID : undefined;
     if (resolvedSessionID) ontologyRuntime.unbindSession(resolvedSessionID);
   };

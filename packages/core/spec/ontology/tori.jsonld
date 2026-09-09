@@ -175,8 +175,11 @@
         "workflow-transition:verify-to-delivery",
         "workflow-transition:verify-to-exec",
         "workflow-transition:delivery-to-completed",
+        "workflow-transition:req-to-needs-human",
+        "workflow-transition:plan-to-needs-human",
         "workflow-transition:exec-to-needs-human",
-        "workflow-transition:verify-to-needs-human"
+        "workflow-transition:verify-to-needs-human",
+        "workflow-transition:delivery-to-needs-human"
       ]
     },
     { "@id": "workflow-stage:requirements", "@type": "WorkflowStage", "label": "Requirements", "description": "Clarify problem, scope, acceptance", "workflow_definition_id": "workflow:orchestration-pipeline" },
@@ -192,8 +195,11 @@
     { "@id": "workflow-transition:verify-to-delivery", "@type": "WorkflowTransition", "label": "Verification to delivery", "description": "Delivery allowed only after required checks pass", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:delivery", "required_check_ids": ["check:mechanical"] },
     { "@id": "workflow-transition:verify-to-exec", "@type": "WorkflowTransition", "label": "Verification to execution", "description": "Return to execution when blocking verification fails", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:execution", "increments_iteration": true },
     { "@id": "workflow-transition:delivery-to-completed", "@type": "WorkflowTransition", "label": "Delivery to completed", "description": "Mark workflow complete after delivery report", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:completed" },
+    { "@id": "workflow-transition:req-to-needs-human", "@type": "WorkflowTransition", "label": "Requirements to needs human", "description": "Block when requirements work lacks authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:needs-human" },
+    { "@id": "workflow-transition:plan-to-needs-human", "@type": "WorkflowTransition", "label": "Planning to needs human", "description": "Block when planning cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:needs-human" },
     { "@id": "workflow-transition:exec-to-needs-human", "@type": "WorkflowTransition", "label": "Execution to needs human", "description": "Block when human intervention is needed during execution", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:needs-human" },
     { "@id": "workflow-transition:verify-to-needs-human", "@type": "WorkflowTransition", "label": "Verification to needs human", "description": "Block when verification cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:needs-human" },
+    { "@id": "workflow-transition:delivery-to-needs-human", "@type": "WorkflowTransition", "label": "Delivery to needs human", "description": "Block when delivery lacks reproducible authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:needs-human" },
     {
       "@id": "policy:deny-env-file-access",
       "@type": "Policy",
@@ -241,12 +247,17 @@
       "@id": "policy:tori-tool-loop-cap",
       "@type": "Policy",
       "label": "Tori tool loop cap",
-      "description": "Cap identical tool invocations and repeated failures for Tori",
+      "description": "Cap identical tool invocations, repeated failures, and bounded cognition expansion for Tori",
       "policy_kind_id": "policy-kind:execution-loop",
       "subject_agent_ids": ["agent:tori"],
       "max_identical_invocations": 2,
       "max_identical_failures": 2,
-      "max_consecutive_failures": 3
+      "max_consecutive_failures": 3,
+      "max_investigation_actions": 6,
+      "max_search_actions": 4,
+      "max_speculation_actions": 2,
+      "max_missing_context_failures": 1,
+      "escalation_stage_id": "workflow-stage:needs-human"
     },
     {
       "@id": "policy:tori-verify-retry-cap",

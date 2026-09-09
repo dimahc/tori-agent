@@ -6,7 +6,7 @@
 
 - Canonical contract package: `packages/ontology`
 - Runtime logic consumes ontology IDs directly
-- Managed workflow state persists as JSON-LD workflow-run records
+- Managed workflow state persists as per-run JSON-LD directories: authoritative `snapshot.jsonld`, append-only `journal/*.jsonld`
 - Policy enforcement is mechanical: tool grants, path globs, command globs, workflow transitions, blocking checks
 - Prompts are descriptive only; ontology is authoritative
 
@@ -93,7 +93,16 @@ Markdown artifacts use strict ontology frontmatter:
 - `created_at`
 - optional ontology links: `workflow_run_id`, `definition_id`, `related_artifact_ids`
 
-Workflow runs persist as JSON-LD under runtime `workflows/`.
+Workflow runs persist under runtime `workflows/<workflow-run-slug>/`.
+
+- `snapshot.jsonld` — sole authoritative current state
+- `journal/*.jsonld` — append-only transition/task/check evidence
+- top-level `workflows/*.jsonld` single-file artifacts are rejected with strict-format error
+- `workflow_state` output is explicit projection payload:
+  - `snapshot` — authoritative workflow snapshot
+  - `journal_evidence` — append-only transition/task/check evidence
+  - `latest_projections` — latest-only convenience view derived from snapshot + journal
+  - `projection.provenance` — snapshot file + journal directory used to regenerate view
 
 ## Verification contract
 
@@ -111,6 +120,8 @@ Current repo contract:
 - stale completion statuses
 - missing ontology links
 - workflow/artifact completion mismatches
+
+`project_state` and `check_artifacts` are derived operational views, not authorities. Both now expose scan provenance and projection metadata. `save_checkpoint`, `scratchpad`, and `write_append` outputs are explicitly labeled narrative-only.
 
 ## Development
 

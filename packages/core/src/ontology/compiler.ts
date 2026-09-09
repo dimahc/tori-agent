@@ -92,29 +92,45 @@ export class OntologyCompiler {
     const entityMap = new Map<string, OntologyEntity>();
 
     for (const sourceDir of this.sourceDirs) {
-      const files = await readdir(sourceDir).catch(() => []);
-      for (const file of files.filter((entry) => entry.endsWith(".jsonld"))) {
+      const files = (await readdir(sourceDir).catch(() => [])).filter((entry) => entry.endsWith(".jsonld")).sort();
+      const parsedFiles = await Promise.all(files.map(async (file) => {
+        const filePath = join(sourceDir, file);
         try {
-          const parsed = JSON.parse(await readFile(join(sourceDir, file), "utf8")) as { "@graph"?: OntologyEntity[] };
-          if (!Array.isArray(parsed["@graph"])) {
-            warnings.push(`${join(sourceDir, file)}: missing @graph`);
+          return {
+            file,
+            filePath,
+            parsed: JSON.parse(await readFile(filePath, "utf8")) as { "@graph"?: OntologyEntity[] },
+          };
+        } catch (error) {
+          return {
+            file,
+            filePath,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }));
+
+      for (const result of parsedFiles) {
+        if ("error" in result) {
+          errors.push({ specId: result.filePath, error: result.error ?? "failed to parse ontology file" });
+          continue;
+        }
+        if (!Array.isArray(result.parsed["@graph"])) {
+          warnings.push(`${result.filePath}: missing @graph`);
+          continue;
+        }
+        for (const entity of result.parsed["@graph"]) {
+          const existingSource = this.sourceByEntityId.get(entity["@id"]);
+          if (
+            sourceDir !== this.builtinSpecDir &&
+            existingSource?.startsWith(this.builtinSpecDir) &&
+            (IMMUTABLE_IDS as readonly string[]).includes(entity["@id"])
+          ) {
+            warnings.push(`${result.filePath} attempted override of immutable builtin ontology record ${entity["@id"]}; ignored`);
             continue;
           }
-          for (const entity of parsed["@graph"]) {
-            const existingSource = this.sourceByEntityId.get(entity["@id"]);
-            if (
-              sourceDir !== this.builtinSpecDir &&
-              existingSource?.startsWith(this.builtinSpecDir) &&
-              (IMMUTABLE_IDS as readonly string[]).includes(entity["@id"])
-            ) {
-              warnings.push(`${join(sourceDir, file)} attempted override of immutable builtin ontology record ${entity["@id"]}; ignored`);
-              continue;
-            }
-            entityMap.set(entity["@id"], entity);
-            this.sourceByEntityId.set(entity["@id"], join(sourceDir, file));
-          }
-        } catch (error) {
-          errors.push({ specId: join(sourceDir, file), error: error instanceof Error ? error.message : String(error) });
+          entityMap.set(entity["@id"], entity);
+          this.sourceByEntityId.set(entity["@id"], result.filePath);
         }
       }
     }

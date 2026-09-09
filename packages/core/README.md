@@ -32,8 +32,8 @@ Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 | `createWorkflowRun` | Create a new ontology-native workflow run |
 | `getWorkflowState` | Read current stage, iteration, tasks, and checks |
 | `transitionStage` | Advance to the next stage with guard validation |
-| `recordTaskResult` | Log task completion or failure |
-| `recordCheckResult` | Log verification check outcomes |
+| `recordTaskResult` | Append task evidence and update authoritative snapshot |
+| `recordCheckResult` | Append check evidence and update authoritative snapshot |
 
 ## Lifecycle tools
 
@@ -60,7 +60,8 @@ Managed docs directories are bootstrapped on `session.created`:
 - `.opencode/specs` or `.kilocode/specs` — managed specs
 - `.opencode/exec-plans` or `.kilocode/exec-plans` — execution plans
 - `.opencode/briefs` or `.kilocode/briefs` — project briefs
-- `.opencode/workflows` or `.kilocode/workflows` — workflow state files
+- `.opencode/workflows` or `.kilocode/workflows` — per-run workflow directories with snapshot + journal
+- `.opencode/workflows/*.jsonld` or `.kilocode/workflows/*.jsonld` — invalid removed Slice 1 format; runtime rejects fail-closed
 
 ## Scripts
 
@@ -73,5 +74,5 @@ Managed docs directories are bootstrapped on `session.created`:
 - Runtime package (`packages/harness`) is a thin adapter — do not add logic there
 - Do not edit generated `dist/` output
 - If you change shared behavior, update this package first, then validate runtime wrappers
-- Workflow transition gating reads persisted check metadata from workflow JSON-LD, including blocking vs advisory policy.
+- Workflow transition gating reads snapshot check metadata derived from append-only workflow journal, including blocking vs advisory policy.
 - For architecture context, see the [parent README](../README.md)
