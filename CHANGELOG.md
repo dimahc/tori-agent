@@ -66,6 +66,7 @@
 - Enforce strict tori no-mutation
 - Enforce strict anti-loop guardrails
 - Enforce default session agent binding
+- Preserve tori availability
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
