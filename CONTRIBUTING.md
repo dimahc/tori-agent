@@ -71,3 +71,18 @@ Repo guarantees ontology-derived agent config, canonical default-agent metadata,
 `workflow_state` public tool argument is `workflow_run_id`. Strict temporary alias `workflow_id` remains accepted only when `workflow_run_id` absent or equal, to avoid breaking active callers during rename.
 
 `structured_read` is repo-defined readonly extraction tool for huge structured files. Keep it bounded, project-root confined, deterministic, no subprocess, no shell fallback, no writes, no network. New path-bearing readonly tools must derive authorization pattern from input path so deny policies like dotenv coverage still apply.
+
+## Contributor invariants for local customization docs
+
+- Document local customization in terms of runtime layering, not vague "overrides everything" language.
+- Never claim `.opencode/agents/` or `.kilocode/agents/` generated output is runtime source of truth.
+- Never claim prompts or skills can relax ontology policy, tool grants, path policy, or Tori safety protections.
+- If immutable builtin protection changes, update docs and tests together with exact protected ids.
+
+## Contributor invariants for `structured_read`
+
+- New mode must preserve readonly derived-view contract and explicit `authoritative: false` output.
+- New mode must stay project-root confined and path-authorized through requested path.
+- New mode must declare deterministic truncation/limit behavior and document exact bounds.
+- If public args or modes change, update `README.md`, `packages/core/README.md`, `ARCHITECTURE.md`, tests, and any ontology/prompt references that summarize safe usage.
+- Do not add shell fallback, subprocess execution, network access, or mutation behavior to `structured_read`.

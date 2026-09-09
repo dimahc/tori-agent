@@ -14,11 +14,17 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
 ## Runtime pipeline
 
 1. `OntologyCompiler` loads JSON-LD entities from `packages/core/spec/ontology/`
+   - if runtime paths exist, compiler then loads project-local `runtimeRoot/ontology/*.jsonld`
+   - local entity with new `@id` extends graph
+   - local entity with matching `@id` replaces earlier builtin entity unless id is immutable builtin safety record
 2. `OntologyRegistry` validates and stores strict entities by ontology `@id`
 3. `OntologyRuntime` builds host agent configs from ontology
     - resolves single canonical default main-session agent per runtime
     - mutates host config in place with official `default_agent`
     - fails closed when host never binds session to ontology agent through official fields
+    - loads prompt text from local `runtimeRoot/ontology/prompts/*.md` before builtin packaged prompt file
+    - loads skill markdown from local `runtimeRoot/skills/<name>/SKILL.md` before builtin packaged skill file
+    - prompt and skill overrides change text surfaces only; authority for permissions/policies stays in ontology + runtime implementation
 4. `PolicyEngineImpl` enforces ontology-derived permission grants and `Policy` records:
    - permission grants by `tool_id`
    - path glob restrictions
@@ -57,7 +63,18 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 - `project_state`: non-authoritative filesystem scan projection with source provenance
 - `check_artifacts`: non-authoritative consistency projection derived from `project_state`
 - `structured_read`: non-authoritative bounded extraction projection for huge structured files; project-root confined, readonly, deterministic truncation, malformed JSON denied for JSON modes
+  - semantic class: derived extraction, not parse-tree authority and not policy bypass
+  - path authorization still derives from requested file path before execution, so deny policies remain effective
+  - JSON extraction modes parse bytes into transient value only to emit bounded projection output
 - `save_checkpoint`, `scratchpad`, `write_append`: narrative-only outputs, never live policy or current-state authority
+
+## Local override guardrails
+
+- Local runtime directories are additive/customizing surfaces, not replacement for packaged source tree.
+- Runtime does not persist merged builtin ontology back into `.opencode/ontology/` or `.kilocode/ontology/` during bootstrap.
+- Generated `.opencode/agents/` output is expansion artifact, not runtime lookup authority.
+- Immutable builtin ontology protection is narrow and safety-critical: local JSON-LD cannot replace `agent:tori`, `role:orchestrator`, or `policy:tori-no-direct-mutation`.
+- Even when local prompt or skill markdown overrides builtin text, host-native mutation enforcement still depends on ontology grants plus `permission.ask` and `tool.execute.before` hooks.
 
 ## Test coverage added/updated
 
