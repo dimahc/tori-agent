@@ -17,7 +17,9 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Builtin skills resolve from packaged `spec/skills/`; project-local `skills/` wins when same skill exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
+- Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
 - Session-title helper derives deterministic rename proposals from first meaningful user request and never falls back to random or timestamp naming.
+- Assistant-output helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `assistant.output`.
 
 ## Workflow state machine
 

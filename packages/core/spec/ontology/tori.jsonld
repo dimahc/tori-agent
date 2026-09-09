@@ -238,6 +238,43 @@
       "require_failed_check_policy_ids": ["check-policy:blocking"]
     },
     {
+      "@id": "policy:tori-tool-loop-cap",
+      "@type": "Policy",
+      "label": "Tori tool loop cap",
+      "description": "Cap identical tool invocations and repeated failures for Tori",
+      "policy_kind_id": "policy-kind:execution-loop",
+      "subject_agent_ids": ["agent:tori"],
+      "max_identical_invocations": 2,
+      "max_identical_failures": 2,
+      "max_consecutive_failures": 3
+    },
+    {
+      "@id": "policy:tori-verify-retry-cap",
+      "@type": "Policy",
+      "label": "Tori verification retry cap",
+      "description": "Cap verification to execution retries and escalate on no progress or iteration exhaustion",
+      "policy_kind_id": "policy-kind:transition",
+      "workflow_definition_ids": ["workflow:orchestration-pipeline"],
+      "from_stage_ids": ["workflow-stage:verification"],
+      "to_stage_ids": ["workflow-stage:execution"],
+      "max_transition_retries": 2,
+      "max_no_progress_retries": 1,
+      "max_identical_failures": 2,
+      "max_iteration": 3,
+      "escalation_stage_id": "workflow-stage:needs-human"
+    },
+    {
+      "@id": "policy:tori-output-governance",
+      "@type": "Policy",
+      "label": "Tori output governance",
+      "description": "Block repeated output paragraphs, repeated sentences, and self-talk markers in final responses",
+      "policy_kind_id": "policy-kind:output-governance",
+      "subject_agent_ids": ["agent:tori"],
+      "max_repeated_paragraphs": 1,
+      "max_repeated_sentences": 1,
+      "max_self_talk_markers": 0
+    },
+    {
       "@id": "agent:tori",
       "@type": "Agent",
       "label": "Tori",

@@ -7,8 +7,10 @@ import {
   type AgentDefinition,
   type AuthorizationDecision,
   type AuthorizationRequest,
+  type ExecutionLoopPolicy,
   type OntologyBundle,
   type OntologyId,
+  type OutputGovernancePolicy,
   type PersistedWorkflowCheckSnapshot,
   type PolicyDefinition,
   type PermissionGrant,
@@ -17,6 +19,7 @@ import {
   type WorkflowRun,
 } from "@tori-agent/ontology";
 import type { PolicyEngine } from "../types/policy.js";
+import { buildWorkflowProgressSignature } from "../guardrails/output.js";
 
 function matchesAny(patterns: string[] | undefined, value: string): boolean {
   if (!patterns || patterns.length === 0) return true;
@@ -121,9 +124,49 @@ export class PolicyEngineImpl implements PolicyEngine {
     }
 
     for (const policy of this.getMatchingTransitionPolicies(workflowRun, toStageId)) {
+      if (typeof policy.max_iteration === "number" && workflowRun.iteration >= policy.max_iteration) {
+        return {
+          allowed: false,
+          reason: `${policy["@id"]} exceeded iteration cap ${policy.max_iteration}`,
+          escalation_stage_id: policy.escalation_stage_id,
+        };
+      }
       const checksDecision = this.evaluateRequiredChecks(workflowRun, policy.required_check_ids ?? [], policy.required_check_status_id ?? CHECK_STATUS.passed);
       if (!checksDecision.allowed) {
         return checksDecision;
+      }
+      const transitionKey = `${workflowRun.stage_id}->${toStageId}`;
+      const retryCount = workflowRun.loop_state?.retry_counts?.[transitionKey] ?? 0;
+      if (typeof policy.max_transition_retries === "number" && retryCount >= policy.max_transition_retries) {
+        return {
+          allowed: false,
+          reason: `${policy["@id"]} exceeded retry cap ${policy.max_transition_retries}`,
+          escalation_stage_id: policy.escalation_stage_id,
+        };
+      }
+      const noProgressCount = workflowRun.loop_state?.no_progress_counts?.[transitionKey] ?? 0;
+      const predictedNoProgressCount =
+        workflowRun.stage_id === "workflow-stage:verification" && toStageId === "workflow-stage:execution"
+          ? ((workflowRun.loop_state?.progress_signatures?.[transitionKey] === buildWorkflowProgressSignature(workflowRun)
+              ? noProgressCount + 1
+              : 0))
+          : noProgressCount;
+      if (typeof policy.max_no_progress_retries === "number" && predictedNoProgressCount >= policy.max_no_progress_retries) {
+        return {
+          allowed: false,
+          reason: `${policy["@id"]} exceeded no-progress cap ${policy.max_no_progress_retries}`,
+          escalation_stage_id: policy.escalation_stage_id,
+        };
+      }
+      if (typeof policy.max_identical_failures === "number") {
+        const exceeded = Object.entries(workflowRun.loop_state?.identical_failure_counts ?? {}).find(([, count]) => count >= policy.max_identical_failures!);
+        if (exceeded) {
+          return {
+            allowed: false,
+            reason: `${policy["@id"]} exceeded identical failure cap ${policy.max_identical_failures} at ${exceeded[0]}`,
+            escalation_stage_id: policy.escalation_stage_id,
+          };
+        }
       }
       if ((policy.require_failed_check_policy_ids?.length ?? 0) > 0) {
         const matchedFailed = Object.values(snapshotIndex(workflowRun)).some(
@@ -142,6 +185,29 @@ export class PolicyEngineImpl implements PolicyEngine {
   ingestWorkflowRun(_workflowRun: WorkflowRun): void {}
 
   clearWorkflowRun(_workflowRunId: OntologyId): void {}
+
+  getExecutionLoopPolicy(agentId: OntologyId, toolId?: OntologyId): ExecutionLoopPolicy {
+    return this.bundle.policies
+      .filter((policy) => policy.policy_kind_id === POLICY_KIND.executionLoop)
+      .filter((policy) => this.policyAppliesToAgent(policy, this.getAgent(agentId), this.getRoles(agentId)))
+      .filter((policy) => !policy.tool_ids || !toolId || policy.tool_ids.includes(toolId))
+      .reduce<ExecutionLoopPolicy>((acc, policy) => ({
+        max_identical_invocations: policy.max_identical_invocations ?? acc.max_identical_invocations,
+        max_identical_failures: policy.max_identical_failures ?? acc.max_identical_failures,
+        max_consecutive_failures: policy.max_consecutive_failures ?? acc.max_consecutive_failures,
+      }), {});
+  }
+
+  getOutputGovernancePolicy(agentId: OntologyId): OutputGovernancePolicy {
+    return this.bundle.policies
+      .filter((policy) => policy.policy_kind_id === POLICY_KIND.outputGovernance)
+      .filter((policy) => this.policyAppliesToAgent(policy, this.getAgent(agentId), this.getRoles(agentId)))
+      .reduce<OutputGovernancePolicy>((acc, policy) => ({
+        max_repeated_paragraphs: policy.max_repeated_paragraphs ?? acc.max_repeated_paragraphs,
+        max_repeated_sentences: policy.max_repeated_sentences ?? acc.max_repeated_sentences,
+        max_self_talk_markers: policy.max_self_talk_markers ?? acc.max_self_talk_markers,
+      }), {});
+  }
 
   private getMatchingAuthorizationPolicies(
     agent: AgentDefinition,
@@ -167,6 +233,20 @@ export class PolicyEngineImpl implements PolicyEngine {
       if (policy.to_stage_ids && !policy.to_stage_ids.includes(toStageId)) return false;
       return true;
     });
+  }
+
+  private getAgent(agentId: OntologyId): AgentDefinition {
+    const agent = this.bundle.byId.get(agentId);
+    if (!agent || agent["@type"] !== ENTITY_TYPES.Agent) {
+      throw new Error(`Unknown agent ${agentId}`);
+    }
+    return agent as AgentDefinition;
+  }
+
+  private getRoles(agentId: OntologyId): RoleDefinition[] {
+    return this.getAgent(agentId).role_ids
+      .map((roleId) => this.bundle.byId.get(roleId))
+      .filter((value): value is RoleDefinition => value?.["@type"] === ENTITY_TYPES.Role);
   }
 
   private policyAppliesToAgent(policy: PolicyDefinition, agent: AgentDefinition, roles: RoleDefinition[]): boolean {

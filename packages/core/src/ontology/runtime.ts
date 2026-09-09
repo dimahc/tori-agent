@@ -6,8 +6,10 @@ import {
   getToolId,
   type AgentDefinition,
   type AuthorizationDecision,
+  type ExecutionLoopPolicy,
   type OntologyBundle,
   type OntologyId,
+  type OutputGovernancePolicy,
   type RuntimeId,
   type RuntimePaths,
 } from "@tori-agent/ontology";
@@ -143,6 +145,16 @@ export class OntologyRuntime {
       this.bindSession(context.sessionID, context.agent);
     }
     return this.authorizeSession(context.sessionID, toolName, pattern, runtimePaths);
+  }
+
+  getExecutionLoopPolicy(agentId: OntologyId, toolId?: OntologyId): ExecutionLoopPolicy {
+    this.assertInitialized();
+    return this.policyEngine!.getExecutionLoopPolicy(agentId, toolId);
+  }
+
+  getOutputGovernancePolicy(agentId: OntologyId): OutputGovernancePolicy {
+    this.assertInitialized();
+    return this.policyEngine!.getOutputGovernancePolicy(agentId);
   }
 
   async serializeAgent(agentId: OntologyId): Promise<string> {

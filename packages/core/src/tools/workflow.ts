@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import {
   CHECK_POLICY,
   CHECK_STATUS,
@@ -18,14 +18,47 @@ import {
 import type { WorkflowStateView } from "../types/workflow.js";
 import type { VerificationPolicy } from "../types/verification.js";
 import type { OntologyRuntime } from "../ontology/runtime.js";
+import { buildWorkflowProgressSignature, normalizeTextUnit } from "../guardrails/output.js";
 
 interface WorkflowDocument {
   "@context": string;
   "@graph": Array<WorkflowRun | WorkflowTaskRecord | WorkflowCheckRecord>;
 }
 
+function defaultLoopState(): NonNullable<WorkflowRun["loop_state"]> {
+  return {
+    transition_counts: {},
+    retry_counts: {},
+    no_progress_counts: {},
+    progress_signatures: {},
+    failure_signatures: {},
+    identical_failure_counts: {},
+  };
+}
+
+function loopStateOf(workflowRun: WorkflowRun): NonNullable<WorkflowRun["loop_state"]> {
+  return {
+    ...defaultLoopState(),
+    ...(workflowRun.loop_state ?? {}),
+    transition_counts: { ...(workflowRun.loop_state?.transition_counts ?? {}) },
+    retry_counts: { ...(workflowRun.loop_state?.retry_counts ?? {}) },
+    no_progress_counts: { ...(workflowRun.loop_state?.no_progress_counts ?? {}) },
+    progress_signatures: { ...(workflowRun.loop_state?.progress_signatures ?? {}) },
+    failure_signatures: { ...(workflowRun.loop_state?.failure_signatures ?? {}) },
+    identical_failure_counts: { ...(workflowRun.loop_state?.identical_failure_counts ?? {}) },
+  };
+}
+
+function transitionKey(fromStageId: OntologyId, toStageId: OntologyId): string {
+  return `${fromStageId}->${toStageId}`;
+}
+
+function workflowFileBasename(workflowRunId: OntologyId): string {
+  return String(workflowRunId).replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 function workflowFile(runtimePaths: RuntimePaths, workflowRunId: OntologyId): string {
-  return join(runtimePaths.workflowsDir, `${workflowRunId.replace(/[^a-zA-Z0-9._-]/g, "_")}.jsonld`);
+  return join(runtimePaths.workflowsDir, `${workflowFileBasename(workflowRunId)}.jsonld`);
 }
 
 function taskStatusId(status: string): OntologyId {
@@ -105,9 +138,11 @@ export async function createWorkflowRun(
     check_record_ids: [],
     check_status_index: {},
     check_record_index: {},
+    task_record_index: {},
     related_artifact_ids: [],
     created_at: now,
     updated_at: now,
+    loop_state: defaultLoopState(),
     history: [{ from_stage_id: null, to_stage_id: initialStageId, occurred_at: now }],
   };
   await writeWorkflowDocument(runtimePaths, buildDocument(workflowRun, [], []), workflowRunId);
@@ -139,6 +174,7 @@ export async function getWorkflowState(runtimePaths: RuntimePaths, workflowRunId
       plan_block_name: record.plan_block_name,
       detail: record.detail,
     })),
+    task_record_index: workflowRun.task_record_index,
     check_records: getCheckRecords(document).map((record) => ({
       "@id": record["@id"],
       label: record.label,
@@ -169,8 +205,25 @@ export async function transitionStage(
   const workflowRun = getWorkflowRun(document);
   ontologyRuntime.getPolicyEngine().ingestWorkflowRun(workflowRun);
   const decision = ontologyRuntime.getPolicyEngine().canTransition(workflowRun, toStageId);
+  if (!decision.allowed && decision.escalation_stage_id && workflowRun.stage_id !== decision.escalation_stage_id) {
+    return transitionStage(runtimePaths, ontologyRuntime, workflowRunId, decision.escalation_stage_id, _policy);
+  }
   if (!decision.allowed || !decision.transition) {
     throw new Error(decision.reason);
+  }
+
+  const now = new Date().toISOString();
+  const loopState = loopStateOf(workflowRun);
+  const key = transitionKey(workflowRun.stage_id, toStageId);
+  loopState.transition_counts[key] = (loopState.transition_counts[key] ?? 0) + 1;
+  if (workflowRun.stage_id === WORKFLOW_STAGE.verification && toStageId === WORKFLOW_STAGE.execution) {
+    loopState.retry_counts[key] = (loopState.retry_counts[key] ?? 0) + 1;
+    const progressSignature = buildWorkflowProgressSignature(workflowRun);
+    const previousSignature = loopState.progress_signatures[key];
+    loopState.no_progress_counts[key] = previousSignature === progressSignature
+      ? (loopState.no_progress_counts[key] ?? 0) + 1
+      : 0;
+    loopState.progress_signatures[key] = progressSignature;
   }
 
   const next: WorkflowRun = {
@@ -186,10 +239,17 @@ export async function transitionStage(
     check_record_ids: decision.transition.resets_checks ? [] : workflowRun.check_record_ids,
     check_status_index: decision.transition.resets_checks ? {} : workflowRun.check_status_index,
     check_record_index: decision.transition.resets_checks ? {} : workflowRun.check_record_index,
-    updated_at: new Date().toISOString(),
+    loop_state: decision.transition.resets_checks
+      ? {
+          ...loopState,
+          failure_signatures: {},
+          identical_failure_counts: {},
+        }
+      : loopState,
+    updated_at: now,
     history: [
       ...workflowRun.history,
-      { from_stage_id: workflowRun.stage_id, to_stage_id: toStageId, occurred_at: new Date().toISOString() },
+      { from_stage_id: workflowRun.stage_id, to_stage_id: toStageId, occurred_at: now },
     ],
   };
 
@@ -215,7 +275,7 @@ export async function recordTaskResult(
   if (!document) throw new Error(`Workflow run not found: ${workflowRunId}`);
   const workflowRun = getWorkflowRun(document);
   const taskRecords = getTaskRecords(document);
-  const recordId = `workflow-task:${basename(String(workflowRunId))}:${taskId}`;
+  const recordId = `workflow-task:${workflowFileBasename(workflowRunId)}:${taskId}`;
   const now = new Date().toISOString();
   const existing = taskRecords.find((record) => record["@id"] === recordId);
   const record: WorkflowTaskRecord = {
@@ -235,6 +295,17 @@ export async function recordTaskResult(
   const nextWorkflowRun: WorkflowRun = {
     ...workflowRun,
     task_record_ids: nextTaskRecords.map((entry) => entry["@id"]),
+    task_record_index: Object.fromEntries(
+      nextTaskRecords.map((entry) => [entry["@id"], {
+        requesting_agent_id: entry.requesting_agent_id,
+        result_status_id: entry.result_status_id,
+        updated_at: entry.updated_at,
+        plan_block_name: entry.plan_block_name,
+        detail: entry.detail,
+        related_artifact_ids: entry.related_artifact_ids,
+        label: entry.label,
+      }]),
+    ),
     related_artifact_ids: Array.from(new Set([...workflowRun.related_artifact_ids, ...relatedArtifactIds])),
     updated_at: now,
   };
@@ -267,6 +338,18 @@ export async function recordCheckResult(
     detail,
   };
   const nextCheckRecords = checkRecords.filter((entry) => entry["@id"] !== checkId).concat(record);
+  const loopState = loopStateOf(workflowRun);
+  const failureKey = `check:${checkId}`;
+  const normalizedDetail = normalizeTextUnit(detail);
+  if (record.result_status_id === CHECK_STATUS.failed) {
+    loopState.identical_failure_counts[failureKey] = loopState.failure_signatures[failureKey] === normalizedDetail
+      ? (loopState.identical_failure_counts[failureKey] ?? 0) + 1
+      : 1;
+    loopState.failure_signatures[failureKey] = normalizedDetail;
+  } else {
+    delete loopState.failure_signatures[failureKey];
+    delete loopState.identical_failure_counts[failureKey];
+  }
   const nextWorkflowRun: WorkflowRun = {
     ...workflowRun,
     check_record_ids: nextCheckRecords.map((entry) => entry["@id"]),
@@ -284,6 +367,7 @@ export async function recordCheckResult(
         label: record.label,
       },
     },
+    loop_state: loopState,
     updated_at: now,
   };
   await writeWorkflowDocument(runtimePaths, buildDocument(nextWorkflowRun, getTaskRecords(document), nextCheckRecords), workflowRunId);

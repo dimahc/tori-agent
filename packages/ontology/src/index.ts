@@ -28,7 +28,18 @@ export const ontologyContext = {
   history: "tori:history",
   iteration: "tori:iteration",
   label: "tori:label",
+  loop_state: "tori:loop_state",
+  max_consecutive_failures: "tori:max_consecutive_failures",
+  max_identical_failures: "tori:max_identical_failures",
+  max_identical_invocations: "tori:max_identical_invocations",
+  max_iteration: "tori:max_iteration",
+  max_no_progress_retries: "tori:max_no_progress_retries",
+  max_repeated_paragraphs: "tori:max_repeated_paragraphs",
+  max_repeated_sentences: "tori:max_repeated_sentences",
+  max_self_talk_markers: "tori:max_self_talk_markers",
+  max_transition_retries: "tori:max_transition_retries",
   next_status_id: "tori:next_status_id",
+  escalation_stage_id: "tori:escalation_stage_id",
   path_globs: "tori:path_globs",
   policy_kind_id: "tori:policy_kind_id",
   permission_grants: "tori:permission_grants",
@@ -52,6 +63,7 @@ export const ontologyContext = {
   subject_agent_ids: "tori:subject_agent_ids",
   subject_role_ids: "tori:subject_role_ids",
   task_record_ids: "tori:task_record_ids",
+  task_record_index: "tori:task_record_index",
   tool_id: "tori:tool_id",
   tool_ids: "tori:tool_ids",
   to_stage_id: "tori:to_stage_id",
@@ -85,6 +97,8 @@ export const POLICY_EFFECT = {
 export const POLICY_KIND = {
   authorization: "policy-kind:authorization",
   transition: "policy-kind:transition",
+  executionLoop: "policy-kind:execution-loop",
+  outputGovernance: "policy-kind:output-governance",
 } as const;
 
 export const ARTIFACT_TYPE = {
@@ -290,6 +304,37 @@ export interface PolicyDefinition extends OntologyEntity {
   required_check_ids?: OntologyId[];
   required_check_status_id?: OntologyId;
   require_failed_check_policy_ids?: OntologyId[];
+  max_identical_invocations?: number;
+  max_identical_failures?: number;
+  max_consecutive_failures?: number;
+  max_transition_retries?: number;
+  max_no_progress_retries?: number;
+  max_iteration?: number;
+  escalation_stage_id?: OntologyId;
+  max_repeated_paragraphs?: number;
+  max_repeated_sentences?: number;
+  max_self_talk_markers?: number;
+}
+
+export interface ExecutionLoopPolicy {
+  max_identical_invocations?: number;
+  max_identical_failures?: number;
+  max_consecutive_failures?: number;
+}
+
+export interface OutputGovernancePolicy {
+  max_repeated_paragraphs?: number;
+  max_repeated_sentences?: number;
+  max_self_talk_markers?: number;
+}
+
+export interface WorkflowLoopState {
+  transition_counts: Record<string, number>;
+  retry_counts: Record<string, number>;
+  no_progress_counts: Record<string, number>;
+  progress_signatures: Record<string, string>;
+  failure_signatures: Record<string, string>;
+  identical_failure_counts: Record<string, number>;
 }
 
 export interface PersistedWorkflowCheckSnapshot {
@@ -311,6 +356,16 @@ export interface WorkflowTaskRecord extends OntologyEntity {
   detail?: string;
 }
 
+export interface PersistedWorkflowTaskSnapshot {
+  requesting_agent_id: OntologyId;
+  result_status_id: OntologyId;
+  updated_at: string;
+  plan_block_name?: string;
+  detail?: string;
+  related_artifact_ids?: OntologyId[];
+  label: string;
+}
+
 export interface WorkflowCheckRecord extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.WorkflowCheckRecord;
   check_policy_id: OntologyId;
@@ -326,12 +381,14 @@ export interface WorkflowRun extends OntologyEntity {
   status_id: OntologyId;
   iteration: number;
   task_record_ids: OntologyId[];
+  task_record_index?: Record<string, PersistedWorkflowTaskSnapshot>;
   check_record_ids: OntologyId[];
   check_status_index?: Record<string, OntologyId>;
   check_record_index?: Record<string, PersistedWorkflowCheckSnapshot>;
   related_artifact_ids: OntologyId[];
   created_at: string;
   updated_at: string;
+  loop_state?: WorkflowLoopState;
   history: Array<{
     from_stage_id: OntologyId | null;
     to_stage_id: OntologyId;
@@ -396,6 +453,7 @@ export interface TransitionDecision {
   allowed: boolean;
   reason: string;
   transition?: WorkflowTransitionDefinition;
+  escalation_stage_id?: OntologyId;
 }
 
 export interface MechanicalCheckDefinition {
@@ -444,6 +502,36 @@ export const ontologyShapes: OntologyShape[] = [
     targetType: ENTITY_TYPES.WorkflowTransition,
     required: ["@id", "@type", "label", "description", "workflow_definition_id", "from_stage_id", "to_stage_id"],
     arrayProperties: ["required_check_ids"],
+  },
+  {
+    targetType: ENTITY_TYPES.WorkflowRun,
+    required: [
+      "@id",
+      "@type",
+      "label",
+      "description",
+      "definition_id",
+      "stage_id",
+      "status_id",
+      "iteration",
+      "task_record_ids",
+      "check_record_ids",
+      "related_artifact_ids",
+      "created_at",
+      "updated_at",
+      "history",
+    ],
+    arrayProperties: ["task_record_ids", "check_record_ids", "related_artifact_ids", "history"],
+    objectProperties: ["task_record_index", "check_status_index", "check_record_index", "loop_state"],
+  },
+  {
+    targetType: ENTITY_TYPES.WorkflowTaskRecord,
+    required: ["@id", "@type", "label", "description", "requesting_agent_id", "result_status_id", "created_at", "updated_at"],
+    arrayProperties: ["related_artifact_ids"],
+  },
+  {
+    targetType: ENTITY_TYPES.WorkflowCheckRecord,
+    required: ["@id", "@type", "label", "description", "check_policy_id", "result_status_id", "created_at", "detail"],
   },
   {
     targetType: ENTITY_TYPES.Policy,

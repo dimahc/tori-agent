@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { buildRuntimePaths, type RuntimeId } from "@tori-agent/ontology";
 import {
+  governAssistantOutputText,
   createAuthorizedToolExecutor,
   buildReadOnlyTools,
   buildWriteTools,
@@ -10,7 +11,7 @@ import {
   registerToolInLazyRegistry,
   SessionTitleTracker,
 } from "@tori-agent/core";
-import type { PluginInput, PluginOutput, SessionTitleHookInput, SessionTitleMutation } from "./types.js";
+import type { AssistantOutputMutation, PluginInput, PluginOutput, SessionTitleHookInput, SessionTitleMutation } from "./types.js";
 
 export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string } = {}) {
   const runtime = options.runtime ?? "opencode";
@@ -25,7 +26,7 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
     const readOnlyTools = buildReadOnlyTools(projectRoot, runtimePaths);
     const writeTools = buildWriteTools(projectRoot, runtimePaths, runtime);
     const tools = createAuthorizedToolExecutor(
-      createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }),
+      createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }, { ontologyRuntime }),
       { ontologyRuntime, projectRoot, runtimePaths },
     );
     const sessionTitleTracker = new SessionTitleTracker();
@@ -45,6 +46,28 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
       output.title = proposal.title;
       output.shouldRename = true;
       output.source = proposal.source;
+    };
+
+    const inspectAssistantOutput = async (
+      message: { sessionID: string; agent?: string; text: string; attempt?: number },
+      output: AssistantOutputMutation,
+    ): Promise<void> => {
+      if (message.agent) ontologyRuntime.bindSession(message.sessionID, message.agent);
+      const agentId = ontologyRuntime.getBoundAgent(message.sessionID);
+      if (!agentId) {
+        output.status = "block";
+        output.reason = `Session ${message.sessionID} not bound to ontology agent`;
+        return;
+      }
+      const decision = governAssistantOutputText(
+        message.text,
+        ontologyRuntime.getOutputGovernancePolicy(agentId),
+        message.attempt ?? 0,
+      );
+      output.status = decision.action === "allow" || decision.action === "rewrite" ? "allow" : decision.action;
+      if (decision.text !== undefined) output.text = decision.text;
+      if (decision.reason) output.reason = decision.reason;
+      if (decision.action === "allow" && decision.text === undefined) output.text = message.text;
     };
 
     return {
@@ -73,6 +96,9 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
       },
       "session.title": async (message, output) => {
         await resolveSessionTitle(message, output);
+      },
+      "assistant.output": async (message, output) => {
+        await inspectAssistantOutput(message, output);
       },
       "permission.ask": async (request, output) => {
         const decision = ontologyRuntime.authorizeSession(request.sessionID, request.type, request.pattern, runtimePaths);

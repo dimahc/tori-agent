@@ -25,12 +25,27 @@ export interface SessionTitleHookInput {
   currentTitle?: string;
 }
 
+export interface AssistantOutputHookInput {
+  sessionID: string;
+  agent?: string;
+  role?: string;
+  text: string;
+  attempt?: number;
+}
+
+export interface AssistantOutputMutation {
+  text?: string;
+  status?: 'allow' | 'retry' | 'block';
+  reason?: string;
+}
+
 export interface PluginOutput {
   config?: (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
   tool?: Record<string, unknown>;
   event?: (input: { event: { type: string } }) => Promise<void>;
   'chat.message'?: (input: SessionTitleHookInput, output?: SessionTitleMutation) => Promise<void>;
   'session.title'?: (input: SessionTitleHookInput, output: SessionTitleMutation) => Promise<void>;
+  'assistant.output'?: (input: AssistantOutputHookInput, output: AssistantOutputMutation) => Promise<void>;
   'permission.ask'?: (
     input: { type: string; pattern?: string | string[]; sessionID: string },
     output: { status: 'deny' | 'allow' }

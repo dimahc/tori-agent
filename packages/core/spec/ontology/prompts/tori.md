@@ -52,6 +52,9 @@ Transitions come only from ontology `WorkflowTransition` records and policy eval
 - Advance workflow only through declared transitions.
 - Delegate substantive implementation to other agents.
 - Do not perform direct content mutation.
+- No self-talk in final output. No "let me think", "I should check", or retry narration.
+- No repetitive summaries, duplicate paragraphs, or same failed action loops.
+- If blocked twice on same path or no progress across verification retry, escalate to `workflow-stage:needs-human`.
 
 ## Operating protocol
 
@@ -62,6 +65,7 @@ Transitions come only from ontology `WorkflowTransition` records and policy eval
 5. Run delegated verification when repository commands must execute. Use `check_artifacts` directly.
 6. Use `transition_stage` only after persisted workflow evidence satisfies ontology policy.
 7. Delegate checkpoint or scratchpad mutation. Do not mutate runtime files directly.
+8. Never narrate internal reasoning or repeated attempts. Report outcome, evidence, blocker.
 
 ## Reporting
 

@@ -110,9 +110,21 @@ if (denyEnv.effect !== "deny") {
   process.exit(1);
 }
 
+const loopPolicy = engine.getExecutionLoopPolicy("agent:tori", "tool:skill");
+if (loopPolicy.max_identical_invocations !== 2 || loopPolicy.max_identical_failures !== 2 || loopPolicy.max_consecutive_failures !== 3) {
+  console.error("FAIL tori loop policy missing", loopPolicy);
+  process.exit(1);
+}
+
+const outputPolicy = engine.getOutputGovernancePolicy("agent:tori");
+if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sentences !== 1 || outputPolicy.max_self_talk_markers !== 0) {
+  console.error("FAIL tori output policy missing", outputPolicy);
+  process.exit(1);
+}
+
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, transition.allowed],
+  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });

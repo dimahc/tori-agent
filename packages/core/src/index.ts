@@ -18,6 +18,15 @@ export { JSONLDSerializer } from "./serialization/jsonld.js";
 export { ShaclValidator } from "./validation/shacl.js";
 export { SessionTitleTracker, deriveSessionTitle, isDefaultSessionTitle } from "./plugin/session-title.js";
 export type { SessionTitleInput, SessionTitleOutput } from "./plugin/session-title.js";
+export {
+  analyzeAssistantOutput,
+  buildWorkflowProgressSignature,
+  governAssistantOutputText,
+  normalizeFailureSignature,
+  normalizeTextUnit,
+  normalizeToolInvocationSignature,
+  stableStringify,
+} from "./guardrails/output.js";
 export * from "./plugin/index.js";
 export { ontologySchema } from "./schemas/ontology.schema.js";
 export { ontologyContext } from "./schemas/ontology.context.js";

@@ -38,6 +38,7 @@ Harness plugin exposes deterministic runtime hooks:
 - `event`
 - `chat.message`
 - `session.title`
+- `assistant.output`
 - `permission.ask`
 
 Session title contract:
@@ -47,6 +48,12 @@ Session title contract:
 - plugin proposes rename once per session
 - existing non-placeholder title stays authoritative
 - output surface is deterministic: `{ title, shouldRename, source: "first-user-request" }`
+
+Assistant output contract:
+
+- host may call `assistant.output` before final response emission
+- hook deterministically removes duplicate paragraphs/sentences and self-talk markers when possible
+- hook may return `{ status: "retry" }` once or `{ status: "block" }` when regeneration still violates policy
 
 ## Managed artifact semantics
 

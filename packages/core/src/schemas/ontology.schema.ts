@@ -25,6 +25,15 @@ export const ontologySchema = {
     status_id: { enum: [...Object.values(WORKFLOW_STATUS), ...Object.values(TASK_STATUS), ...Object.values(CHECK_STATUS)] },
     stage_id: { enum: Object.values(WORKFLOW_STAGE) },
     check_policy_id: { enum: Object.values(CHECK_POLICY) },
+    max_identical_invocations: { type: "integer", minimum: 0 },
+    max_identical_failures: { type: "integer", minimum: 0 },
+    max_consecutive_failures: { type: "integer", minimum: 0 },
+    max_transition_retries: { type: "integer", minimum: 0 },
+    max_no_progress_retries: { type: "integer", minimum: 0 },
+    max_iteration: { type: "integer", minimum: 0 },
+    max_repeated_paragraphs: { type: "integer", minimum: 0 },
+    max_repeated_sentences: { type: "integer", minimum: 0 },
+    max_self_talk_markers: { type: "integer", minimum: 0 },
   },
 };
 

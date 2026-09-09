@@ -10,6 +10,7 @@ export interface WorkflowStateView {
     plan_block_name?: string;
     detail?: string;
   }>;
+  task_record_index?: WorkflowRun["task_record_index"];
   check_records: Array<{
     "@id": OntologyId;
     label: string;

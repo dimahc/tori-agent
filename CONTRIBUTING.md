@@ -48,6 +48,9 @@ Runtime hook surface stays explicit and deterministic:
 - `event`
 - `chat.message`
 - `session.title`
+- `assistant.output`
 - `permission.ask`
 
 Session title proposals come from first meaningful user request only. Host may consume `{ title, shouldRename, source }` from `chat.message` or `session.title`.
+
+Assistant output suppression is host-enforced through `assistant.output`. Host must honor `allow | retry | block` and permit at most one regeneration attempt.

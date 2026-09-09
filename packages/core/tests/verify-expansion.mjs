@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { OntologyCompiler } from '../dist/ontology/compiler.js';
 
 const compiler = new OntologyCompiler();
@@ -35,6 +38,12 @@ const workflow = registry.get('workflow:orchestration-pipeline');
 console.log(`\nWorkflow: ${workflow?.label}`);
 console.log(`  Stages: ${workflow?.stage_ids?.length}`);
 console.log(`  Transitions: ${workflow?.transition_ids?.length}`);
+
+const toriPrompt = await readFile(join(fileURLToPath(new URL('../spec/ontology/prompts/', import.meta.url)), 'tori.md'), 'utf8');
+if (!/No self-talk in final output/i.test(toriPrompt)) {
+  console.error('ERROR: Tori prompt missing anti-self-talk baseline');
+  process.exit(1);
+}
 
 const policies = registry.getByType('Policy');
 console.log(`\nPolicies: ${policies.map(p => p.label).join(', ')}`);

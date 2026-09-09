@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
 import { deriveSessionTitle, isDefaultSessionTitle } from "../dist/index.js";
-import { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor } from "../dist/plugin/index.js";
+import { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor, createBudgetAwareToolExecutor } from "../dist/plugin/index.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
 
 describe("plugin ontology integration", () => {
@@ -93,6 +93,50 @@ describe("plugin ontology integration", () => {
       { sessionID: "s-spec", directory: root, agent: "specialist:software-engineer" },
     ));
     assert.match(result.file, /resume\.json$/);
+  });
+
+  test("loop guard denies repeated identical tool calls after cap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const tools = createBudgetAwareToolExecutor({
+      skill: {
+        description: "test tool",
+        args: {},
+        async execute() {
+          return "ok";
+        },
+      },
+    }, { ontologyRuntime: runtime });
+
+    await tools.skill.execute({}, { sessionID: "loop-a", directory: root, agent: "tori" });
+    await tools.skill.execute({}, { sessionID: "loop-a", directory: root, agent: "tori" });
+    await assert.rejects(
+      () => tools.skill.execute({}, { sessionID: "loop-a", directory: root, agent: "tori" }),
+      /identical invocation cap 2 exceeded/,
+    );
+  });
+
+  test("loop guard denies repeated identical failures after cap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-fail-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const tools = createBudgetAwareToolExecutor({
+      skill: {
+        description: "failing tool",
+        args: {},
+        async execute() {
+          throw new Error("boom");
+        },
+      },
+    }, { ontologyRuntime: runtime });
+
+    await assert.rejects(() => tools.skill.execute({}, { sessionID: "loop-b", directory: root, agent: "tori" }), /boom/);
+    await assert.rejects(() => tools.skill.execute({}, { sessionID: "loop-b", directory: root, agent: "tori" }), /boom/);
+    await assert.rejects(
+      () => tools.skill.execute({}, { sessionID: "loop-b", directory: root, agent: "tori" }),
+      /identical invocation cap 2 exceeded|identical failure cap 2 exceeded/,
+    );
   });
 
   test("session authorization binds to actual tracked agent", async () => {
@@ -199,6 +243,43 @@ describe("plugin ontology integration", () => {
     const permission = { status: "allow" };
     await plugin["permission.ask"]({ sessionID: "s-auth", type: "write", pattern: "README.md" }, permission);
     assert.equal(permission.status, "deny");
+  });
+
+  test("assistant output hook rewrites repeated self-talk paragraphs", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const output = {};
+    await plugin["chat.message"]({ sessionID: "s-out", agent: "tori" }, {});
+    await plugin["assistant.output"]({
+      sessionID: "s-out",
+      agent: "tori",
+      text: "Let me think through this.\n\nResult ready.\n\nResult ready.",
+      attempt: 0,
+    }, output);
+
+    assert.equal(output.status, "allow");
+    assert.equal(output.reason, "Removed self-talk and duplicate output");
+    assert.equal(output.text, "Result ready.");
+  });
+
+  test("assistant output hook blocks repeated self-talk after one retry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-block-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const output = {};
+    await plugin["chat.message"]({ sessionID: "s-out-block", agent: "tori" }, {});
+    await plugin["assistant.output"]({
+      sessionID: "s-out-block",
+      agent: "tori",
+      text: "Let me think. I should check. Let me think. I should check.",
+      attempt: 1,
+    }, output);
+
+    assert.equal(output.status, "block");
+    assert.match(output.reason, /self-talk persists|Repeated self-talk/);
   });
 
   test("harness config merge keeps ontology-derived agent config authoritative", async () => {

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
-import { CHECK_POLICY, WORKFLOW_STAGE, buildRuntimePaths, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
+import { CHECK_POLICY, WORKFLOW_STAGE, getToolId, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
 import type { OntologyRuntime } from "../ontology/runtime.js";
 import { initializeOntologyRuntime } from "../ontology/runtime.js";
 import { getBuiltinSkillsDir } from "../ontology/paths.js";
@@ -26,6 +26,7 @@ import {
 import { trigger_ci_check } from "../tools/ci-hook.js";
 import type { VerificationPolicy } from "../types/verification.js";
 import type { CIConfig } from "../types/ci.js";
+import { normalizeFailureSignature, normalizeToolInvocationSignature } from "../guardrails/output.js";
 
 export interface ToolExecutionContext {
   sessionID: string;
@@ -42,6 +43,12 @@ export interface ToolRegistryEntry {
 
 export interface ToolRegistry {
   [name: string]: ToolRegistryEntry;
+}
+
+interface ToolLoopSessionState {
+  invocationCounts: Map<string, number>;
+  failureCounts: Map<string, number>;
+  consecutiveFailures: number;
 }
 
 interface LazyToolMeta extends ToolRegistryEntry {
@@ -107,8 +114,70 @@ function safeResolve(projectRoot: string, relPath: string): string {
   return resolved;
 }
 
-export function createBudgetAwareToolExecutor(baseTools: ToolRegistry): ToolRegistry {
-  return baseTools;
+function getOrCreateLoopState(store: Map<string, ToolLoopSessionState>, sessionId: string): ToolLoopSessionState {
+  let state = store.get(sessionId);
+  if (!state) {
+    state = {
+      invocationCounts: new Map<string, number>(),
+      failureCounts: new Map<string, number>(),
+      consecutiveFailures: 0,
+    };
+    store.set(sessionId, state);
+  }
+  return state;
+}
+
+export function createBudgetAwareToolExecutor(
+  baseTools: ToolRegistry,
+  options: { ontologyRuntime: OntologyRuntime },
+): ToolRegistry {
+  const loopStates = new Map<string, ToolLoopSessionState>();
+  return Object.fromEntries(
+    Object.entries(baseTools).map(([name, tool]) => [
+      name,
+      {
+        ...tool,
+        async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string> {
+          if (!context?.sessionID) {
+            throw new Error(`Loop guard requires session context for ${name}`);
+          }
+          const agentId = context.agent
+            ? (options.ontologyRuntime.bindSession(context.sessionID, context.agent), options.ontologyRuntime.getBoundAgent(context.sessionID))
+            : options.ontologyRuntime.getBoundAgent(context.sessionID);
+          if (!agentId) {
+            throw new Error(`Loop guard missing bound agent for session ${context.sessionID}`);
+          }
+
+          const policy = options.ontologyRuntime.getPolicyEngine().getExecutionLoopPolicy(agentId, getToolId(name));
+          const signature = normalizeToolInvocationSignature(name, args);
+          const state = getOrCreateLoopState(loopStates, context.sessionID);
+          const nextInvocations = (state.invocationCounts.get(signature) ?? 0) + 1;
+          if (typeof policy.max_identical_invocations === "number" && nextInvocations > policy.max_identical_invocations) {
+            throw new Error(`Loop guard denied ${name}: identical invocation cap ${policy.max_identical_invocations} exceeded`);
+          }
+          state.invocationCounts.set(signature, nextInvocations);
+
+          try {
+            const result = await tool.execute(args, context);
+            state.consecutiveFailures = 0;
+            return result;
+          } catch (error) {
+            state.consecutiveFailures += 1;
+            const failureSignature = normalizeFailureSignature(name, args, error);
+            const nextFailures = (state.failureCounts.get(failureSignature) ?? 0) + 1;
+            state.failureCounts.set(failureSignature, nextFailures);
+            if (typeof policy.max_identical_failures === "number" && nextFailures > policy.max_identical_failures) {
+              throw new Error(`Loop guard denied ${name}: identical failure cap ${policy.max_identical_failures} exceeded`);
+            }
+            if (typeof policy.max_consecutive_failures === "number" && state.consecutiveFailures > policy.max_consecutive_failures) {
+              throw new Error(`Loop guard denied ${name}: consecutive failure cap ${policy.max_consecutive_failures} exceeded`);
+            }
+            throw error;
+          }
+        },
+      } satisfies ToolRegistryEntry,
+    ]),
+  );
 }
 
 function deriveAuthorizationPattern(
@@ -321,4 +390,4 @@ export async function createInitialWorkflowIfMissing(runtimePaths: RuntimePaths,
   }
 }
 
-export { buildRuntimePaths, safeResolve, splitCommandLine, truncateOutput };
+export { safeResolve, splitCommandLine, truncateOutput };

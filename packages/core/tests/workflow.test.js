@@ -76,6 +76,38 @@ describe("workflow strict ontology", () => {
     assert.equal(run.iteration, 2);
   });
 
+  test("verification retry no-progress cap escalates to needs-human", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, "same failure", CHECK_POLICY.blocking);
+    let run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, "same failure", CHECK_POLICY.blocking);
+    run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(run.status_id, "workflow-status:blocked");
+  });
+
+  test("iteration cap escalates to needs-human", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    for (let index = 0; index < 2; index += 1) {
+      await recordTaskResult(runtimePaths, "workflow-run:test", `progress-${index}`, "agent:specialist:software-engineer", TASK_STATUS.passed, [`spec:progress-${index}`], `block-${index}`, `progress ${index}`);
+      await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, `failure ${index}`, CHECK_POLICY.blocking);
+      await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+      await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    }
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, "failure final", CHECK_POLICY.blocking);
+    const run = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    assert.equal(run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(run.iteration, 3);
+  });
+
   test("records task and check records by ontology ids", async () => {
     await createWorkflowRun(runtimePaths, "workflow-run:test");
     await recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:specialist:software-engineer", TASK_STATUS.running, ["spec:test"], "Implement block", "started");
@@ -84,5 +116,6 @@ describe("workflow strict ontology", () => {
     assert.equal(state.task_records[0].requesting_agent_id, "agent:specialist:software-engineer");
     assert.equal(state.check_records[0].result_status_id, CHECK_STATUS.passed);
     assert.equal(state.workflow_run.check_record_index["check:mechanical"].check_policy_id, CHECK_POLICY.blocking);
+    assert.equal(state.workflow_run.task_record_index["workflow-task:workflow-run_test:task-1"].requesting_agent_id, "agent:specialist:software-engineer");
   });
 });

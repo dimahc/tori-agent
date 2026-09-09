@@ -21,8 +21,10 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
    - path glob restrictions
    - command glob restrictions
    - authorization deny policies
-   - transition policies over persisted workflow checks
+   - execution loop caps by session-bound agent
+   - transition policies over persisted workflow checks, retry counters, no-progress counters, iteration caps
 5. Lifecycle/workflow tools persist runtime-managed artifacts and workflow-run JSON-LD
+6. Harness `assistant.output` hook applies deterministic final-response dedup/self-talk suppression before host emits assistant text
 
 ## Workflow persistence
 

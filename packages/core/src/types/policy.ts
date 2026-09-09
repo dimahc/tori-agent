@@ -1,8 +1,10 @@
 import type {
   AuthorizationDecision,
   AuthorizationRequest,
+  ExecutionLoopPolicy,
   OntologyId,
   OntologyEntity,
+  OutputGovernancePolicy,
   TransitionDecision,
   WorkflowRun,
 } from "@tori-agent/ontology";
@@ -32,5 +34,7 @@ export interface PolicyEngine {
   canTransition(workflowRun: WorkflowRun, toStageId: OntologyId): TransitionDecision;
   ingestWorkflowRun(workflowRun: WorkflowRun): void;
   clearWorkflowRun(workflowRunId: OntologyId): void;
+  getExecutionLoopPolicy(agentId: OntologyId, toolId?: OntologyId): ExecutionLoopPolicy;
+  getOutputGovernancePolicy(agentId: OntologyId): OutputGovernancePolicy;
   ingestOntology?(entity: OntologyEntity): void;
 }
