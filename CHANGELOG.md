@@ -30,6 +30,7 @@
 - Add scribe ontology capability definitions
 - Enhance agent capability and tool resolution
 - Align runtime with strict contract
+- Enforce bounded cognition authority model
 
 ### Changed
 
@@ -70,6 +71,7 @@
 - Preserve tori availability
 - Fail closed on unbound sessions
 - Align plugin with official opencode ABI
+- Align workflow_state and bindings
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
