@@ -68,6 +68,7 @@
 - Enforce default session agent binding
 - Preserve tori availability
 - Fail closed on unbound sessions
+- Align plugin with official opencode ABI
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
