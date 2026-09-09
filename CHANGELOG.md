@@ -78,6 +78,7 @@
 - Align plugin with official opencode ABI
 - Align workflow_state and bindings
 - Harden workflow ontology validation
+- Enforce loop-stop budgets
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
