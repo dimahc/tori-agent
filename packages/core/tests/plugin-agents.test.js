@@ -84,7 +84,7 @@ describe("plugin ontology integration", () => {
     );
 
     await assert.rejects(
-      () => wrapped.register_spec.execute({ spec_file: "blocked.md", title: "Blocked" }, { sessionID: "s-direct", directory: root, agent: "tori" }),
+      () => wrapped.register_spec.execute({ spec_file: "blocked.md", title: "Blocked" }, { sessionID: "s-direct", directory: root }),
       /Unauthorized tool execution for register_spec/,
     );
   });
@@ -301,20 +301,18 @@ describe("plugin ontology integration", () => {
     const permission = { status: "allow" };
     await plugin["permission.ask"]({ sessionID: "s-unbound", type: "write", pattern: "README.md" }, permission);
     assert.equal(permission.status, "deny");
+    assert.equal(permission.reason, "Session s-unbound not bound by host to ontology agent");
   });
 
-  test("fresh session permission fallback resolves to default tori without explicit binding hook", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tori-plugin-fallback-"));
+  test("unbound session denies even read until host binds ontology agent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-unbound-read-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    const permission = { status: "deny" };
-    await plugin["permission.ask"]({ sessionID: "s-fallback", type: "read", pattern: "README.md" }, permission);
-    assert.equal(permission.status, "allow");
-
-    const writePermission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-fallback", type: "write", pattern: "README.md" }, writePermission);
-    assert.equal(writePermission.status, "deny");
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-unbound-read", type: "read", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
+    assert.equal(permission.reason, "Session s-unbound-read not bound by host to ontology agent");
   });
 
   test("unknown host agent binding stays denied and does not fall back to tori", async () => {
@@ -327,6 +325,7 @@ describe("plugin ontology integration", () => {
     const permission = { status: "allow" };
     await plugin["permission.ask"]({ sessionID: "s-unknown", type: "read", pattern: "README.md" }, permission);
     assert.equal(permission.status, "deny");
+    assert.equal(permission.reason, "Session s-unknown not bound by host to ontology agent");
   });
 
   test("assistant output hook rewrites repeated self-talk paragraphs", async () => {

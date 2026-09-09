@@ -226,9 +226,13 @@ export class OntologyRuntime {
 
   authorizeSession(sessionId: string, toolName: string, pattern?: string | string[], runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"]): AuthorizationDecision {
     this.assertInitialized();
-    const agentId = this.sessionAgents.get(sessionId) ?? this.bindSessionToDefaultMainAgentIfSafe(sessionId, runtimePaths?.runtimeId ?? this.runtimePaths?.runtimeId);
+    const agentId = this.sessionAgents.get(sessionId);
     if (!agentId) {
-      return { effect: "deny", matchedGrantIds: [], reason: `Session ${sessionId} not bound to ontology agent` };
+      return {
+        effect: "deny",
+        matchedGrantIds: [],
+        reason: `Session ${sessionId} not bound by host to ontology agent`,
+      };
     }
     if (!runtimePaths) {
       return { effect: "deny", matchedGrantIds: [], reason: "Missing runtime path context" };
@@ -292,11 +296,6 @@ export class OntologyRuntime {
     if (!this.initialized || !this.bundle || !this.policyEngine) {
       throw new Error("OntologyRuntime not initialized");
     }
-  }
-
-  private bindSessionToDefaultMainAgentIfSafe(sessionId: string, runtimeId?: RuntimeId): OntologyId | undefined {
-    if (!runtimeId || this.unknownSessionAgents.has(sessionId)) return undefined;
-    return this.bindSessionToDefaultMainAgent(sessionId, runtimeId).agentId;
   }
 
   private resolveAgentId(hostAgentName: string): OntologyId | undefined {

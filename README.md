@@ -48,9 +48,19 @@ Main-session binding contract:
 - builtin default main-session agent is `agent:tori` -> host key `tori`
 - `session.agent` returns canonical binding payload before first turn: `{ agent, agentId, authoritative: true, source: "ontology-default-main-agent" }`
 - `event` on `session.created` can return same binding payload when host passes `sessionID` and consumes output
+- host must bind returned ontology agent to session before first guarded action; repo cannot force this from inside plugin
 - `config` returns authoritative compiled `agent` map plus `defaultAgent`, `session.defaultAgent`, and `ontology.authoritativeAgentKeys`
+- only explicit binding paths exist: `chat.message` with `agent`, `session.agent`, or `session.created` output consumed by host
+- no silent fallback binding at `permission.ask` or repo authorization path; unbound sessions fail closed with explicit deny reason
 - unbound sessions stay denied at `permission.ask` and repo-owned mutation-tool wrappers
 - host-native mutation tools (`write` / `edit` / `bash`) still require host to call `permission.ask`; repo cannot intercept host-native execution if host skips that boundary
+
+Hard host obligations:
+
+- call `session.agent` on new main session, or consume binding payload from `session.created`, and persist returned agent on host session state
+- pass actual bound agent through `chat.message` / `assistant.output` / repo-owned tool context when host already knows it
+- call `permission.ask` before every host-native `write` / `edit` / `bash` execution
+- deny execution when `permission.ask` returns `deny`; do not substitute host defaults
 
 Session title contract:
 

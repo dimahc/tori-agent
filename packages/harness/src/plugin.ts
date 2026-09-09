@@ -126,6 +126,7 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
       "permission.ask": async (request, output) => {
         const decision = ontologyRuntime.authorizeSession(request.sessionID, request.type, request.pattern, runtimePaths);
         output.status = decision.effect;
+        output.reason = decision.reason;
       },
     };
   };

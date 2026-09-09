@@ -67,6 +67,6 @@ export interface PluginOutput {
   'assistant.output'?: (input: AssistantOutputHookInput, output: AssistantOutputMutation) => Promise<void>;
   'permission.ask'?: (
     input: { type: string; pattern?: string | string[]; sessionID: string },
-    output: { status: 'deny' | 'allow' }
+    output: { status: 'deny' | 'allow'; reason?: string }
   ) => Promise<void>;
 }

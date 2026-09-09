@@ -19,7 +19,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 - Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
-- Runtime exposes single default main-session agent resolver. Preferred path: host binds that agent before first turn through `session.agent` or `session.created` output. Safe fallback also binds fresh unclaimed sessions to ontology default agent at first permission boundary; sessions explicitly bound to unknown/non-ontology agents stay denied.
+- Runtime exposes single default main-session agent resolver. Host must bind that agent before first turn through `session.agent`, `session.created` output, or explicit `chat.message` agent metadata. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied with explicit reason.
 - Session-title helper derives deterministic rename proposals from first meaningful user request and never falls back to random or timestamp naming.
 - Assistant-output helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `assistant.output`.
 

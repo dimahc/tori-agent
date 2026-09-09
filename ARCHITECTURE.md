@@ -16,8 +16,9 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
 1. `OntologyCompiler` loads JSON-LD entities from `packages/core/spec/ontology/`
 2. `OntologyRegistry` validates and stores strict entities by ontology `@id`
 3. `OntologyRuntime` builds host agent configs from ontology
-   - resolves single canonical default main-session agent per runtime
-   - exposes authoritative session-binding payload for host `session.agent` / `session.created`
+    - resolves single canonical default main-session agent per runtime
+    - exposes authoritative session-binding payload for host `session.agent` / `session.created`
+    - fails closed when host never binds session to ontology agent
 4. `PolicyEngineImpl` enforces ontology-derived permission grants and `Policy` records:
    - permission grants by `tool_id`
    - path glob restrictions
@@ -54,6 +55,7 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 - workflow transition semantics
 - policy enforcement by bound session agent at permission.ask and tool execution boundary
 - new-session binding guaranteed only when host calls `session.agent` or consumes `session.created` binding output
+- no repo-side interception of host-native `write` / `edit` / `bash` when host skips `permission.ask`
 - strict SHACL-like shape validation
 - lifecycle/path/consistency behavior
 - ontology compilation / expansion verification
