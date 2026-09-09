@@ -56,6 +56,7 @@
 - Rename runtime to harness and fix agent registration
 - Update plugin export and event logging
 - Implement extensive caching for runtime and tool operations
+- Refine agent prompts and tool-choice hierarchies
 
 ### Fixed
 
