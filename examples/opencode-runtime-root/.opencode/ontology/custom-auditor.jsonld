@@ -1,0 +1,120 @@
+{
+  "@context": "https://tori-agent.dev/ontology/2026/core/context",
+  "@graph": [
+    {
+      "@id": "capability:openapi-audit",
+      "@type": "Capability",
+      "label": "OpenAPI audit",
+      "description": "Review large OpenAPI specifications with bounded readonly extraction"
+    },
+    {
+      "@id": "role:openapi_auditor",
+      "@type": "Role",
+      "label": "OpenAPI auditor",
+      "description": "Project-local readonly OpenAPI auditor",
+      "capability_ids": [
+        "capability:openapi-audit"
+      ],
+      "permission_grants": [
+        {
+          "@id": "permission:openapi-auditor:read",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:read",
+          "effect": "policy-effect:allow",
+          "rationale": "Read OpenAPI documents and adjacent docs",
+          "path_globs": [
+            "examples/structured-read/*.json",
+            "**/*openapi*.json",
+            "**/*openapi*.yaml",
+            "**/*openapi*.yml",
+            "docs/**/*.json"
+          ]
+        },
+        {
+          "@id": "permission:openapi-auditor:structured-read",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:structured_read",
+          "effect": "policy-effect:allow",
+          "rationale": "Inspect huge OpenAPI payloads with bounded readonly extraction",
+          "path_globs": [
+            "examples/structured-read/*.json",
+            "**/*openapi*.json",
+            "**/*openapi*.yaml",
+            "**/*openapi*.yml"
+          ]
+        },
+        {
+          "@id": "permission:openapi-auditor:glob",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:glob",
+          "effect": "policy-effect:allow",
+          "rationale": "Locate candidate API description files"
+        },
+        {
+          "@id": "permission:openapi-auditor:grep",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:grep",
+          "effect": "policy-effect:allow",
+          "rationale": "Search OpenAPI text and docs"
+        },
+        {
+          "@id": "permission:openapi-auditor:project-state",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:project_state",
+          "effect": "policy-effect:allow",
+          "rationale": "Inspect managed artifact state when audit references repo docs"
+        },
+        {
+          "@id": "permission:openapi-auditor:write",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:write",
+          "effect": "policy-effect:deny",
+          "rationale": "Keep auditor readonly"
+        },
+        {
+          "@id": "permission:openapi-auditor:edit",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:edit",
+          "effect": "policy-effect:deny",
+          "rationale": "Keep auditor readonly"
+        },
+        {
+          "@id": "permission:openapi-auditor:bash",
+          "@type": "PermissionGrant",
+          "tool_id": "tool:bash",
+          "effect": "policy-effect:deny",
+          "rationale": "No shell execution for this auditor"
+        }
+      ]
+    },
+    {
+      "@id": "agent:openapi-auditor",
+      "@type": "Agent",
+      "label": "OpenAPI auditor",
+      "description": "Project-local readonly auditor for large OpenAPI specifications",
+      "role_ids": [
+        "role:openapi_auditor"
+      ],
+      "capability_ids": [
+        "capability:openapi-audit"
+      ],
+      "tool_ids": [
+        "tool:read",
+        "tool:structured_read",
+        "tool:glob",
+        "tool:grep",
+        "tool:project_state"
+      ],
+      "prompt_ref": "prompt:reviewer",
+      "metadata": {
+        "color": "warning",
+        "human_tone": false,
+        "mode": "subagent",
+        "temperature": 0.1,
+        "runtime_ids": [
+          "opencode"
+        ]
+      }
+    }
+  ]
+}

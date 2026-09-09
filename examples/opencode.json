@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "openapi-auditor": {
+      "description": "Read-only OpenAPI auditor for large local specs. Pair with this repo's .opencode/ontology/custom-auditor.jsonld when you want ontology-governed tool access here.",
+      "mode": "subagent",
+      "temperature": 0,
+      "prompt": "{file:./prompts/openapi-auditor.md}",
+      "tools": {
+        "structured_read": true,
+        "read": true,
+        "glob": true,
+        "grep": true,
+        "write": false,
+        "edit": false,
+        "bash": false
+      },
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "bash": "deny",
+        "edit": "deny",
+        "external_directory": "deny"
+      }
+    }
+  }
+}

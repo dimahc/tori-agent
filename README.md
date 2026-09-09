@@ -128,7 +128,78 @@ Current repo contract:
 
 `project_state` and `check_artifacts` are derived operational views, not authorities. Both now expose scan provenance and projection metadata. `save_checkpoint`, `scratchpad`, and `write_append` outputs are explicitly labeled narrative-only.
 
-`structured_read` adds bounded readonly inspection for huge structured files under project root only. V1 modes: `stat`, `slice_bytes`, `slice_chars`, `json_pointer`, `object_keys`, `pretty`. JSON modes fail closed on malformed JSON. Output always includes non-authoritative projection metadata plus path/mode/format/truncation metadata.
+## Local customization surfaces
+
+Project-local customization lives under runtime root:
+
+- `.opencode/ontology/*.jsonld` or `.kilocode/ontology/*.jsonld` — local ontology records
+- `.opencode/ontology/prompts/*.md` or `.kilocode/ontology/prompts/*.md` — local prompt overrides
+- `.opencode/skills/<name>/SKILL.md` or `.kilocode/skills/<name>/SKILL.md` — local skill overrides
+
+Copy-ready examples live in [`examples/`](examples/README.md):
+
+- host `opencode.json` customization
+- repo-owned `.opencode/ontology/*.jsonld` extension
+- local prompt and skill overrides
+- `structured_read` fixture plus payload examples
+
+Practical model:
+
+- builtin ontology loads first from `packages/core/spec/ontology/*.jsonld`
+- local `.opencode/ontology/*.jsonld` loads after builtin graph
+- matching ontology `@id` replaces builtin entity unless record is immutable builtin safety record
+- new ontology `@id` extends graph
+- prompt loading checks local `ontology/prompts/` first, then packaged builtin prompt file
+- skill loading checks local `skills/` first, then packaged builtin skill file
+
+Limits matter:
+
+- ontology stays authoritative for tools, permission grants, path policies, workflow ids, default-agent metadata, and protected safety behavior
+- local prompts can change guidance text only; they do not redefine runtime permissions or policy evaluation
+- local skills can change loaded markdown only; they do not bypass ontology grants or host permission hooks
+- immutable builtin ontology records are protected from local JSON-LD override attempts. Current protected ids: `agent:tori`, `role:orchestrator`, `policy:tori-no-direct-mutation`
+- host config should not be documented as override authority for this repo's protected default main-session agent; ontology still sets official `default_agent` metadata
+
+Not authoritative:
+
+- `.opencode/agents/` generated output is convenience expansion output, not runtime source of truth
+- `.opencode/specs/`, `.opencode/briefs/`, `.opencode/exec-plans/`, `.opencode/workflows/`, checkpoints, scratchpad are managed artifacts or derived runtime state, not ontology definition sources
+- prompts and docs describe behavior; they do not override ontology/runtime enforcement
+
+## `structured_read` practical usage
+
+`structured_read` is bounded readonly inspection for huge structured files under project root only. It does not shell out, does not write, and does not bypass path deny policy.
+
+See [`examples/README.md`](examples/README.md) and [`examples/structured-read/huge-openapi.json`](examples/structured-read/huge-openapi.json) for copy-ready payload examples against dense one-line OpenAPI-style JSON.
+
+Public call shape:
+
+- required: `path`, `mode`
+- optional: `offset`, `length`, `pointer`
+
+Modes:
+
+- `stat` — file metadata only
+- `slice_bytes` — byte slice, returns base64 payload plus UTF-8 preview
+- `slice_chars` — character slice from UTF-8 text decode
+- `json_pointer` — resolve JSON Pointer, then render bounded JSON text for resolved value
+- `object_keys` — list top-level keys of object at pointer
+- `pretty` — bounded pretty-printed JSON render
+
+Current limits:
+
+- `slice_bytes`: max 8192 returned bytes
+- `slice_chars`: max 8192 returned chars
+- `json_pointer` and `pretty`: max 16384 rendered chars
+- `object_keys`: max 256 returned keys
+
+Behavior summary:
+
+- JSON modes (`json_pointer`, `object_keys`, `pretty`) fail closed on malformed JSON
+- `object_keys` requires object target at pointer
+- `json_pointer` pointer must be empty or start with `/`
+- output always includes non-authoritative projection metadata plus path/mode/format/truncation metadata
+- authorization still derives from requested path, so deny policies for sensitive paths like `.env` still apply
 
 ## Development
 
