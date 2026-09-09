@@ -31,6 +31,7 @@
 - Enhance agent capability and tool resolution
 - Align runtime with strict contract
 - Enforce bounded cognition authority model
+- Add structured_read tool
 
 ### Changed
 
@@ -72,6 +73,7 @@
 - Fail closed on unbound sessions
 - Align plugin with official opencode ABI
 - Align workflow_state and bindings
+- Harden workflow ontology validation
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
