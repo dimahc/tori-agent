@@ -65,6 +65,7 @@
 - Derive title from first user request
 - Enforce strict tori no-mutation
 - Enforce strict anti-loop guardrails
+- Enforce default session agent binding
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
