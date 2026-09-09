@@ -53,6 +53,7 @@
 - Remove legacy agent specifications and prompt files
 - Rename runtime to harness and fix agent registration
 - Update plugin export and event logging
+- Implement extensive caching for runtime and tool operations
 
 ### Fixed
 
