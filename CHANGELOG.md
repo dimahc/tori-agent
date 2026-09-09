@@ -67,6 +67,7 @@
 - Enforce strict anti-loop guardrails
 - Enforce default session agent binding
 - Preserve tori availability
+- Fail closed on unbound sessions
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
