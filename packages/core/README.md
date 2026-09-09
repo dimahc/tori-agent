@@ -11,7 +11,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 ## Plugin assembly
 
 - Plugin assembly builds runtime config from ontology records; ontology-derived canonical fields override host attempts for ontology-owned agents.
-- Plugin assembly merges compiled ontology agents into host `agent` config, preserving host-private fields and host-only agents while emitting canonical default-main-agent metadata.
+- Plugin assembly merges compiled ontology agents into host `agent` config, preserving host-private fields and host-only agents while mutating official `default_agent` metadata in place.
 - Builtin agent spec loading always starts from packaged [`spec/ontology/*.jsonld`](../spec/ontology).
 - Project-local ontology from `.opencode/ontology/` or `.kilocode/ontology/` loads after builtin graph; matching `@id` overrides builtin entity, new `@id` extends graph.
 - Builtin prompts resolve from packaged `spec/ontology/prompts/`; project-local `ontology/prompts/` wins when same prompt file exists.
@@ -19,9 +19,9 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 - Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
-- Runtime exposes single default main-session agent resolver. Host must bind that agent before first turn through `session.agent`, `session.created` output, or explicit `chat.message` agent metadata. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied with explicit reason.
-- Session-title helper derives deterministic rename proposals from first meaningful user request and never falls back to random or timestamp naming.
-- Assistant-output helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `assistant.output`.
+- Runtime exposes single default main-session agent resolver. Host must honor `default_agent` and bind actual session agent through official `chat.message` metadata before guarded actions. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied.
+- Session-title helper still exists as internal utility; not part of strict official plugin ABI.
+- Output-governance helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `experimental.text.complete`.
 
 ## Workflow state machine
 
@@ -55,7 +55,7 @@ Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 
 ## Artifact paths
 
-Managed docs are created automatically on `session.created`:
+Managed docs directories are bootstrapped on `session.created`:
 
 - `.opencode/specs` or `.kilocode/specs` — managed specs
 - `.opencode/exec-plans` or `.kilocode/exec-plans` — execution plans

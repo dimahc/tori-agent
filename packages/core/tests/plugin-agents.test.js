@@ -5,8 +5,16 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
-import { deriveSessionTitle, isDefaultSessionTitle } from "../dist/index.js";
-import { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor, createBudgetAwareToolExecutor } from "../dist/plugin/index.js";
+import {
+  deriveNativeMutationAuthorizationPattern,
+  deriveSessionTitle,
+  isDefaultSessionTitle,
+  buildReadOnlyTools,
+  buildWriteTools,
+  createAuthorizedToolExecutor,
+  createBudgetAwareToolExecutor,
+  isNativeMutationTool,
+} from "../dist/index.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
 
 describe("plugin ontology integration", () => {
@@ -170,149 +178,64 @@ describe("plugin ontology integration", () => {
     assert.equal(isDefaultSessionTitle("Fix session naming"), false);
   });
 
-  test("first meaningful user request generates stable session title once", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tori-plugin-title-"));
-    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
-    const plugin = await factory({ directory: root, worktree: root });
-
-    const first = {};
-    await plugin["chat.message"]({
-      sessionID: "s-title",
-      role: "user",
-      message: "  Fix session naming to use first user request instead of timestamp fallback.  ",
-      currentTitle: "Untitled Session",
-    }, first);
-
-    assert.deepEqual(first, {
-      title: "Fix session naming to use first user request instead of timestamp fallback",
-      shouldRename: true,
-      source: "first-user-request",
-    });
-
-    const second = {};
-    await plugin["chat.message"]({
-      sessionID: "s-title",
-      role: "user",
-      message: "Actually make it rename on every message",
-      currentTitle: first.title,
-    }, second);
-
-    assert.deepEqual(second, {});
-  });
-
-  test("blank and noise messages do not generate title", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tori-plugin-noise-"));
-    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
-    const plugin = await factory({ directory: root, worktree: root });
-
-    const blank = {};
-    await plugin["session.title"]({
-      sessionID: "s-noise",
-      role: "user",
-      message: "   ",
-      currentTitle: "Untitled Session",
-    }, blank);
-    assert.deepEqual(blank, {});
-
-    const noise = {};
-    await plugin["session.title"]({
-      sessionID: "s-noise",
-      role: "user",
-      message: "hello",
-      currentTitle: "Untitled Session",
-    }, noise);
-    assert.deepEqual(noise, {});
-
-    const meaningful = {};
-    await plugin["session.title"]({
-      sessionID: "s-noise",
-      role: "user",
-      message: "Add explicit session title hook to plugin contract",
-      currentTitle: "Untitled Session",
-    }, meaningful);
-    assert.deepEqual(meaningful, {
-      title: "Add explicit session title hook to plugin contract",
-      shouldRename: true,
-      source: "first-user-request",
-    });
-  });
-
-  test("title flow does not affect session auth behavior", async () => {
+  test("chat.message binds session when official input.agent present", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-title-auth-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    await plugin["chat.message"]({ sessionID: "s-auth", agent: "tori" }, {});
-    await plugin["chat.message"]({
-      sessionID: "s-auth",
-      role: "user",
-      message: "Check auth still denies write for tori",
-      currentTitle: "Untitled Session",
-    }, {});
+    const output = {};
+    await plugin["chat.message"]({ sessionID: "s-auth", agent: "specialist:software-engineer" }, output);
+    assert.deepEqual(output, {});
 
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-auth", type: "write", pattern: "README.md" }, permission);
-    assert.equal(permission.status, "deny");
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-auth", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
   });
 
-  test("session.agent exposes authoritative tori binding before first turn", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-agent-"));
-    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
-    const plugin = await factory({ directory: root, worktree: root });
-
-    const binding = {};
-    await plugin["session.agent"]({ sessionID: "s-bind" }, binding);
-    assert.deepEqual(binding, {
-      agent: "tori",
-      agentId: "agent:tori",
-      authoritative: true,
-      source: "ontology-default-main-agent",
-    });
-
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-bind", type: "write", pattern: "README.md" }, permission);
-    assert.equal(permission.status, "deny");
-  });
-
-  test("session.created can bind session to tori before first message when host consumes output", async () => {
+  test("event reads session.created sessionID from event.properties.sessionID and does safe bootstrap only", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    const binding = {};
-    await plugin.event({ event: { type: "session.created", sessionID: "s-created" } }, binding);
-    assert.deepEqual(binding, {
-      agent: "tori",
-      agentId: "agent:tori",
-      authoritative: true,
-      source: "ontology-default-main-agent",
-    });
+    await plugin["chat.message"]({ sessionID: "s-created", agent: "specialist:software-engineer" }, {});
+    await plugin.event({ event: { type: "session.created", properties: { sessionID: "s-created" } } });
 
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-created", type: "write", pattern: "README.md" }, permission);
+    assert.ok((await readdir(runtimePaths.runtimeRoot)).includes("workflows"));
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created", permission: "write", patterns: ["README.md"] }, permission);
     assert.equal(permission.status, "deny");
   });
 
-  test("unbound session still denies mutation tools", async () => {
+  test("permission.ask accepts official payload shape and denies tori native mutation permissions", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-unbound-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-unbound", type: "write", pattern: "README.md" }, permission);
+    await plugin["chat.message"]({ sessionID: "s-tori", agent: "tori" }, {});
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({
+      id: "perm-1",
+      sessionID: "s-tori",
+      permission: "write",
+      patterns: ["README.md"],
+      metadata: { source: "test" },
+      always: ["session"],
+      tool: { name: "write" },
+    }, permission);
     assert.equal(permission.status, "deny");
-    assert.equal(permission.reason, "Session s-unbound not bound by host to ontology agent");
   });
 
-  test("unbound session denies even read until host binds ontology agent", async () => {
+  test("permission.ask preserves existing output for non-ontology permissions", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-unbound-read-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-unbound-read", type: "read", pattern: "README.md" }, permission);
-    assert.equal(permission.status, "deny");
-    assert.equal(permission.reason, "Session s-unbound-read not bound by host to ontology agent");
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-unbound-read", permission: "clipboard.write" }, permission);
+    assert.equal(permission.status, "ask");
   });
 
   test("unknown host agent binding stays denied and does not fall back to tori", async () => {
@@ -322,54 +245,61 @@ describe("plugin ontology integration", () => {
 
     await plugin["chat.message"]({ sessionID: "s-unknown", agent: "host-private-agent" }, {});
 
-    const permission = { status: "allow" };
-    await plugin["permission.ask"]({ sessionID: "s-unknown", type: "read", pattern: "README.md" }, permission);
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-unknown", permission: "read", patterns: ["README.md"] }, permission);
     assert.equal(permission.status, "deny");
-    assert.equal(permission.reason, "Session s-unknown not bound by host to ontology agent");
   });
 
-  test("assistant output hook rewrites repeated self-talk paragraphs", async () => {
+  test("tool.execute.before blocks native write edit bash for tori", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-block-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-native-block", agent: "tori" }, {});
+
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "write", sessionID: "s-native-block", callID: "1" }, { args: { filePath: "README.md" } }),
+      /Unauthorized native tool execution for write/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "edit", sessionID: "s-native-block", callID: "2" }, { args: { filePath: "README.md" } }),
+      /Unauthorized native tool execution for edit/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-native-block", callID: "3" }, { args: { command: "npm test" } }),
+      /Unauthorized native tool execution for bash/,
+    );
+  });
+
+  test("tool.execute.before allows native mutation tools for specialist where ontology allows", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-allow-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-native-allow", agent: "specialist:software-engineer" }, {});
+    await plugin["tool.execute.before"]({ tool: "write", sessionID: "s-native-allow", callID: "1" }, { args: { filePath: "README.md" } });
+    await plugin["tool.execute.before"]({ tool: "edit", sessionID: "s-native-allow", callID: "2" }, { args: { filePath: "README.md" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-native-allow", callID: "3" }, { args: { command: "npm test" } });
+  });
+
+  test("experimental.text.complete rewrites repetitive self-talk output text in place", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
 
-    const output = {};
     await plugin["chat.message"]({ sessionID: "s-out", agent: "tori" }, {});
-    await plugin["assistant.output"]({
-      sessionID: "s-out",
-      agent: "tori",
-      text: "Let me think through this.\n\nResult ready.\n\nResult ready.",
-      attempt: 0,
-    }, output);
 
-    assert.equal(output.status, "allow");
-    assert.equal(output.reason, "Removed self-talk and duplicate output");
+    const output = { text: "Let me think through this.\n\nResult ready.\n\nResult ready." };
+    await plugin["experimental.text.complete"]({ sessionID: "s-out", messageID: "m1", partID: "p1" }, output);
+
     assert.equal(output.text, "Result ready.");
   });
 
-  test("assistant output hook blocks repeated self-talk after one retry", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-block-"));
-    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
-    const plugin = await factory({ directory: root, worktree: root });
-
-    const output = {};
-    await plugin["chat.message"]({ sessionID: "s-out-block", agent: "tori" }, {});
-    await plugin["assistant.output"]({
-      sessionID: "s-out-block",
-      agent: "tori",
-      text: "Let me think. I should check. Let me think. I should check.",
-      attempt: 1,
-    }, output);
-
-    assert.equal(output.status, "block");
-    assert.match(output.reason, /self-talk persists|Repeated self-talk/);
-  });
-
-  test("harness config integration preserves host-private fields and host-only agents while keeping ontology authority", async () => {
+  test("config mutates object in place and sets default_agent", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-merge-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
-    const config = await plugin.config({
+    const config = {
       hostPrivate: { picker: { enabled: true } },
       agent: {
         tori: {
@@ -390,8 +320,12 @@ describe("plugin ontology integration", () => {
       ontology: {
         hostOntologyField: true,
       },
-    });
+    };
+    const originalRef = config;
 
+    await plugin.config(config);
+
+    assert.equal(config, originalRef);
     assert.equal(config.hostPrivate.picker.enabled, true);
     assert.equal(config.agent.tori.label, "Host Tori Label");
     assert.equal(config.agent.tori.metadata.hostPicker, "keep-me");
@@ -400,17 +334,26 @@ describe("plugin ontology integration", () => {
     assert.equal(config.agent.tori.permission.write, undefined);
     assert.equal(config.agent.rogue.prompt, "rogue");
     assert.equal(config.agent.rogue.hostPrivate, true);
-    assert.equal(config.defaultAgent, "tori");
+    assert.equal(config.default_agent, "tori");
     assert.deepEqual(config.session, {
       hostSessionField: true,
-      defaultAgent: "tori",
-      defaultAgentId: "agent:tori",
+      default_agent: "tori",
+      default_agent_id: "agent:tori",
       authoritative: true,
       source: "ontology",
     });
     assert.equal(config.ontology.authoritative, true);
     assert.equal(config.ontology.hostOntologyField, true);
-    assert.ok(config.ontology.authoritativeAgentKeys.includes("tori"));
+    assert.ok(config.ontology.authoritative_agent_keys.includes("tori"));
+  });
+
+  test("native tool helper derives authorization patterns from official args", async () => {
+    assert.equal(isNativeMutationTool("write"), true);
+    assert.equal(isNativeMutationTool("tool.edit"), true);
+    assert.equal(isNativeMutationTool("read"), false);
+    assert.equal(deriveNativeMutationAuthorizationPattern("write", { filePath: "README.md" }), "README.md");
+    assert.equal(deriveNativeMutationAuthorizationPattern("edit", { file: "README.md" }), "README.md");
+    assert.equal(deriveNativeMutationAuthorizationPattern("bash", { command: "npm test" }), "npm test");
   });
 
   test("fresh project with no local ontology still loads builtin tori", async () => {

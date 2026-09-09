@@ -15,6 +15,13 @@ export interface AssistantOutputDecision {
   analysis: AssistantOutputAnalysis;
 }
 
+export interface AssistantOutputSanitization {
+  text: string;
+  changed: boolean;
+  reason?: string;
+  analysis: AssistantOutputAnalysis;
+}
+
 const SELF_TALK_MARKERS = [
   "let me think",
   "let me check",
@@ -143,6 +150,10 @@ function dedupeSentences(text: string): string {
   return kept.join(" ").trim();
 }
 
+function rewriteAssistantOutputText(text: string): string {
+  return dedupeSentences(dedupeParagraphs(stripSelfTalkParagraphs(text))).trim();
+}
+
 function policyExceeded(analysis: AssistantOutputAnalysis, policy: OutputGovernancePolicy): boolean {
   return (
     analysis.repeatedParagraphs.length > 0 ||
@@ -163,14 +174,14 @@ export function governAssistantOutputText(
     return { action: "allow", text, analysis };
   }
 
-  const rewritten = dedupeSentences(dedupeParagraphs(stripSelfTalkParagraphs(text)));
-  if (rewritten && rewritten !== text) {
-    const rewrittenAnalysis = analyzeAssistantOutput(rewritten, policy);
+  const sanitized = sanitizeAssistantOutputText(text, policy);
+  if (sanitized.changed) {
+    const rewrittenAnalysis = sanitized.analysis;
     if (!policyExceeded(rewrittenAnalysis, policy)) {
       return {
         action: "rewrite",
-        text: rewritten,
-        reason: hasSelfTalk ? "Removed self-talk and duplicate output" : "Removed duplicate output",
+        text: sanitized.text,
+        reason: sanitized.reason,
         analysis: rewrittenAnalysis,
       };
     }
@@ -188,5 +199,24 @@ export function governAssistantOutputText(
     action: "block",
     reason: hasSelfTalk ? "Repeated self-talk persists after retry" : "Repeated output persists after retry",
     analysis,
+  };
+}
+
+export function sanitizeAssistantOutputText(
+  text: string,
+  policy: OutputGovernancePolicy = {},
+): AssistantOutputSanitization {
+  const analysis = analyzeAssistantOutput(text, policy);
+  const selfTalkCap = policy.max_self_talk_markers ?? Number.MAX_SAFE_INTEGER;
+  const hasSelfTalk = analysis.selfTalkMarkers.length > selfTalkCap;
+  const rewritten = rewriteAssistantOutputText(text);
+  if (!rewritten || rewritten === text) {
+    return { text, changed: false, analysis };
+  }
+  return {
+    text: rewritten,
+    changed: true,
+    reason: hasSelfTalk ? "Removed self-talk and duplicate output" : "Removed duplicate output",
+    analysis: analyzeAssistantOutput(rewritten, policy),
   };
 }

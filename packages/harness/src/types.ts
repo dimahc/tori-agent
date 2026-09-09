@@ -11,62 +11,79 @@ export interface PluginInput {
   configPath?: string;
 }
 
-export interface SessionTitleMutation {
-  title?: string;
-  shouldRename?: boolean;
-  source?: 'first-user-request';
-}
-
-export interface SessionAgentHookInput {
-  sessionID: string;
-  agent?: string;
-}
-
-export interface SessionAgentMutation {
-  agent?: string;
-  agentId?: string;
-  authoritative?: true;
-  source?: 'ontology-default-main-agent';
+export interface ConfigLike {
+  agent?: Record<string, unknown>;
+  session?: Record<string, unknown>;
+  ontology?: Record<string, unknown>;
+  default_agent?: string;
+  [key: string]: unknown;
 }
 
 export interface PluginEventInput {
-  event: { type: string; sessionID?: string; agent?: string };
-  sessionID?: string;
-  agent?: string;
+  event: {
+    type: string;
+    properties?: Record<string, unknown>;
+  };
 }
 
-export interface SessionTitleHookInput {
+export interface ChatMessageHookInput {
   sessionID: string;
   agent?: string;
-  role?: string;
-  message?: string;
-  currentTitle?: string;
+  message?: unknown;
+  parts?: unknown[];
 }
 
-export interface AssistantOutputHookInput {
+export interface ChatMessageHookOutput {
+  message?: unknown;
+  parts?: unknown[];
+}
+
+export interface PermissionAskHookInput {
+  id?: string;
   sessionID: string;
-  agent?: string;
-  role?: string;
-  text: string;
-  attempt?: number;
+  permission: string;
+  patterns?: string[];
+  metadata?: Record<string, unknown>;
+  always?: string[];
+  tool?: Record<string, unknown>;
 }
 
-export interface AssistantOutputMutation {
+export interface PermissionAskHookOutput {
+  status: 'ask' | 'deny' | 'allow';
+}
+
+export interface ToolExecuteBeforeHookInput {
+  sessionID: string;
+  callID: string;
+  tool: string;
+}
+
+export interface ToolExecuteBeforeHookOutput {
+  args: unknown;
+}
+
+export interface ExperimentalTextCompleteHookInput {
+  sessionID: string;
+  messageID: string;
+  partID: string;
+}
+
+export interface ExperimentalTextCompleteHookOutput {
   text?: string;
-  status?: 'allow' | 'retry' | 'block';
-  reason?: string;
 }
 
 export interface PluginOutput {
-  config?: (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  config?: (input: ConfigLike) => Promise<void>;
   tool?: Record<string, unknown>;
-  event?: (input: PluginEventInput, output?: SessionAgentMutation) => Promise<void>;
-  'session.agent'?: (input: SessionAgentHookInput, output: SessionAgentMutation) => Promise<void>;
-  'chat.message'?: (input: SessionTitleHookInput, output?: SessionTitleMutation) => Promise<void>;
-  'session.title'?: (input: SessionTitleHookInput, output: SessionTitleMutation) => Promise<void>;
-  'assistant.output'?: (input: AssistantOutputHookInput, output: AssistantOutputMutation) => Promise<void>;
-  'permission.ask'?: (
-    input: { type: string; pattern?: string | string[]; sessionID: string },
-    output: { status: 'deny' | 'allow'; reason?: string }
+  event?: (input: PluginEventInput) => Promise<void>;
+  'chat.message'?: (input: ChatMessageHookInput, output: ChatMessageHookOutput) => Promise<void>;
+  'permission.ask'?: (input: PermissionAskHookInput, output: PermissionAskHookOutput) => Promise<void>;
+  'tool.execute.before'?: (
+    input: ToolExecuteBeforeHookInput,
+    output: ToolExecuteBeforeHookOutput,
+  ) => Promise<void>;
+  'experimental.text.complete'?: (
+    input: ExperimentalTextCompleteHookInput,
+    output: ExperimentalTextCompleteHookOutput,
   ) => Promise<void>;
 }

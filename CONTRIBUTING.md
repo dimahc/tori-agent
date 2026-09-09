@@ -46,18 +46,17 @@ Runtime hook surface stays explicit and deterministic:
 
 - `config`
 - `event`
-- `session.agent`
 - `chat.message`
-- `session.title`
-- `assistant.output`
 - `permission.ask`
+- `tool.execute.before`
+- `experimental.text.complete`
 
-`session.agent` is canonical pre-first-turn binding hook for main sessions. Host should call it on new session and bind returned agent before first user message. `event` on `session.created` may return same binding when host passes `sessionID` and consumes output.
+`config` must mutate host config in place and set official `default_agent`. Host should honor that value for fresh sessions, then pass actual agent through `chat.message` for authoritative session binding before guarded actions.
 
-Only explicit binding paths are supported: `chat.message` with `agent`, `session.agent`, and host-consumed `session.created` output. No repo-side fallback binds unclaimed sessions during `permission.ask`.
+Only explicit binding path in strict ABI is `chat.message` with `agent`. No repo-side fallback binds unclaimed sessions during `permission.ask` or `tool.execute.before`.
 
-Session title proposals come from first meaningful user request only. Host may consume `{ title, shouldRename, source }` from `chat.message` or `session.title`.
+Session title proposals remain internal helper logic only. Not part of strict official plugin contract.
 
-Assistant output suppression is host-enforced through `assistant.output`. Host must honor `allow | retry | block` and permit at most one regeneration attempt.
+Output suppression is host-enforced through `experimental.text.complete`. Hook rewrites text in place only; no custom retry/block status is exposed through official ABI.
 
-Repo guarantees ontology-derived agent config, canonical default main-session agent metadata, and deny-by-default behavior for unbound sessions with explicit deny reasons. Repo cannot force host-native `write` / `edit` / `bash` execution if host skips `permission.ask`.
+Repo guarantees ontology-derived agent config, canonical default-agent metadata, and deny-by-default behavior for unbound sessions on ontology-governed permissions. Native `write` / `edit` / `bash` enforcement depends on host calling both `permission.ask` and `tool.execute.before`.

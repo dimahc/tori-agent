@@ -33,6 +33,7 @@ export {
   governAssistantOutputText,
   normalizeFailureSignature,
   normalizeTextUnit,
+  sanitizeAssistantOutputText,
   normalizeToolInvocationSignature,
   stableStringify,
 } from "./guardrails/output.js";

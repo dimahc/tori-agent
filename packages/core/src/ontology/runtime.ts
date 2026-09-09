@@ -40,18 +40,18 @@ export interface DefaultMainSessionAgent {
 
 export interface RuntimeConfigEnvelope {
   agent: Record<string, RuntimeAgentConfig>;
-  defaultAgent: string;
+  default_agent: string;
   session: {
-    defaultAgent: string;
-    defaultAgentId: OntologyId;
+    default_agent: string;
+    default_agent_id: OntologyId;
     authoritative: true;
     source: "ontology";
   };
   ontology: {
     authoritative: true;
-    defaultMainAgent: string;
-    defaultMainAgentId: OntologyId;
-    authoritativeAgentKeys: string[];
+    default_main_agent: string;
+    default_main_agent_id: OntologyId;
+    authoritative_agent_keys: string[];
   };
 }
 
@@ -155,25 +155,25 @@ export class OntologyRuntime {
     const binding = this.getDefaultMainSessionAgent(runtimeId);
     return {
       agent,
-      defaultAgent: binding.hostAgentName,
+      default_agent: binding.hostAgentName,
       session: {
-        defaultAgent: binding.hostAgentName,
-        defaultAgentId: binding.agentId,
+        default_agent: binding.hostAgentName,
+        default_agent_id: binding.agentId,
         authoritative: true,
         source: "ontology",
       },
       ontology: {
         authoritative: true,
-        defaultMainAgent: binding.hostAgentName,
-        defaultMainAgentId: binding.agentId,
-        authoritativeAgentKeys: Object.keys(agent),
+        default_main_agent: binding.hostAgentName,
+        default_main_agent_id: binding.agentId,
+        authoritative_agent_keys: Object.keys(agent),
       },
     };
   }
 
-  async integrateHostConfig(runtimeId: RuntimeId, hostConfig: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async integrateHostConfigInPlace(runtimeId: RuntimeId, hostConfig: Record<string, unknown>): Promise<void> {
     const compiled = await this.buildRuntimeConfigEnvelope(runtimeId);
-    const base = this.asRecord(hostConfig);
+    const base = this.asMutableRecord(hostConfig);
     const hostAgents = this.asRecord(base.agent);
     const mergedAgents: GenericConfigRecord = { ...hostAgents };
 
@@ -181,18 +181,15 @@ export class OntologyRuntime {
       mergedAgents[agentKey] = this.mergeOntologyAgentConfig(hostAgents[agentKey], agentConfig);
     }
 
-    return {
-      ...base,
-      agent: mergedAgents,
-      defaultAgent: compiled.defaultAgent,
-      session: {
-        ...this.asRecord(base.session),
-        ...compiled.session,
-      },
-      ontology: {
-        ...this.asRecord(base.ontology),
-        ...compiled.ontology,
-      },
+    base.agent = mergedAgents;
+    base.default_agent = compiled.default_agent;
+    base.session = {
+      ...this.asRecord(base.session),
+      ...compiled.session,
+    };
+    base.ontology = {
+      ...this.asRecord(base.ontology),
+      ...compiled.ontology,
     };
   }
 
@@ -244,6 +241,13 @@ export class OntologyRuntime {
       pattern,
       runtimePaths,
     });
+  }
+
+  isOntologyGovernedToolName(toolName: string): boolean {
+    this.assertInitialized();
+    const normalized = toolName.replace(/^tool[.:]/, "");
+    const toolId = getToolId(normalized);
+    return this.bundle!.tools.some((tool) => tool["@id"] === toolId || tool["@id"] === normalized);
   }
 
   authorizeToolExecution(
@@ -307,6 +311,13 @@ export class OntologyRuntime {
 
   private asRecord(value: unknown): GenericConfigRecord {
     return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as GenericConfigRecord) } : {};
+  }
+
+  private asMutableRecord(value: unknown): GenericConfigRecord {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Host config must be mutable object");
+    }
+    return value as GenericConfigRecord;
   }
 
   private mergeOntologyAgentConfig(hostAgentConfig: unknown, ontologyAgentConfig: RuntimeAgentConfig): GenericConfigRecord {

@@ -180,6 +180,48 @@ export function createBudgetAwareToolExecutor(
   );
 }
 
+const NATIVE_MUTATION_TOOLS = new Set(["write", "edit", "bash"]);
+
+function asArgsRecord(args: unknown): Record<string, unknown> {
+  return args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : {};
+}
+
+function firstStringValue(args: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    if (typeof args[key] === "string" && args[key]) return String(args[key]);
+  }
+  return undefined;
+}
+
+export function normalizeOfficialPermissionName(permission: string): string {
+  return permission.replace(/^tool[.:]/, "");
+}
+
+export function isNativeMutationTool(toolName: string): boolean {
+  return NATIVE_MUTATION_TOOLS.has(normalizeOfficialPermissionName(toolName));
+}
+
+export function deriveNativeMutationAuthorizationPattern(toolName: string, args: unknown): string | string[] | undefined {
+  const normalizedToolName = normalizeOfficialPermissionName(toolName);
+  const record = asArgsRecord(args);
+  switch (normalizedToolName) {
+    case "write":
+      return firstStringValue(record, ["filePath", "file", "path"]);
+    case "edit":
+      return firstStringValue(record, ["filePath", "file", "path"]);
+    case "bash": {
+      const command = firstStringValue(record, ["command", "cmd"]);
+      if (command) return command;
+      if (Array.isArray(record.argv) && record.argv.every((entry) => typeof entry === "string")) {
+        return (record.argv as string[]).join(" ");
+      }
+      return undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
 function deriveAuthorizationPattern(
   toolName: string,
   args: Record<string, unknown>,

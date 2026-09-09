@@ -17,8 +17,8 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
 2. `OntologyRegistry` validates and stores strict entities by ontology `@id`
 3. `OntologyRuntime` builds host agent configs from ontology
     - resolves single canonical default main-session agent per runtime
-    - exposes authoritative session-binding payload for host `session.agent` / `session.created`
-    - fails closed when host never binds session to ontology agent
+    - mutates host config in place with official `default_agent`
+    - fails closed when host never binds session to ontology agent through official fields
 4. `PolicyEngineImpl` enforces ontology-derived permission grants and `Policy` records:
    - permission grants by `tool_id`
    - path glob restrictions
@@ -27,7 +27,7 @@ Prompts do not override ontology. Runtime state does not use legacy free-form st
    - execution loop caps by session-bound agent
    - transition policies over persisted workflow checks, retry counters, no-progress counters, iteration caps
 5. Lifecycle/workflow tools persist runtime-managed artifacts and workflow-run JSON-LD
-6. Harness `assistant.output` hook applies deterministic final-response dedup/self-talk suppression before host emits assistant text
+6. Harness `experimental.text.complete` hook applies best-effort final-response dedup/self-talk rewrite before host emits assistant text
 
 ## Workflow persistence
 
@@ -53,9 +53,9 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 ## Test coverage added/updated
 
 - workflow transition semantics
-- policy enforcement by bound session agent at permission.ask and tool execution boundary
-- new-session binding guaranteed only when host calls `session.agent` or consumes `session.created` binding output
-- no repo-side interception of host-native `write` / `edit` / `bash` when host skips `permission.ask`
+- policy enforcement by bound session agent at `permission.ask` and `tool.execute.before`
+- new-session binding depends on host honoring `default_agent` and passing `chat.message.input.agent`
+- no repo-side interception of host-native `write` / `edit` / `bash` when host skips official permission/tool hooks
 - strict SHACL-like shape validation
 - lifecycle/path/consistency behavior
 - ontology compilation / expansion verification
