@@ -19,6 +19,22 @@
         { "@id": "permission:reviewer:checks", "@type": "PermissionGrant", "tool_id": "tool:run_mechanical_checks", "effect": "policy-effect:allow", "rationale": "Run verification" }
       ]
     },
+    {
+      "@id": "policy:reviewer-tool-loop-cap",
+      "@type": "Policy",
+      "label": "Reviewer tool loop cap",
+      "description": "Cap reviewer investigation, search, speculation, and repeated invocation loops; fail closed to needs-human workflow stage when workflow context exists.",
+      "policy_kind_id": "policy-kind:execution-loop",
+      "subject_role_ids": ["role:reviewer"],
+      "max_identical_invocations": 2,
+      "max_identical_failures": 2,
+      "max_consecutive_failures": 2,
+      "max_investigation_actions": 8,
+      "max_search_actions": 6,
+      "max_speculation_actions": 1,
+      "max_missing_context_failures": 1,
+      "escalation_stage_id": "workflow-stage:needs-human"
+    },
     { "@id": "agent:reviewer:quality", "@type": "Agent", "label": "Reviewer quality", "description": "Quality reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } },
     { "@id": "agent:reviewer:challenge", "@type": "Agent", "label": "Reviewer challenge", "description": "Challenge reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } },
     { "@id": "agent:reviewer:enhance", "@type": "Agent", "label": "Reviewer enhance", "description": "Enhancement reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } }

@@ -58,6 +58,18 @@ interface ToolLoopSessionState {
   missingContextFailures: number;
 }
 
+interface InvocationClassification {
+  readonly investigation: boolean;
+  readonly search: boolean;
+  readonly clarification: boolean;
+}
+
+interface BoundedCognitionPreflight {
+  readonly workflowId?: string;
+  readonly policy: ExecutionLoopPolicy;
+  readonly state: ToolLoopSessionState;
+}
+
 interface LazyToolMeta extends ToolRegistryEntry {
   name: string;
   category: string;
@@ -242,17 +254,195 @@ function getOrCreateLoopState(store: Map<string, ToolLoopSessionState>, sessionI
   return state;
 }
 
-function actionIncrementsForTool(ontologyRuntime: OntologyRuntime, toolName: string): {
+function commandFromArgs(args: Record<string, unknown>): string | undefined {
+  const command = firstStringValue(args, ["command", "cmd"]);
+  if (command) return command;
+  if (Array.isArray(args.argv) && args.argv.every((entry) => typeof entry === "string")) {
+    return (args.argv as string[]).join(" ");
+  }
+  return undefined;
+}
+
+function classifyToolInvocation(
+  ontologyRuntime: OntologyRuntime,
+  toolName: string,
+  args: Record<string, unknown>,
+): InvocationClassification {
+  const classification = ontologyRuntime.getPolicyEngine().classifyTool(getToolId(toolName));
+  if (toolName !== "bash") return classification;
+
+  const command = commandFromArgs(args)?.trim() ?? "";
+  const investigation = [/^pwd$/, /^git status(?:\s|$)/, /^git diff(?:\s|$)/, /^git log(?:\s|$)/, /^ls(?:\s|$)/, /^rg --files(?:\s|$)/]
+    .some((pattern) => pattern.test(command));
+  const search = [/^ls(?:\s|$)/, /^rg --files(?:\s|$)/]
+    .some((pattern) => pattern.test(command));
+
+  return {
+    investigation,
+    search,
+    clarification: classification.clarification,
+  };
+}
+
+function actionIncrementsForTool(
+  ontologyRuntime: OntologyRuntime,
+  toolName: string,
+  args: Record<string, unknown>,
+): {
   investigationActions: number;
   searchActions: number;
   speculationActions: number;
 } {
-  const classification = ontologyRuntime.getPolicyEngine().classifyTool(getToolId(toolName));
+  const classification = classifyToolInvocation(ontologyRuntime, toolName, args);
   return {
     investigationActions: classification.investigation ? 1 : 0,
     searchActions: classification.search ? 1 : 0,
     speculationActions: classification.clarification ? 1 : 0,
   };
+}
+
+async function syncSessionStateWithWorkflow(
+  runtimePaths: RuntimePaths | undefined,
+  workflowId: string | undefined,
+  state: ToolLoopSessionState,
+): Promise<void> {
+  if (!runtimePaths || !workflowId) return;
+  const current = await getWorkflowState(runtimePaths, workflowId).catch(() => null);
+  const bounded = current?.snapshot.workflow_run.loop_state?.bounded_cognition;
+  if (!bounded) return;
+  state.investigationActions = Math.max(state.investigationActions, bounded.investigation_actions ?? 0);
+  state.searchActions = Math.max(state.searchActions, bounded.search_actions ?? 0);
+  state.speculationActions = Math.max(state.speculationActions, bounded.speculation_actions ?? 0);
+  state.missingContextFailures = Math.max(state.missingContextFailures, bounded.missing_context_failures ?? 0);
+}
+
+async function enforceBoundedCognitionPreflight(
+  loopStates: Map<string, ToolLoopSessionState>,
+  options: { ontologyRuntime: OntologyRuntime; runtimePaths?: RuntimePaths },
+  toolName: string,
+  args: Record<string, unknown>,
+  context?: ToolExecutionContext,
+): Promise<BoundedCognitionPreflight> {
+  const workflowId = deriveWorkflowId(args);
+  const preflightIncrements = actionIncrementsForTool(options.ontologyRuntime, toolName, args);
+  if (!context?.sessionID) {
+    await recordBoundedCognitionFailure(
+      options,
+      workflowId,
+      {
+        invocationCounts: new Map<string, number>(),
+        failureCounts: new Map<string, number>(),
+        consecutiveFailures: 0,
+        investigationActions: 0,
+        searchActions: 0,
+        speculationActions: 0,
+        missingContextFailures: 1,
+      },
+      toolName,
+      args,
+      undefined,
+      "missing-context",
+      `Loop guard requires session context for ${toolName}`,
+      {
+        investigationActions: preflightIncrements.investigationActions,
+        searchActions: preflightIncrements.searchActions,
+        speculationActions: preflightIncrements.speculationActions,
+        missingContextFailures: 1,
+      },
+      true,
+    );
+    throw new Error(`Loop guard requires session context for ${toolName}`);
+  }
+
+  const agentId = context.agent
+    ? (options.ontologyRuntime.bindSession(context.sessionID, context.agent), options.ontologyRuntime.getBoundAgent(context.sessionID))
+    : options.ontologyRuntime.getBoundAgent(context.sessionID);
+  if (!agentId) {
+    const state = getOrCreateLoopState(loopStates, context.sessionID);
+    state.missingContextFailures += 1;
+    await recordBoundedCognitionFailure(
+      options,
+      workflowId,
+      state,
+      toolName,
+      args,
+      undefined,
+      "missing-context",
+      `Loop guard missing bound agent for session ${context.sessionID}`,
+      {
+        investigationActions: state.investigationActions + preflightIncrements.investigationActions,
+        searchActions: state.searchActions + preflightIncrements.searchActions,
+        speculationActions: state.speculationActions + preflightIncrements.speculationActions,
+        missingContextFailures: state.missingContextFailures,
+      },
+      true,
+    );
+    throw new Error(`Loop guard missing bound agent for session ${context.sessionID}`);
+  }
+
+  const policy = options.ontologyRuntime.getPolicyEngine().getExecutionLoopPolicy(agentId, getToolId(toolName));
+  const signature = normalizeToolInvocationSignature(toolName, args);
+  const state = getOrCreateLoopState(loopStates, context.sessionID);
+  await syncSessionStateWithWorkflow(options.runtimePaths, workflowId, state);
+  const classification = classifyToolInvocation(options.ontologyRuntime, toolName, args);
+  const nextInvestigationActions = state.investigationActions + (classification.investigation ? 1 : 0);
+  const nextSearchActions = state.searchActions + (classification.search ? 1 : 0);
+  const nextSpeculationActions = state.speculationActions + (classification.clarification ? 1 : 0);
+
+  if (typeof policy.max_investigation_actions === "number" && nextInvestigationActions > policy.max_investigation_actions) {
+    const message = `Loop guard denied ${toolName}: investigation cap ${policy.max_investigation_actions} exceeded`;
+    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
+      investigationActions: nextInvestigationActions,
+      searchActions: nextSearchActions,
+      speculationActions: nextSpeculationActions,
+    });
+    throw new Error(message);
+  }
+  if (typeof policy.max_search_actions === "number" && nextSearchActions > policy.max_search_actions) {
+    const message = `Loop guard denied ${toolName}: search cap ${policy.max_search_actions} exceeded`;
+    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
+      investigationActions: nextInvestigationActions,
+      searchActions: nextSearchActions,
+      speculationActions: nextSpeculationActions,
+    });
+    throw new Error(message);
+  }
+  if (typeof policy.max_speculation_actions === "number" && nextSpeculationActions > policy.max_speculation_actions) {
+    const message = `Loop guard denied ${toolName}: speculation cap ${policy.max_speculation_actions} exceeded`;
+    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
+      investigationActions: nextInvestigationActions,
+      searchActions: nextSearchActions,
+      speculationActions: nextSpeculationActions,
+    });
+    throw new Error(message);
+  }
+
+  const nextInvocations = (state.invocationCounts.get(signature) ?? 0) + 1;
+  if (typeof policy.max_identical_invocations === "number" && nextInvocations > policy.max_identical_invocations) {
+    const message = `Loop guard denied ${toolName}: identical invocation cap ${policy.max_identical_invocations} exceeded`;
+    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
+      investigationActions: nextInvestigationActions,
+      searchActions: nextSearchActions,
+      speculationActions: nextSpeculationActions,
+    });
+    throw new Error(message);
+  }
+
+  state.investigationActions = nextInvestigationActions;
+  state.searchActions = nextSearchActions;
+  state.speculationActions = nextSpeculationActions;
+  state.invocationCounts.set(signature, nextInvocations);
+
+  if (workflowId && options.runtimePaths) {
+    await updateWorkflowBoundedCognitionState(options.runtimePaths, workflowId, {
+      investigation_actions: nextInvestigationActions,
+      search_actions: nextSearchActions,
+      speculation_actions: nextSpeculationActions,
+      last_tool_name: toolName,
+    });
+  }
+
+  return { workflowId, policy, state };
 }
 
 export function createBudgetAwareToolExecutor(
@@ -270,122 +460,7 @@ export function createBudgetAwareToolExecutor(
       {
         ...tool,
         async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string> {
-          const workflowId = deriveWorkflowId(args);
-          const preflightIncrements = actionIncrementsForTool(options.ontologyRuntime, name);
-          if (!context?.sessionID) {
-            await recordBoundedCognitionFailure(
-              options,
-              workflowId,
-              {
-                invocationCounts: new Map<string, number>(),
-                failureCounts: new Map<string, number>(),
-                consecutiveFailures: 0,
-                investigationActions: 0,
-                searchActions: 0,
-                speculationActions: 0,
-                missingContextFailures: 1,
-              },
-              name,
-              args,
-              undefined,
-              "missing-context",
-              `Loop guard requires session context for ${name}`,
-              {
-                investigationActions: preflightIncrements.investigationActions,
-                searchActions: preflightIncrements.searchActions,
-                speculationActions: preflightIncrements.speculationActions,
-                missingContextFailures: 1,
-              },
-              true,
-            );
-            throw new Error(`Loop guard requires session context for ${name}`);
-          }
-          const agentId = context.agent
-            ? (options.ontologyRuntime.bindSession(context.sessionID, context.agent), options.ontologyRuntime.getBoundAgent(context.sessionID))
-            : options.ontologyRuntime.getBoundAgent(context.sessionID);
-          if (!agentId) {
-            const state = getOrCreateLoopState(loopStates, context.sessionID);
-            state.missingContextFailures += 1;
-            await recordBoundedCognitionFailure(
-              options,
-              workflowId,
-              state,
-              name,
-              args,
-              undefined,
-              "missing-context",
-              `Loop guard missing bound agent for session ${context.sessionID}`,
-              {
-                investigationActions: state.investigationActions + preflightIncrements.investigationActions,
-                searchActions: state.searchActions + preflightIncrements.searchActions,
-                speculationActions: state.speculationActions + preflightIncrements.speculationActions,
-                missingContextFailures: state.missingContextFailures,
-              },
-              true,
-            );
-            throw new Error(`Loop guard missing bound agent for session ${context.sessionID}`);
-          }
-
-          const policy = options.ontologyRuntime.getPolicyEngine().getExecutionLoopPolicy(agentId, getToolId(name));
-          const signature = normalizeToolInvocationSignature(name, args);
-          const state = getOrCreateLoopState(loopStates, context.sessionID);
-          const classification = options.ontologyRuntime.getPolicyEngine().classifyTool(getToolId(name));
-          const isInvestigation = classification.investigation;
-          const isSearch = classification.search;
-          const speculationIncrement = classification.clarification ? 1 : 0;
-          const nextInvestigationActions = state.investigationActions + (isInvestigation ? 1 : 0);
-          const nextSearchActions = state.searchActions + (isSearch ? 1 : 0);
-          const nextSpeculationActions = state.speculationActions + speculationIncrement;
-          if (typeof policy.max_investigation_actions === "number" && nextInvestigationActions > policy.max_investigation_actions) {
-            const message = `Loop guard denied ${name}: investigation cap ${policy.max_investigation_actions} exceeded`;
-            await recordBoundedCognitionFailure(options, workflowId, state, name, args, policy, "budget-exhausted", message, {
-              investigationActions: nextInvestigationActions,
-              searchActions: nextSearchActions,
-              speculationActions: nextSpeculationActions,
-            });
-            throw new Error(message);
-          }
-          if (typeof policy.max_search_actions === "number" && nextSearchActions > policy.max_search_actions) {
-            const message = `Loop guard denied ${name}: search cap ${policy.max_search_actions} exceeded`;
-            await recordBoundedCognitionFailure(options, workflowId, state, name, args, policy, "budget-exhausted", message, {
-              investigationActions: nextInvestigationActions,
-              searchActions: nextSearchActions,
-              speculationActions: nextSpeculationActions,
-            });
-            throw new Error(message);
-          }
-          if (typeof policy.max_speculation_actions === "number" && nextSpeculationActions > policy.max_speculation_actions) {
-            const message = `Loop guard denied ${name}: speculation cap ${policy.max_speculation_actions} exceeded`;
-            await recordBoundedCognitionFailure(options, workflowId, state, name, args, policy, "budget-exhausted", message, {
-              investigationActions: nextInvestigationActions,
-              searchActions: nextSearchActions,
-              speculationActions: nextSpeculationActions,
-            });
-            throw new Error(message);
-          }
-          const nextInvocations = (state.invocationCounts.get(signature) ?? 0) + 1;
-          if (typeof policy.max_identical_invocations === "number" && nextInvocations > policy.max_identical_invocations) {
-            const message = `Loop guard denied ${name}: identical invocation cap ${policy.max_identical_invocations} exceeded`;
-            await recordBoundedCognitionFailure(options, workflowId, state, name, args, policy, "budget-exhausted", message, {
-              investigationActions: nextInvestigationActions,
-              searchActions: nextSearchActions,
-              speculationActions: nextSpeculationActions,
-            });
-            throw new Error(message);
-          }
-          state.investigationActions = nextInvestigationActions;
-          state.searchActions = nextSearchActions;
-          state.speculationActions = nextSpeculationActions;
-          state.invocationCounts.set(signature, nextInvocations);
-
-          if (workflowId && options.runtimePaths) {
-            await updateWorkflowBoundedCognitionState(options.runtimePaths, workflowId, {
-              investigation_actions: nextInvestigationActions,
-              search_actions: nextSearchActions,
-              speculation_actions: nextSpeculationActions,
-              last_tool_name: name,
-            });
-          }
+          const { workflowId, policy, state } = await enforceBoundedCognitionPreflight(loopStates, options, name, args, context);
 
           try {
             const result = await tool.execute(args, context);
@@ -452,17 +527,14 @@ export function deriveNativeMutationAuthorizationPattern(toolName: string, args:
   const normalizedToolName = normalizeOfficialPermissionName(toolName);
   const record = asArgsRecord(args);
   switch (normalizedToolName) {
+    case "read":
+      return firstStringValue(record, ["filePath", "file", "path"]);
     case "write":
       return firstStringValue(record, ["filePath", "file", "path"]);
     case "edit":
       return firstStringValue(record, ["filePath", "file", "path"]);
     case "bash": {
-      const command = firstStringValue(record, ["command", "cmd"]);
-      if (command) return command;
-      if (Array.isArray(record.argv) && record.argv.every((entry) => typeof entry === "string")) {
-        return (record.argv as string[]).join(" ");
-      }
-      return undefined;
+      return commandFromArgs(record);
     }
     default:
       return undefined;

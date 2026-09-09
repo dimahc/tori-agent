@@ -621,6 +621,28 @@
             ]
         },
         {
+            "@id": "policy:specialist-tool-loop-cap",
+            "@type": "Policy",
+            "label": "Specialist tool loop cap",
+            "description": "Cap specialist investigation, search, speculation, and repeated invocation loops; preserve strict fail-closed escalation when workflow context exists.",
+            "policy_kind_id": "policy-kind:execution-loop",
+            "subject_agent_ids": [
+                "agent:specialist:software-architect",
+                "agent:specialist:software-engineer",
+                "agent:specialist:infrastructure",
+                "agent:specialist:security",
+                "agent:specialist:researcher"
+            ],
+            "max_identical_invocations": 2,
+            "max_identical_failures": 2,
+            "max_consecutive_failures": 3,
+            "max_investigation_actions": 10,
+            "max_search_actions": 8,
+            "max_speculation_actions": 1,
+            "max_missing_context_failures": 1,
+            "escalation_stage_id": "workflow-stage:needs-human"
+        },
+        {
             "@id": "agent:specialist:software-architect",
             "@type": "Agent",
             "label": "Specialist software architect",

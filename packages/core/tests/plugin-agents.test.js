@@ -297,6 +297,93 @@ describe("plugin ontology integration", () => {
     assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.speculation_actions, 1);
   });
 
+  test("reviewer loop guard trips cumulative investigation budget across varied reads", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-reviewer-investigation-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const tools = createBudgetAwareToolExecutor({
+      read: { description: "read tool", args: {}, async execute() { return "ok"; } },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    for (let index = 0; index < 8; index += 1) {
+      await tools.read.execute({ workflow_id: "workflow-run:test", filePath: `file-${index}.ts` }, { sessionID: "reviewer-investigation", directory: root, agent: "reviewer:quality" });
+    }
+    await assert.rejects(
+      () => tools.read.execute({ workflow_id: "workflow-run:test", filePath: "file-9.ts" }, { sessionID: "reviewer-investigation", directory: root, agent: "reviewer:quality" }),
+      /investigation cap 8 exceeded/,
+    );
+  });
+
+  test("specialist loop guard trips cumulative search budget across varied search tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-specialist-search-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const tools = createBudgetAwareToolExecutor({
+      glob: { description: "glob tool", args: {}, async execute() { return "ok"; } },
+      grep: { description: "grep tool", args: {}, async execute() { return "ok"; } },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    for (let index = 0; index < 4; index += 1) {
+      await tools.glob.execute({ workflow_id: "workflow-run:test", pattern: `src/${index}/**/*.ts` }, { sessionID: "specialist-search", directory: root, agent: "specialist:software-engineer" });
+      await tools.grep.execute({ workflow_id: "workflow-run:test", pattern: `needle-${index}`, path: `src/${index}` }, { sessionID: "specialist-search", directory: root, agent: "specialist:software-engineer" });
+    }
+    await assert.rejects(
+      () => tools.glob.execute({ workflow_id: "workflow-run:test", pattern: "src/overflow/**/*.ts" }, { sessionID: "specialist-search", directory: root, agent: "specialist:software-engineer" }),
+      /search cap 8 exceeded/,
+    );
+  });
+
+  test("workflow persisted bounded cognition blocks fresh session evasion", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-persisted-loop-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const tools = createBudgetAwareToolExecutor({
+      glob: { description: "glob tool", args: {}, async execute() { return "ok"; } },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    for (let index = 0; index < 6; index += 1) {
+      await tools.glob.execute({ workflow_id: "workflow-run:test", pattern: `pkg/${index}/**/*` }, { sessionID: "reviewer-session-a", directory: root, agent: "reviewer:quality" });
+    }
+    await assert.rejects(
+      () => tools.glob.execute({ workflow_id: "workflow-run:test", pattern: "pkg/overflow/**/*" }, { sessionID: "reviewer-session-b", directory: root, agent: "reviewer:quality" }),
+      /search cap 6 exceeded/,
+    );
+
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.snapshot.workflow_run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.search_actions, 7);
+  });
+
+  test("readonly bash inspection counts against search budget through native hook", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-bash-budget-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-review-native-bash", agent: "reviewer:quality" }, {});
+    for (let index = 0; index < 6; index += 1) {
+      await plugin["tool.execute.before"](
+        { tool: "bash", sessionID: "s-review-native-bash", callID: String(index) },
+        { args: { command: `rg --files packages/${index}`, workflow_id: "workflow-run:test" } },
+      );
+    }
+    await assert.rejects(
+      () => plugin["tool.execute.before"](
+        { tool: "bash", sessionID: "s-review-native-bash", callID: "overflow" },
+        { args: { command: "rg --files packages/overflow", workflow_id: "workflow-run:test" } },
+      ),
+      /search cap 6 exceeded/,
+    );
+
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.snapshot.workflow_run.stage_id, WORKFLOW_STAGE.needsHuman);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.search_actions, 7);
+  });
+
   test("loop guard records missing bound agent as workflow-native escalation when workflow_id exists", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-missing-agent-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));

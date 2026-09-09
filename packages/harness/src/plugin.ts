@@ -8,7 +8,6 @@ import {
   createBudgetAwareToolExecutor,
   deriveNativeMutationAuthorizationPattern,
   ensureToolRegistryRegistered,
-  isNativeMutationTool,
   initializeOntologyRuntime,
   normalizeOfficialPermissionName,
   sanitizeAssistantOutputText,
@@ -106,6 +105,50 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
     createBudgetAwareToolExecutor({ ...readOnlyTools, ...writeTools }, { ontologyRuntime, runtimePaths }),
     { ontologyRuntime, projectRoot, runtimePaths },
   );
+  const nativeBudgetTools = createBudgetAwareToolExecutor({
+    read: {
+      description: "native read loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+    glob: {
+      description: "native glob loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+    grep: {
+      description: "native grep loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+    bash: {
+      description: "native bash loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+    write: {
+      description: "native write loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+    edit: {
+      description: "native edit loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
+  }, { ontologyRuntime, runtimePaths });
   ensureToolRegistryRegistered(tools);
 
   const ensureRuntimeDirs = async (): Promise<void> => {
@@ -142,7 +185,8 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
     output: ToolExecuteBeforeHookOutput,
   ): Promise<void> => {
     const toolName = normalizeOfficialPermissionName(input.tool);
-    if (!isNativeMutationTool(toolName)) return;
+    if (!["read", "glob", "grep", "bash", "write", "edit"].includes(toolName)) return;
+    if (!ontologyRuntime.isOntologyGovernedToolName(toolName)) return;
     const decision = ontologyRuntime.authorizeSession(
       input.sessionID,
       toolName,
@@ -152,6 +196,10 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
     if (decision.effect !== "allow") {
       throw new Error(`Unauthorized native tool execution for ${toolName}: ${decision.reason}`);
     }
+    await nativeBudgetTools[toolName]?.execute?.((output.args ?? {}) as Record<string, unknown>, {
+      sessionID: input.sessionID,
+      directory: projectRoot,
+    });
   };
 
   const rewriteAssistantText = async (

@@ -212,6 +212,34 @@ if (
   process.exit(1);
 }
 
+const reviewerLoopPolicy = engine.getExecutionLoopPolicy("agent:reviewer:quality", "tool:read");
+if (
+  reviewerLoopPolicy.max_identical_invocations !== 2 ||
+  reviewerLoopPolicy.max_identical_failures !== 2 ||
+  reviewerLoopPolicy.max_consecutive_failures !== 2 ||
+  reviewerLoopPolicy.max_investigation_actions !== 8 ||
+  reviewerLoopPolicy.max_search_actions !== 6 ||
+  reviewerLoopPolicy.max_speculation_actions !== 1 ||
+  reviewerLoopPolicy.max_missing_context_failures !== 1
+) {
+  console.error("FAIL reviewer loop policy missing", reviewerLoopPolicy);
+  process.exit(1);
+}
+
+const specialistLoopPolicy = engine.getExecutionLoopPolicy("agent:specialist:software-engineer", "tool:grep");
+if (
+  specialistLoopPolicy.max_identical_invocations !== 2 ||
+  specialistLoopPolicy.max_identical_failures !== 2 ||
+  specialistLoopPolicy.max_consecutive_failures !== 3 ||
+  specialistLoopPolicy.max_investigation_actions !== 10 ||
+  specialistLoopPolicy.max_search_actions !== 8 ||
+  specialistLoopPolicy.max_speculation_actions !== 1 ||
+  specialistLoopPolicy.max_missing_context_failures !== 1
+) {
+  console.error("FAIL specialist loop policy missing", specialistLoopPolicy);
+  process.exit(1);
+}
+
 const outputPolicy = engine.getOutputGovernancePolicy("agent:tori");
 if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sentences !== 1 || outputPolicy.max_self_talk_markers !== 0) {
   console.error("FAIL tori output policy missing", outputPolicy);
@@ -221,7 +249,7 @@ if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sent
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, allowStructuredReadReviewer.effect, allowStructuredReadSpecialist.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, denyEnvStructuredRead.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
+  checks: [allowRead.effect, allowStructuredReadReviewer.effect, allowStructuredReadSpecialist.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, denyEnvStructuredRead.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, reviewerLoopPolicy.max_search_actions, specialistLoopPolicy.max_investigation_actions, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });
 const anchorKinds = workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].evidence_anchors.map((anchor) => anchor.anchor_kind_id).sort();

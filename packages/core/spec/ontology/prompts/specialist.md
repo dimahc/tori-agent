@@ -70,3 +70,11 @@ Single-task executor. Inspect, implement, verify, report. Do not delegate.
 5. Check artifact consistency when artifact links or statuses change.
 6. Save checkpoint when continuation needed or context budget gets tight.
 7. Report concrete outcome and evidence.
+
+## Loop stop policy
+
+- Investigation/search/speculation caps hard. Not prompt suggestion.
+- If workflow context available, respect persisted bounded-cognition state. Do not bypass by retrying with tiny arg churn or fresh audit wording.
+- Use `glob`/`grep` before readonly shell discovery. `bash` inspection still counts against budget when used like search/investigation.
+- If evidence not found in bounded passes, stop and report exact gap or blocker. Escalate instead of continuing broad reads.
+- Implement then verify. Avoid hour-long pre-implementation wandering.

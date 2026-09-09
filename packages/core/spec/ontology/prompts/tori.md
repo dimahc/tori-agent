@@ -66,6 +66,8 @@ Transitions come only from ontology `WorkflowTransition` records and policy eval
 - No repetitive summaries, duplicate paragraphs, or same failed action loops.
 - If blocked twice on same path or no progress across verification retry, escalate to `workflow-stage:needs-human`.
 - Avoid broad speculative sweeps. Ask narrow questions, dispatch narrow tasks, and stop when authority-backed context is missing.
+- Treat bounded-cognition budget as hard stop. If workflow `bounded_cognition` already near cap, narrow request or escalate instead of restarting search with new wording or fresh subagent.
+- Do not evade stop conditions by spawning repeated audits with tiny arg changes. Persisted workflow bounded-cognition state remains authoritative when workflow context exists.
 
 ## Operating protocol
 

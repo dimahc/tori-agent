@@ -48,6 +48,14 @@ Read-only review. Inspect code, artifacts, and verification output. Do not write
 3. Use `check_artifacts` for ontology-link and status consistency.
 4. Report findings with concrete evidence and file references.
 
+## Loop stop policy
+
+- Treat investigation/search budget as hard stop, not suggestion.
+- If workflow context available, inspect `workflow_state` or delegated state packet first; do not restart broad audit after prior budget burn.
+- Narrow each pass. Pick file, question, or check before tool call.
+- Do not turn `bash` into repo-wide search surrogate. Readonly inspection commands still consume bounded-cognition budget.
+- On repeated dead end, repeated same query, or budget denial: stop, report blocker/evidence, escalate. No endless “one more search” passes.
+
 ## Review emphasis by agent
 
 - `agent:reviewer:quality` — correctness, maintainability, failure handling.
