@@ -64,6 +64,7 @@
 - Support project-local ontology overrides
 - Derive title from first user request
 - Enforce strict tori no-mutation
+- Enforce strict anti-loop guardrails
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
