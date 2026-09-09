@@ -67,9 +67,6 @@ const registeredToolRegistries = new WeakSet<ToolRegistry>();
 const authorizedRegistryCache = new WeakMap<ToolRegistry, Map<string, ToolRegistry>>();
 const budgetAwareRegistryCache = new WeakMap<ToolRegistry, WeakMap<OntologyRuntime, ToolRegistry>>();
 const managedArtifactIdCache = new Map<string, { mtimeMs: number; size: number; artifactId: string | null }>();
-const INVESTIGATION_TOOL_NAMES = new Set(["read", "workflow_state", "project_state", "check_artifacts", "skill"]);
-const SEARCH_TOOL_NAMES = new Set(["glob", "grep"]);
-
 function deriveWorkflowId(args: Record<string, unknown>): string | undefined {
   if (typeof args.workflow_run_id === "string" && args.workflow_run_id) return args.workflow_run_id;
   return typeof args.workflow_id === "string" && args.workflow_id ? args.workflow_id : undefined;
@@ -107,7 +104,7 @@ function buildWorkflowFieldEvidenceAnchor(workflowId: string, fieldPath: string,
 
 function isMissingContextError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /missing .*context|not bound|workflow run not found|requires session context/i.test(message);
+  return /missing .*context|not bound|workflow run not found|requires session context|provider not configured/i.test(message);
 }
 
 async function recordBoundedCognitionFailure(
@@ -244,15 +241,16 @@ function getOrCreateLoopState(store: Map<string, ToolLoopSessionState>, sessionI
   return state;
 }
 
-function actionIncrementsForTool(toolName: string): {
+function actionIncrementsForTool(ontologyRuntime: OntologyRuntime, toolName: string): {
   investigationActions: number;
   searchActions: number;
   speculationActions: number;
 } {
+  const classification = ontologyRuntime.getPolicyEngine().classifyTool(getToolId(toolName));
   return {
-    investigationActions: INVESTIGATION_TOOL_NAMES.has(toolName) ? 1 : 0,
-    searchActions: SEARCH_TOOL_NAMES.has(toolName) ? 1 : 0,
-    speculationActions: toolName === "question" ? 1 : 0,
+    investigationActions: classification.investigation ? 1 : 0,
+    searchActions: classification.search ? 1 : 0,
+    speculationActions: classification.clarification ? 1 : 0,
   };
 }
 
@@ -272,7 +270,7 @@ export function createBudgetAwareToolExecutor(
         ...tool,
         async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string> {
           const workflowId = deriveWorkflowId(args);
-          const preflightIncrements = actionIncrementsForTool(name);
+          const preflightIncrements = actionIncrementsForTool(options.ontologyRuntime, name);
           if (!context?.sessionID) {
             await recordBoundedCognitionFailure(
               options,
@@ -330,9 +328,10 @@ export function createBudgetAwareToolExecutor(
           const policy = options.ontologyRuntime.getPolicyEngine().getExecutionLoopPolicy(agentId, getToolId(name));
           const signature = normalizeToolInvocationSignature(name, args);
           const state = getOrCreateLoopState(loopStates, context.sessionID);
-          const isInvestigation = INVESTIGATION_TOOL_NAMES.has(name);
-          const isSearch = SEARCH_TOOL_NAMES.has(name);
-          const speculationIncrement = name === "question" ? 1 : 0;
+          const classification = options.ontologyRuntime.getPolicyEngine().classifyTool(getToolId(name));
+          const isInvestigation = classification.investigation;
+          const isSearch = classification.search;
+          const speculationIncrement = classification.clarification ? 1 : 0;
           const nextInvestigationActions = state.investigationActions + (isInvestigation ? 1 : 0);
           const nextSearchActions = state.searchActions + (isSearch ? 1 : 0);
           const nextSpeculationActions = state.speculationActions + speculationIncrement;

@@ -3,7 +3,19 @@ import { mkdir, readFile, readdir, stat, writeFile, appendFile } from "node:fs/p
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { parse as parseYaml } from "yaml";
-import { ARTIFACT_STATUS, ARTIFACT_TYPE, ONTOLOGY_CONTEXT_IRI, WORKFLOW_STAGE, buildRuntimePaths, type ManagedArtifactFrontmatter, type OntologyId, type RuntimePaths } from "@tori-agent/ontology";
+import {
+  ARTIFACT_STATUS,
+  ARTIFACT_TYPE,
+  ONTOLOGY_CONTEXT_IRI,
+  WORKFLOW_STAGE,
+  buildRuntimePaths,
+  isKnownArtifactStatusId,
+  isKnownArtifactTypeId,
+  isOntologyId,
+  type ManagedArtifactFrontmatter,
+  type OntologyId,
+  type RuntimePaths,
+} from "@tori-agent/ontology";
 import type {
   ArtifactConsistencyReport,
   ArtifactState,
@@ -93,6 +105,26 @@ function countBlocks(body: string): { checked: number; unchecked: number } {
 function strictArtifact(frontmatter: Partial<ManagedArtifactFrontmatter>, file: string): ManagedArtifactFrontmatter {
   if (!frontmatter.artifact_id || !frontmatter.artifact_type_id || !frontmatter.status_id || !frontmatter.title || !frontmatter.created_at) {
     throw new Error(`Managed artifact '${file}' missing strict ontology frontmatter`);
+  }
+  if (!isOntologyId(frontmatter.artifact_id)) {
+    throw new Error(`Managed artifact '${file}' has invalid ontology artifact_id '${String(frontmatter.artifact_id)}'`);
+  }
+  if (!isKnownArtifactTypeId(frontmatter.artifact_type_id)) {
+    throw new Error(`Managed artifact '${file}' has unknown ontology artifact_type_id '${String(frontmatter.artifact_type_id)}'`);
+  }
+  if (!isKnownArtifactStatusId(frontmatter.status_id)) {
+    throw new Error(`Managed artifact '${file}' has unknown ontology status_id '${String(frontmatter.status_id)}'`);
+  }
+  for (const relatedId of frontmatter.related_artifact_ids ?? []) {
+    if (!isOntologyId(relatedId)) {
+      throw new Error(`Managed artifact '${file}' has invalid related_artifact_ids entry '${String(relatedId)}'`);
+    }
+  }
+  if (frontmatter.definition_id && !isOntologyId(frontmatter.definition_id)) {
+    throw new Error(`Managed artifact '${file}' has invalid definition_id '${String(frontmatter.definition_id)}'`);
+  }
+  if (frontmatter.workflow_run_id && !isOntologyId(frontmatter.workflow_run_id)) {
+    throw new Error(`Managed artifact '${file}' has invalid workflow_run_id '${String(frontmatter.workflow_run_id)}'`);
   }
   return frontmatter as ManagedArtifactFrontmatter;
 }

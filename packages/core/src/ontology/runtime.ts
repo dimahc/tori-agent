@@ -4,6 +4,13 @@ import {
   ENTITY_TYPES,
   ONTOLOGY_SCHEMA_VERSION,
   getToolId,
+  isKnownArtifactStatusId,
+  isKnownArtifactTypeId,
+  isKnownCheckPolicyId,
+  isKnownCheckStatusId,
+  isKnownTaskStatusId,
+  isKnownWorkflowStageId,
+  isKnownWorkflowStatusId,
   type AgentDefinition,
   type AuthorizationDecision,
   type ExecutionLoopPolicy,
@@ -291,6 +298,88 @@ export class OntologyRuntime {
   getOutputGovernancePolicy(agentId: OntologyId): OutputGovernancePolicy {
     this.assertInitialized();
     return this.policyEngine!.getOutputGovernancePolicy(agentId);
+  }
+
+  hasOntologyId(entityId: OntologyId): boolean {
+    this.assertInitialized();
+    return this.bundle!.byId.has(entityId);
+  }
+
+  requireKnownOntologyId(entityId: OntologyId, context: string): OntologyId {
+    this.assertInitialized();
+    if (!this.hasOntologyId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownWorkflowDefinitionId(entityId: OntologyId, context = "workflow definition"): OntologyId {
+    this.assertInitialized();
+    const entity = this.bundle!.byId.get(entityId);
+    if (!entity || entity["@type"] !== ENTITY_TYPES.WorkflowDefinition) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownWorkflowStageId(entityId: OntologyId, context = "workflow stage"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownWorkflowStageId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    const entity = this.bundle!.byId.get(entityId);
+    if (!entity || entity["@type"] !== ENTITY_TYPES.WorkflowStage) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownWorkflowStatusId(entityId: OntologyId, context = "workflow status"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownWorkflowStatusId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownTaskStatusId(entityId: OntologyId, context = "task status"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownTaskStatusId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownCheckStatusId(entityId: OntologyId, context = "check status"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownCheckStatusId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownCheckPolicyId(entityId: OntologyId, context = "check policy"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownCheckPolicyId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownArtifactTypeId(entityId: OntologyId, context = "artifact type"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownArtifactTypeId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
+  }
+
+  requireKnownArtifactStatusId(entityId: OntologyId, context = "artifact status"): OntologyId {
+    this.assertInitialized();
+    if (!isKnownArtifactStatusId(entityId)) {
+      throw new Error(`Unknown ontology ID for ${context}: ${entityId}`);
+    }
+    return entityId;
   }
 
   async serializeAgent(agentId: OntologyId): Promise<string> {

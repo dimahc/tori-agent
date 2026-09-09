@@ -22,6 +22,7 @@ npm run build
 npm test
 npm run lint
 node packages/core/tests/verify-expansion.mjs
+node packages/core/tests/verify-policy-engine.mjs
 ```
 
 ## Review checks source
@@ -39,6 +40,12 @@ Markdown managed artifacts require strict ontology frontmatter fields:
 - `created_at`
 
 Workflow state is JSON-LD under runtime `workflows/`.
+
+Authority split stays strict:
+
+- `snapshot.jsonld` = authoritative current workflow state
+- `journal/*.jsonld` = append-only workflow evidence
+- `workflow_state` output sections like `latest_projections` and bounded-cognition summaries = reproducible derived views only, never authority or policy source
 
 ## Harness plugin contract
 

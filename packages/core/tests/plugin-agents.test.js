@@ -272,6 +272,28 @@ describe("plugin ontology integration", () => {
     assert.equal(escalationCheck?.result_status_id, CHECK_STATUS.failed);
   });
 
+  test("loop guard classifies read search clarification from ontology capabilities", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-classify-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    const tools = createBudgetAwareToolExecutor({
+      read: { description: "read tool", args: {}, async execute() { return "ok"; } },
+      glob: { description: "glob tool", args: {}, async execute() { return "ok"; } },
+      question: { description: "question tool", args: {}, async execute() { return "ok"; } },
+    }, { ontologyRuntime: runtime, runtimePaths });
+
+    await tools.read.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-classify", directory: root, agent: "tori" });
+    await tools.glob.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-classify", directory: root, agent: "tori" });
+    await tools.question.execute({ workflow_id: "workflow-run:test" }, { sessionID: "loop-classify", directory: root, agent: "tori" });
+
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.investigation_actions, 1);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.search_actions, 1);
+    assert.equal(state.snapshot.workflow_run.loop_state.bounded_cognition.speculation_actions, 1);
+  });
+
   test("loop guard records missing bound agent as workflow-native escalation when workflow_id exists", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-loop-missing-agent-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));

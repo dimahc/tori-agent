@@ -10,6 +10,7 @@ import {
   ENTITY_TYPES,
   TASK_STATUS,
   WORKFLOW_STAGE,
+  WORKFLOW_STATUS,
   buildRuntimePaths,
 } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
@@ -249,6 +250,118 @@ describe("workflow strict ontology", () => {
     assert.equal(state.snapshot.workflow_run.task_state_index["task-1"].result_status_id, TASK_STATUS.running);
     const repaired = await readSnapshot(runtimePaths, "workflow-run:test");
     assert.equal(repaired["@graph"][0].journal_state.last_applied_sequence, 2);
+  });
+
+  test("workflow_state latest projections regenerate deterministically from lagging snapshot plus journal", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:specialist:software-engineer", TASK_STATUS.running, ["spec:first"], "Block", "started", taskAnchors("task-1", "started"));
+    const laggingSnapshot = await readSnapshot(runtimePaths, "workflow-run:test");
+
+    await recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:specialist:software-engineer", TASK_STATUS.passed, ["spec:first", "spec:second"], "Block", "done", taskAnchors("task-1", "done"));
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.failed, "fail", CHECK_POLICY.blocking, checkAnchors("mechanical", "fail"));
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.passed, "fixed", CHECK_POLICY.blocking, checkAnchors("mechanical", "fixed"));
+
+    const baselineState = await getWorkflowState(runtimePaths, "workflow-run:test");
+    const baselineSnapshot = await readSnapshot(runtimePaths, "workflow-run:test");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(snapshotPath(runtimePaths, "workflow-run:test"), JSON.stringify(laggingSnapshot, null, 2), "utf8");
+
+    const recoveredState = await getWorkflowState(runtimePaths, "workflow-run:test");
+    const repairedSnapshot = await readSnapshot(runtimePaths, "workflow-run:test");
+
+    assert.deepEqual(recoveredState.latest_projections, baselineState.latest_projections);
+    assert.deepEqual(recoveredState.snapshot.workflow_run, baselineState.snapshot.workflow_run);
+    assert.deepEqual(repairedSnapshot, baselineSnapshot);
+  });
+
+  test("recovery validates recovered state before mutating authoritative snapshot", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:specialist:software-engineer", TASK_STATUS.running, [], undefined, "started", taskAnchors("task-1", "started"));
+    const snapshotBefore = await readSnapshot(runtimePaths, "workflow-run:test");
+    const originalSnapshotText = JSON.stringify(snapshotBefore, null, 2);
+    const journalFiles = (await readdir(journalDir(runtimePaths, "workflow-run:test"))).sort();
+    const badRecordPath = join(journalDir(runtimePaths, "workflow-run:test"), journalFiles.at(-1));
+    const badRecord = JSON.parse(await readFile(badRecordPath, "utf8"));
+    badRecord["@graph"][0].result_status_id = "task-status:unknown";
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(badRecordPath, JSON.stringify(badRecord, null, 2), "utf8");
+
+    await assert.rejects(
+      () => getWorkflowState(runtimePaths, "workflow-run:test"),
+      /Unknown ontology ID for task record result status|Unknown ontology ID for task snapshot result status/,
+    );
+    assert.equal(await readFile(snapshotPath(runtimePaths, "workflow-run:test"), "utf8"), originalSnapshotText);
+  });
+
+  test("create workflow and transitions resolve status from ontology next_status_id semantics", async () => {
+    const run = await createWorkflowRun(runtimePaths, "workflow-run:test");
+    assert.equal(run.status_id, WORKFLOW_STATUS.active);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.execution);
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.verification);
+    await recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.passed, "ok", CHECK_POLICY.blocking, checkAnchors("mechanical", "ok"));
+    await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.delivery);
+    const completed = await transitionStage(runtimePaths, runtime, "workflow-run:test", WORKFLOW_STAGE.completed);
+    assert.equal(completed.status_id, WORKFLOW_STATUS.completed);
+
+    const escalatedRunId = "workflow-run:needs-human";
+    await createWorkflowRun(runtimePaths, escalatedRunId);
+    const escalated = await transitionStage(runtimePaths, runtime, escalatedRunId, WORKFLOW_STAGE.needsHuman);
+    assert.equal(escalated.status_id, WORKFLOW_STATUS.blocked);
+  });
+
+  test("transition next_status_id overrides conflicting stage fallback", async () => {
+    const localRoot = await mkdtemp(join(tmpdir(), "tori-workflow-status-override-"));
+    const localPaths = buildRuntimePaths(localRoot, "opencode", join(localRoot, ".opencode"));
+    await mkdir(localPaths.ontologyDir, { recursive: true });
+    await writeFile(
+      join(localPaths.ontologyDir, "workflow-status-override.jsonld"),
+      JSON.stringify({
+        "@context": "https://tori-agent.dev/ontology/2026/core/context",
+        "@graph": [
+          {
+            "@id": WORKFLOW_STAGE.planning,
+            "@type": ENTITY_TYPES.WorkflowStage,
+            label: "Planning",
+            description: "Define execution approach",
+            workflow_definition_id: "workflow:orchestration-pipeline",
+            next_status_id: WORKFLOW_STATUS.blocked,
+          },
+          {
+            "@id": "workflow-transition:req-to-plan",
+            "@type": ENTITY_TYPES.WorkflowTransition,
+            label: "Requirements to planning",
+            description: "Move to planning once requirements are understood",
+            workflow_definition_id: "workflow:orchestration-pipeline",
+            from_stage_id: WORKFLOW_STAGE.requirements,
+            to_stage_id: WORKFLOW_STAGE.planning,
+            next_status_id: WORKFLOW_STATUS.active,
+          },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+
+    const localRuntime = await initializeOntologyRuntime({ runtimePaths: localPaths });
+    await createWorkflowRun(localPaths, "workflow-run:test");
+    const transitioned = await transitionStage(localPaths, localRuntime, "workflow-run:test", WORKFLOW_STAGE.planning);
+    const state = await getWorkflowState(localPaths, "workflow-run:test");
+
+    assert.equal(transitioned.status_id, WORKFLOW_STATUS.active);
+    assert.equal(state.snapshot.workflow_run.status_id, WORKFLOW_STATUS.active);
+    assert.equal(state.journal_evidence.transition_records.at(-1).next_status_id, WORKFLOW_STATUS.active);
+  });
+
+  test("workflow persistence rejects unknown ontology ids before persistence", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    await assert.rejects(
+      () => recordTaskResult(runtimePaths, "workflow-run:test", "task-1", "agent:unknown", TASK_STATUS.passed, [], undefined, "done", taskAnchors("task-1", "done")),
+      /Unknown ontology ID for task requesting agent/,
+    );
+    await assert.rejects(
+      () => recordCheckResult(runtimePaths, "workflow-run:test", "check:mechanical", CHECK_STATUS.passed, "ok", "check-policy:unknown", checkAnchors("mechanical", "ok")),
+      /Unknown ontology ID for check policy/,
+    );
   });
 
   test("workflow snapshot cache invalidates after external file change", async () => {

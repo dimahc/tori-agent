@@ -9,7 +9,7 @@ import {
   TASK_STATUS,
   WELL_KNOWN_IDS,
   WORKFLOW_STAGE,
-  WORKFLOW_STATUS,
+  isOntologyId,
   type EvidenceAnchor,
   type OntologyId,
   type RuntimePaths,
@@ -27,6 +27,7 @@ import type {
 } from "../types/workflow.js";
 import type { VerificationPolicy } from "../types/verification.js";
 import type { OntologyRuntime } from "../ontology/runtime.js";
+import { initializeOntologyRuntime } from "../ontology/runtime.js";
 import { buildWorkflowProgressSignature, normalizeTextUnit } from "../guardrails/output.js";
 
 interface WorkflowEntries {
@@ -72,6 +73,21 @@ const workflowSnapshotCache = new Map<string, CachedWorkflowSnapshot>();
 const workflowDirectoryCache = new Map<string, CachedWorkflowDirectory>();
 
 const STRICT_WORKFLOW_FORMAT_MESSAGE = "Strict workflow persistence format required. Removed Slice 1 single-file workflow artifact unsupported.";
+const workflowOntologyRuntimeCache = new Map<string, Promise<OntologyRuntime>>();
+
+async function getWorkflowOntologyRuntime(runtimePaths: RuntimePaths): Promise<OntologyRuntime> {
+  const key = JSON.stringify({
+    runtimeRoot: runtimePaths.runtimeRoot,
+    ontologyDir: runtimePaths.ontologyDir,
+    runtimeId: runtimePaths.runtimeId,
+  });
+  let pending = workflowOntologyRuntimeCache.get(key);
+  if (!pending) {
+    pending = initializeOntologyRuntime({ runtimePaths });
+    workflowOntologyRuntimeCache.set(key, pending);
+  }
+  return pending;
+}
 
 function defaultLoopState(): NonNullable<WorkflowRun["loop_state"]> {
   return {
@@ -138,27 +154,37 @@ function sequenceFileName(sequenceNumber: number, recordId: string): string {
   return `${String(sequenceNumber).padStart(6, "0")}-${safeRecordId}.jsonld`;
 }
 
-function taskStatusId(status: string): OntologyId {
-  switch (status) {
-    case TASK_STATUS.pending:
-    case TASK_STATUS.running:
-    case TASK_STATUS.passed:
-    case TASK_STATUS.failed:
-      return status;
-    default:
-      throw new Error(`Strict ontology status required. Got '${status}'`);
-  }
+async function taskStatusId(runtimePaths: RuntimePaths, status: string): Promise<OntologyId> {
+  return (await getWorkflowOntologyRuntime(runtimePaths)).requireKnownTaskStatusId(status, "task status");
 }
 
-function checkStatusId(status: string): OntologyId {
-  switch (status) {
-    case CHECK_STATUS.passed:
-    case CHECK_STATUS.failed:
-    case CHECK_STATUS.skipped:
-      return status;
-    default:
-      throw new Error(`Strict ontology check status required. Got '${status}'`);
+async function checkStatusId(runtimePaths: RuntimePaths, status: string): Promise<OntologyId> {
+  return (await getWorkflowOntologyRuntime(runtimePaths)).requireKnownCheckStatusId(status, "check status");
+}
+
+function assertOntologyIdArray(ids: readonly OntologyId[], context: string): OntologyId[] {
+  return ids.map((id, index) => {
+    if (!isOntologyId(id)) throw new Error(`Invalid ontology ID for ${context}[${index}]: ${String(id)}`);
+    return id;
+  });
+}
+
+async function resolveWorkflowStatusForStage(
+  runtime: OntologyRuntime,
+  workflowDefinitionId: OntologyId,
+  stageId: OntologyId,
+  transitionNextStatusId?: OntologyId,
+): Promise<OntologyId> {
+  if (transitionNextStatusId) return runtime.requireKnownWorkflowStatusId(transitionNextStatusId, `workflow transition ${workflowDefinitionId} ${stageId} next status`);
+  const stage = runtime.getBundle().byId.get(stageId) as { "@type": string; next_status_id?: OntologyId } | undefined;
+  if (!stage || stage["@type"] !== ENTITY_TYPES.WorkflowStage) {
+    throw new Error(`Unknown ontology ID for workflow stage: ${stageId}`);
   }
+  const nextStatusId = stage.next_status_id;
+  if (!nextStatusId) {
+    throw new Error(`Workflow stage ${stageId} missing ontology next_status_id`);
+  }
+  return runtime.requireKnownWorkflowStatusId(nextStatusId, `workflow stage ${stageId} next status`);
 }
 
 function cloneWorkflowLoopState(loopState: WorkflowRun["loop_state"]): WorkflowRun["loop_state"] {
@@ -325,7 +351,16 @@ function appendUniqueOntologyIds(existingIds: readonly OntologyId[], nextIds: re
 }
 
 function cloneEvidenceAnchors(anchors: readonly EvidenceAnchor[]): EvidenceAnchor[] {
-  return anchors.map((anchor) => ({ ...anchor }));
+  return anchors.map((anchor) => {
+    const cloned: EvidenceAnchor = {
+      anchor_kind_id: anchor.anchor_kind_id,
+      anchor_target: anchor.anchor_target,
+      anchor_label: anchor.anchor_label,
+    };
+    if (anchor.field_path !== undefined) cloned.field_path = anchor.field_path;
+    if (anchor.anchor_detail !== undefined) cloned.anchor_detail = anchor.anchor_detail;
+    return cloned;
+  });
 }
 
 const VALID_EVIDENCE_ANCHOR_KINDS = new Set<OntologyId>(Object.values(EVIDENCE_ANCHOR_KIND));
@@ -490,6 +525,40 @@ function validateWorkflowEntries(entries: WorkflowEntries): void {
   }
   for (const record of entries.taskRecords) assertEvidenceAnchors(record.evidence_anchors, `task record ${record["@id"]}`);
   for (const record of entries.checkRecords) assertEvidenceAnchors(record.evidence_anchors, `check record ${record["@id"]}`);
+}
+
+async function validateWorkflowEntriesAgainstOntology(runtimePaths: RuntimePaths, entries: WorkflowEntries): Promise<void> {
+  const runtime = await getWorkflowOntologyRuntime(runtimePaths);
+  const workflowRun = entries.workflowRun;
+  runtime.requireKnownWorkflowDefinitionId(workflowRun.definition_id);
+  runtime.requireKnownWorkflowStageId(workflowRun.stage_id);
+  runtime.requireKnownWorkflowStatusId(workflowRun.status_id);
+  assertOntologyIdArray(workflowRun.related_artifact_ids, "workflow related_artifact_ids");
+  assertOntologyIdArray(workflowRun.check_keys, "workflow check keys");
+  for (const task of Object.values(workflowRun.task_state_index ?? {})) {
+    runtime.requireKnownOntologyId(task.requesting_agent_id, "task snapshot requesting agent");
+    runtime.requireKnownTaskStatusId(task.result_status_id, "task snapshot result status");
+    assertOntologyIdArray(task.related_artifact_ids ?? [], "task snapshot related_artifact_ids");
+  }
+  for (const check of Object.values(workflowRun.check_state_index ?? {})) {
+    runtime.requireKnownCheckPolicyId(check.check_policy_id, "check snapshot policy");
+    runtime.requireKnownCheckStatusId(check.result_status_id, "check snapshot result status");
+  }
+  for (const record of entries.transitionRecords) {
+    if (record.from_stage_id !== null) runtime.requireKnownWorkflowStageId(record.from_stage_id, "transition record from stage");
+    runtime.requireKnownWorkflowStageId(record.to_stage_id, "transition record to stage");
+    runtime.requireKnownWorkflowStatusId(record.next_status_id, "transition record next status");
+  }
+  for (const record of entries.taskRecords) {
+    runtime.requireKnownOntologyId(record.requesting_agent_id, "task record requesting agent");
+    runtime.requireKnownTaskStatusId(record.result_status_id, "task record result status");
+    assertOntologyIdArray(record.related_artifact_ids ?? [], "task record related_artifact_ids");
+  }
+  for (const record of entries.checkRecords) {
+    if (!isOntologyId(record.check_key)) throw new Error(`Invalid ontology ID for check record key: ${String(record.check_key)}`);
+    runtime.requireKnownCheckPolicyId(record.check_policy_id, "check record policy");
+    runtime.requireKnownCheckStatusId(record.result_status_id, "check record result status");
+  }
 }
 
 function applyJournalRecords(
@@ -697,6 +766,14 @@ async function loadWorkflowEntries(
   if (journalRecords.length > workflowRun.journal_state.last_applied_sequence) {
     const tailRecords = journalRecords.filter((record) => record.sequence_number > workflowRun.journal_state.last_applied_sequence);
     effectiveWorkflowRun = applyJournalRecords(workflowRun, tailRecords);
+    const recoveredEntries: WorkflowEntries = {
+      workflowRun: effectiveWorkflowRun,
+      transitionRecords,
+      taskRecords,
+      checkRecords,
+    };
+    validateWorkflowEntries(recoveredEntries);
+    await validateWorkflowEntriesAgainstOntology(runtimePaths, recoveredEntries);
     if (!options.skipMutationRecovery) {
       await withWorkflowLock(runtimePaths, workflowRunId, async () => {
         await writeSnapshotFile(runtimePaths, effectiveWorkflowRun);
@@ -711,6 +788,7 @@ async function loadWorkflowEntries(
     checkRecords,
   };
   validateWorkflowEntries(entries);
+  await validateWorkflowEntriesAgainstOntology(runtimePaths, entries);
   return cloneWorkflowEntries(entries);
 }
 
@@ -771,15 +849,15 @@ function buildWorkflowBoundedCognitionProjectionSection(workflowRun: WorkflowRun
 async function persistMutation(
   runtimePaths: RuntimePaths,
   workflowRunId: OntologyId,
-  build: (entries: WorkflowEntries) => {
+  build: (entries: WorkflowEntries) => Promise<{
     workflowRun: WorkflowRun;
     record: WorkflowTransitionRecord | WorkflowTaskRecord | WorkflowCheckRecord;
-  },
+  }>,
 ): Promise<WorkflowEntries> {
   return withWorkflowLock(runtimePaths, workflowRunId, async () => {
     const entries = await loadWorkflowEntries(runtimePaths, workflowRunId, { skipMutationRecovery: true });
     if (!entries) throw new Error(`Workflow run not found: ${workflowRunId}`);
-    const next = build(entries);
+    const next = await build(entries);
     await appendJournalRecord(runtimePaths, workflowRunId, next.record);
     await writeSnapshotFile(runtimePaths, next.workflowRun);
     workflowDirectoryCache.delete(runtimePaths.workflowsDir);
@@ -799,6 +877,7 @@ async function persistMutation(
           : entries.checkRecords,
     };
     validateWorkflowEntries(nextEntries);
+    await validateWorkflowEntriesAgainstOntology(runtimePaths, nextEntries);
     return nextEntries;
   });
 }
@@ -812,6 +891,10 @@ export async function createWorkflowRun(
   await assertStrictWorkflowLayout(runtimePaths);
   const existing = await loadWorkflowEntries(runtimePaths, workflowRunId);
   if (existing) return existing.workflowRun;
+  const ontologyRuntime = await getWorkflowOntologyRuntime(runtimePaths);
+  ontologyRuntime.requireKnownWorkflowDefinitionId(definitionId);
+  ontologyRuntime.requireKnownWorkflowStageId(initialStageId);
+  const initialStatusId = await resolveWorkflowStatusForStage(ontologyRuntime, definitionId, initialStageId);
   const now = new Date().toISOString();
   const workflowRun: WorkflowRun = {
     "@id": workflowRunId,
@@ -820,7 +903,7 @@ export async function createWorkflowRun(
     description: `Workflow run ${workflowRunId}`,
     definition_id: definitionId,
     stage_id: initialStageId,
-    status_id: WORKFLOW_STATUS.active,
+    status_id: initialStatusId,
     iteration: 0,
     task_keys: [],
     task_state_index: {},
@@ -842,7 +925,7 @@ export async function createWorkflowRun(
     description: `Workflow created at ${initialStageId}`,
     from_stage_id: null,
     to_stage_id: initialStageId,
-    next_status_id: WORKFLOW_STATUS.active,
+    next_status_id: initialStatusId,
     occurred_at: now,
     sequence_number: 1,
     iteration: 0,
@@ -911,7 +994,7 @@ export async function transitionStage(
   if (!decision.allowed || !decision.transition) throw new Error(decision.reason);
   const transition = decision.transition;
 
-  const persisted = await persistMutation(runtimePaths, workflowRunId, (currentEntries) => {
+  const persisted = await persistMutation(runtimePaths, workflowRunId, async (currentEntries) => {
     const current = currentEntries.workflowRun;
     const now = new Date().toISOString();
     const nextSequence = current.journal_state.last_applied_sequence + 1;
@@ -927,12 +1010,7 @@ export async function transitionStage(
         : 0;
       loopState.progress_signatures[key] = progressSignature;
     }
-    const nextStatusId =
-      toStageId === WORKFLOW_STAGE.completed
-        ? WORKFLOW_STATUS.completed
-        : toStageId === WORKFLOW_STAGE.needsHuman
-          ? WORKFLOW_STATUS.blocked
-          : WORKFLOW_STATUS.active;
+    const nextStatusId = await resolveWorkflowStatusForStage(ontologyRuntime, current.definition_id, toStageId, transition.next_status_id);
     const record: WorkflowTransitionRecord = {
       "@id": `workflow-transition-record:${workflowRunBasename(workflowRunId)}:${nextSequence}`,
       "@type": ENTITY_TYPES.WorkflowTransitionRecord,
@@ -980,12 +1058,16 @@ export async function recordTaskResult(
   detail?: string,
   evidenceAnchors: EvidenceAnchor[] = [],
 ): Promise<WorkflowTaskRecord> {
-  const persisted = await persistMutation(runtimePaths, workflowRunId, (entries) => {
+  const persisted = await persistMutation(runtimePaths, workflowRunId, async (entries) => {
     const now = new Date().toISOString();
     const nextSequence = entries.workflowRun.journal_state.last_applied_sequence + 1;
     const recordId = `workflow-task:${workflowRunBasename(workflowRunId)}:${taskId}:${nextSequence}`;
     const previousSnapshot = entries.workflowRun.task_state_index?.[taskId];
     const validatedAnchors = assertEvidenceAnchors(evidenceAnchors, `task ${taskId}`);
+    const runtime = await getWorkflowOntologyRuntime(runtimePaths);
+    runtime.requireKnownOntologyId(agentId, "task requesting agent");
+    const validatedRelatedArtifactIds = assertOntologyIdArray(relatedArtifactIds, "task related_artifact_ids");
+    const resultStatusId = await taskStatusId(runtimePaths, statusId);
     const canonicalAnchors = mergeEvidenceAnchors(validatedAnchors, [
       buildJournalRecordAnchor(recordId, `task journal record ${taskId}`, detail),
       buildWorkflowFieldAnchor(workflowRunId, `task_state_index.${taskId}`, `task snapshot ${taskId}`, detail),
@@ -998,11 +1080,11 @@ export async function recordTaskResult(
       task_key: taskId,
       sequence_number: nextSequence,
       requesting_agent_id: agentId,
-      result_status_id: taskStatusId(statusId),
+      result_status_id: resultStatusId,
       created_at: previousSnapshot?.created_at ?? now,
       updated_at: now,
       plan_block_name: planBlockName,
-      related_artifact_ids: relatedArtifactIds,
+      related_artifact_ids: validatedRelatedArtifactIds,
       detail,
       evidence_anchors: cloneEvidenceAnchors(canonicalAnchors),
     };
@@ -1028,7 +1110,7 @@ export async function recordTaskResult(
         },
       },
       journal_state: { last_applied_sequence: nextSequence, last_record_id: recordId },
-      related_artifact_ids: appendUniqueOntologyIds(entries.workflowRun.related_artifact_ids, relatedArtifactIds),
+      related_artifact_ids: appendUniqueOntologyIds(entries.workflowRun.related_artifact_ids, validatedRelatedArtifactIds),
       updated_at: now,
     };
     return { workflowRun: nextWorkflowRun, record };
@@ -1045,11 +1127,15 @@ export async function recordCheckResult(
   checkPolicyId: OntologyId = CHECK_POLICY.blocking,
   evidenceAnchors: EvidenceAnchor[] = [],
 ): Promise<WorkflowCheckRecord> {
-  const persisted = await persistMutation(runtimePaths, workflowRunId, (entries) => {
+  const persisted = await persistMutation(runtimePaths, workflowRunId, async (entries) => {
     const now = new Date().toISOString();
     const nextSequence = entries.workflowRun.journal_state.last_applied_sequence + 1;
     const recordId = `workflow-check:${workflowRunBasename(workflowRunId)}:${String(checkId).replace(/[^a-zA-Z0-9._-]/g, "_")}:${nextSequence}`;
     const validatedAnchors = assertEvidenceAnchors(evidenceAnchors, `check ${checkId}`);
+    const runtime = await getWorkflowOntologyRuntime(runtimePaths);
+    if (!isOntologyId(checkId)) throw new Error(`Invalid ontology ID for check key: ${String(checkId)}`);
+    const validatedCheckPolicyId = runtime.requireKnownCheckPolicyId(checkPolicyId, "check policy");
+    const resultStatusId = await checkStatusId(runtimePaths, statusId);
     const canonicalAnchors = mergeEvidenceAnchors(validatedAnchors, [
       buildJournalRecordAnchor(recordId, `check journal record ${checkId}`, detail),
       buildWorkflowFieldAnchor(workflowRunId, `check_state_index.${String(checkId)}`, `check snapshot ${String(checkId)}`, detail),
@@ -1061,8 +1147,8 @@ export async function recordCheckResult(
       description: detail,
       check_key: checkId,
       sequence_number: nextSequence,
-      check_policy_id: checkPolicyId,
-      result_status_id: checkStatusId(statusId),
+      check_policy_id: validatedCheckPolicyId,
+      result_status_id: resultStatusId,
       created_at: now,
       detail,
       evidence_anchors: cloneEvidenceAnchors(canonicalAnchors),
@@ -1111,7 +1197,7 @@ export async function updateWorkflowBoundedCognitionState(
   workflowRunId: OntologyId,
   update: BoundedCognitionStateUpdate,
 ): Promise<WorkflowRun> {
-  const persisted = await persistMutation(runtimePaths, workflowRunId, (entries) => {
+  const persisted = await persistMutation(runtimePaths, workflowRunId, async (entries) => {
     const now = new Date().toISOString();
     const nextSequence = entries.workflowRun.journal_state.last_applied_sequence + 1;
     const sanitizedDetail = update.last_failure_detail?.trim();

@@ -1,4 +1,5 @@
 import {
+  BOUNDED_COGNITION_CAPABILITY,
   CHECK_STATUS,
   POLICY_EFFECT,
   POLICY_KIND,
@@ -39,6 +40,12 @@ interface CompiledPolicy {
 interface AgentPolicyContext {
   readonly agent: AgentDefinition;
   readonly roles: RoleDefinition[];
+}
+
+interface ToolClassification {
+  readonly investigation: boolean;
+  readonly search: boolean;
+  readonly clarification: boolean;
 }
 
 function compileGlob(pattern: string): RegExp {
@@ -90,6 +97,7 @@ export class PolicyEngineImpl implements PolicyEngine {
   private readonly transitionPoliciesByKey = new Map<string, CompiledPolicy[]>();
   private readonly executionLoopPolicyCache = new Map<string, ExecutionLoopPolicy>();
   private readonly outputGovernancePolicyCache = new Map<OntologyId, OutputGovernancePolicy>();
+  private readonly toolClassifications = new Map<OntologyId, ToolClassification>();
 
   constructor(private readonly bundle: OntologyBundle) {
     for (const agent of bundle.agents) {
@@ -154,6 +162,14 @@ export class PolicyEngineImpl implements PolicyEngine {
 
     for (const transition of bundle.workflowTransitions) {
       this.transitionsByKey.set(this.transitionKey(transition.workflow_definition_id, transition.from_stage_id, transition.to_stage_id), transition);
+    }
+
+    for (const tool of bundle.tools) {
+      this.toolClassifications.set(tool["@id"], {
+        investigation: tool.capability_ids.includes(BOUNDED_COGNITION_CAPABILITY.investigation),
+        search: tool.capability_ids.includes(BOUNDED_COGNITION_CAPABILITY.search),
+        clarification: tool.capability_ids.includes(BOUNDED_COGNITION_CAPABILITY.clarification),
+      });
     }
 
     for (const compiledPolicy of this.transitionPolicies) {
@@ -342,6 +358,14 @@ export class PolicyEngineImpl implements PolicyEngine {
       }), {});
     this.outputGovernancePolicyCache.set(agentId, computed);
     return { ...computed };
+  }
+
+  classifyTool(toolId: OntologyId): ToolClassification {
+    return this.toolClassifications.get(toolId) ?? {
+      investigation: false,
+      search: false,
+      clarification: false,
+    };
   }
 
   private getMatchingAuthorizationPolicies(

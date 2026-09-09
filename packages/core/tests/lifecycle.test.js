@@ -112,6 +112,25 @@ describe("lifecycle strict ontology", () => {
     assert.ok(result.issues.some((issue) => issue.type === "stale_status"));
   });
 
+  test("projectState fails closed on unknown managed artifact ontology ids", async () => {
+    await writeFile(
+      join(runtimePaths.execPlansDir, "plan.md"),
+      [
+        "---",
+        "artifact_id: exec-plan:test",
+        `artifact_type_id: ${ARTIFACT_TYPE.execPlan}`,
+        "status_id: artifact-status:unknown",
+        'title: "Plan"',
+        "created_at: 2026-09-08T00:00:00.000Z",
+        "---",
+        "",
+        "- [ ] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    await assert.rejects(() => projectState(root, runtimePaths), /unknown ontology status_id/i);
+  });
+
   test("artifact cache invalidates after external managed file change", async () => {
     const planPath = join(runtimePaths.execPlansDir, "plan.md");
     await writeFile(

@@ -10,8 +10,8 @@
     { "@id": "tool:write", "@type": "Tool", "label": "write", "description": "Write files", "capability_ids": ["capability:implementation"] },
     { "@id": "tool:edit", "@type": "Tool", "label": "edit", "description": "Edit files", "capability_ids": ["capability:implementation"] },
     { "@id": "tool:bash", "@type": "Tool", "label": "bash", "description": "Run commands", "capability_ids": ["capability:implementation"] },
-    { "@id": "tool:glob", "@type": "Tool", "label": "glob", "description": "Find files", "capability_ids": ["capability:implementation"] },
-    { "@id": "tool:grep", "@type": "Tool", "label": "grep", "description": "Search files", "capability_ids": ["capability:implementation"] },
+    { "@id": "tool:glob", "@type": "Tool", "label": "glob", "description": "Find files", "capability_ids": ["capability:implementation", "capability:search"] },
+    { "@id": "tool:grep", "@type": "Tool", "label": "grep", "description": "Search files", "capability_ids": ["capability:implementation", "capability:search"] },
     { "@id": "tool:webfetch", "@type": "Tool", "label": "webfetch", "description": "Fetch external docs", "capability_ids": ["capability:external-research"] },
 
     {

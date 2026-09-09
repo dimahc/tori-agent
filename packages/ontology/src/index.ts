@@ -167,6 +167,12 @@ export const CHECK_POLICY = {
   advisory: "check-policy:advisory",
 } as const;
 
+export const BOUNDED_COGNITION_CAPABILITY = {
+  investigation: "capability:investigation",
+  search: "capability:search",
+  clarification: "capability:clarification",
+} as const;
+
 export const EVIDENCE_ANCHOR_KIND = {
   artifact: "evidence-anchor-kind:artifact",
   workflowField: "evidence-anchor-kind:workflow-field",
@@ -671,6 +677,34 @@ export function getToolId(toolName: string): OntologyId {
 
 export function isOntologyId(value: unknown): value is OntologyId {
   return typeof value === "string" && value.includes(":");
+}
+
+export function isKnownArtifactTypeId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(ARTIFACT_TYPE).includes(value as (typeof ARTIFACT_TYPE)[keyof typeof ARTIFACT_TYPE]);
+}
+
+export function isKnownArtifactStatusId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(ARTIFACT_STATUS).includes(value as (typeof ARTIFACT_STATUS)[keyof typeof ARTIFACT_STATUS]);
+}
+
+export function isKnownWorkflowStatusId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(WORKFLOW_STATUS).includes(value as (typeof WORKFLOW_STATUS)[keyof typeof WORKFLOW_STATUS]);
+}
+
+export function isKnownWorkflowStageId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(WORKFLOW_STAGE).includes(value as (typeof WORKFLOW_STAGE)[keyof typeof WORKFLOW_STAGE]);
+}
+
+export function isKnownTaskStatusId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(TASK_STATUS).includes(value as (typeof TASK_STATUS)[keyof typeof TASK_STATUS]);
+}
+
+export function isKnownCheckStatusId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(CHECK_STATUS).includes(value as (typeof CHECK_STATUS)[keyof typeof CHECK_STATUS]);
+}
+
+export function isKnownCheckPolicyId(value: unknown): value is OntologyId {
+  return typeof value === "string" && Object.values(CHECK_POLICY).includes(value as (typeof CHECK_POLICY)[keyof typeof CHECK_POLICY]);
 }
 
 export function slugToOntologyId(prefix: string, slug: string): OntologyId {

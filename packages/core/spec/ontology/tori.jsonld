@@ -32,6 +32,24 @@
       "description": "Persist continuation checkpoints"
     },
     {
+      "@id": "capability:investigation",
+      "@type": "Capability",
+      "label": "Investigation",
+      "description": "Inspect authoritative state and evidence"
+    },
+    {
+      "@id": "capability:search",
+      "@type": "Capability",
+      "label": "Search",
+      "description": "Search repository state and files"
+    },
+    {
+      "@id": "capability:clarification",
+      "@type": "Capability",
+      "label": "Clarification",
+      "description": "Request missing context from human"
+    },
+    {
       "@id": "tool:task",
       "@type": "Tool",
       "label": "task",
@@ -43,21 +61,21 @@
       "@type": "Tool",
       "label": "read",
       "description": "Inspect files and artifacts",
-      "capability_ids": ["capability:artifact-observation"]
+      "capability_ids": ["capability:artifact-observation", "capability:investigation"]
     },
     {
       "@id": "tool:project_state",
       "@type": "Tool",
       "label": "project_state",
       "description": "Read ontology-managed artifact state",
-      "capability_ids": ["capability:artifact-observation"]
+      "capability_ids": ["capability:artifact-observation", "capability:investigation"]
     },
     {
       "@id": "tool:workflow_state",
       "@type": "Tool",
       "label": "workflow_state",
       "description": "Read ontology workflow run state",
-      "capability_ids": ["capability:workflow-governance"]
+      "capability_ids": ["capability:workflow-governance", "capability:investigation"]
     },
     {
       "@id": "tool:transition_stage",
@@ -92,7 +110,7 @@
       "@type": "Tool",
       "label": "check_artifacts",
       "description": "Validate cross-artifact consistency",
-      "capability_ids": ["capability:verification"]
+      "capability_ids": ["capability:verification", "capability:investigation"]
     },
     {
       "@id": "tool:trigger_ci_check",
@@ -120,14 +138,14 @@
       "@type": "Tool",
       "label": "skill",
       "description": "Load builtin skill text",
-      "capability_ids": ["capability:orchestration"]
+      "capability_ids": ["capability:orchestration", "capability:investigation"]
     },
     {
       "@id": "tool:question",
       "@type": "Tool",
       "label": "question",
       "description": "Ask user clarification",
-      "capability_ids": ["capability:orchestration"]
+      "capability_ids": ["capability:orchestration", "capability:clarification"]
     },
     {
       "@id": "role:orchestrator",
@@ -182,24 +200,24 @@
         "workflow-transition:delivery-to-needs-human"
       ]
     },
-    { "@id": "workflow-stage:requirements", "@type": "WorkflowStage", "label": "Requirements", "description": "Clarify problem, scope, acceptance", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:planning", "@type": "WorkflowStage", "label": "Planning", "description": "Define execution approach", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:execution", "@type": "WorkflowStage", "label": "Execution", "description": "Execute delegated work", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:verification", "@type": "WorkflowStage", "label": "Verification", "description": "Run blocking verification and artifact checks", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:delivery", "@type": "WorkflowStage", "label": "Delivery", "description": "Prepare final report", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:completed", "@type": "WorkflowStage", "label": "Completed", "description": "Terminal success", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-stage:needs-human", "@type": "WorkflowStage", "label": "Needs human", "description": "Blocked pending human input", "workflow_definition_id": "workflow:orchestration-pipeline" },
-    { "@id": "workflow-transition:req-to-plan", "@type": "WorkflowTransition", "label": "Requirements to planning", "description": "Move to planning once requirements are understood", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:planning" },
-    { "@id": "workflow-transition:plan-to-exec", "@type": "WorkflowTransition", "label": "Planning to execution", "description": "Move to execution once plan exists", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:execution", "increments_iteration": true },
-    { "@id": "workflow-transition:exec-to-verify", "@type": "WorkflowTransition", "label": "Execution to verification", "description": "Move to verification after execution work completes", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:verification", "resets_checks": true },
-    { "@id": "workflow-transition:verify-to-delivery", "@type": "WorkflowTransition", "label": "Verification to delivery", "description": "Delivery allowed only after required checks pass", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:delivery", "required_check_ids": ["check:mechanical"] },
-    { "@id": "workflow-transition:verify-to-exec", "@type": "WorkflowTransition", "label": "Verification to execution", "description": "Return to execution when blocking verification fails", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:execution", "increments_iteration": true },
-    { "@id": "workflow-transition:delivery-to-completed", "@type": "WorkflowTransition", "label": "Delivery to completed", "description": "Mark workflow complete after delivery report", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:completed" },
-    { "@id": "workflow-transition:req-to-needs-human", "@type": "WorkflowTransition", "label": "Requirements to needs human", "description": "Block when requirements work lacks authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:needs-human" },
-    { "@id": "workflow-transition:plan-to-needs-human", "@type": "WorkflowTransition", "label": "Planning to needs human", "description": "Block when planning cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:needs-human" },
-    { "@id": "workflow-transition:exec-to-needs-human", "@type": "WorkflowTransition", "label": "Execution to needs human", "description": "Block when human intervention is needed during execution", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:needs-human" },
-    { "@id": "workflow-transition:verify-to-needs-human", "@type": "WorkflowTransition", "label": "Verification to needs human", "description": "Block when verification cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:needs-human" },
-    { "@id": "workflow-transition:delivery-to-needs-human", "@type": "WorkflowTransition", "label": "Delivery to needs human", "description": "Block when delivery lacks reproducible authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:needs-human" },
+    { "@id": "workflow-stage:requirements", "@type": "WorkflowStage", "label": "Requirements", "description": "Clarify problem, scope, acceptance", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-stage:planning", "@type": "WorkflowStage", "label": "Planning", "description": "Define execution approach", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-stage:execution", "@type": "WorkflowStage", "label": "Execution", "description": "Execute delegated work", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-stage:verification", "@type": "WorkflowStage", "label": "Verification", "description": "Run blocking verification and artifact checks", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-stage:delivery", "@type": "WorkflowStage", "label": "Delivery", "description": "Prepare final report", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-stage:completed", "@type": "WorkflowStage", "label": "Completed", "description": "Terminal success", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:completed" },
+    { "@id": "workflow-stage:needs-human", "@type": "WorkflowStage", "label": "Needs human", "description": "Blocked pending human input", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:blocked" },
+    { "@id": "workflow-transition:req-to-plan", "@type": "WorkflowTransition", "label": "Requirements to planning", "description": "Move to planning once requirements are understood", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:planning", "next_status_id": "workflow-status:active" },
+    { "@id": "workflow-transition:plan-to-exec", "@type": "WorkflowTransition", "label": "Planning to execution", "description": "Move to execution once plan exists", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:execution", "next_status_id": "workflow-status:active", "increments_iteration": true },
+    { "@id": "workflow-transition:exec-to-verify", "@type": "WorkflowTransition", "label": "Execution to verification", "description": "Move to verification after execution work completes", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:verification", "next_status_id": "workflow-status:active", "resets_checks": true },
+    { "@id": "workflow-transition:verify-to-delivery", "@type": "WorkflowTransition", "label": "Verification to delivery", "description": "Delivery allowed only after required checks pass", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:delivery", "next_status_id": "workflow-status:active", "required_check_ids": ["check:mechanical"] },
+    { "@id": "workflow-transition:verify-to-exec", "@type": "WorkflowTransition", "label": "Verification to execution", "description": "Return to execution when blocking verification fails", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:execution", "next_status_id": "workflow-status:active", "increments_iteration": true },
+    { "@id": "workflow-transition:delivery-to-completed", "@type": "WorkflowTransition", "label": "Delivery to completed", "description": "Mark workflow complete after delivery report", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:completed", "next_status_id": "workflow-status:completed" },
+    { "@id": "workflow-transition:req-to-needs-human", "@type": "WorkflowTransition", "label": "Requirements to needs human", "description": "Block when requirements work lacks authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
+    { "@id": "workflow-transition:plan-to-needs-human", "@type": "WorkflowTransition", "label": "Planning to needs human", "description": "Block when planning cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
+    { "@id": "workflow-transition:exec-to-needs-human", "@type": "WorkflowTransition", "label": "Execution to needs human", "description": "Block when human intervention is needed during execution", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
+    { "@id": "workflow-transition:verify-to-needs-human", "@type": "WorkflowTransition", "label": "Verification to needs human", "description": "Block when verification cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
+    { "@id": "workflow-transition:delivery-to-needs-human", "@type": "WorkflowTransition", "label": "Delivery to needs human", "description": "Block when delivery lacks reproducible authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
     {
       "@id": "policy:deny-env-file-access",
       "@type": "Policy",
