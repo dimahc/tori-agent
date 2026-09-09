@@ -58,6 +58,8 @@
 - Implement extensive caching for runtime and tool operations
 - Refine agent prompts and tool-choice hierarchies
 - Update specialist and tori definitions
+- Document customization and structured_read
+- Formalize runtime layering and tool invariants
 
 ### Fixed
 
