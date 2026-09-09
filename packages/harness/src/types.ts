@@ -21,7 +21,7 @@ export interface ConfigLike {
 
 export interface PluginEventInput {
   event: {
-    type: string;
+    type: "session.created" | "session.updated" | "session.next.agent.switched" | string;
     properties?: Record<string, unknown>;
   };
 }

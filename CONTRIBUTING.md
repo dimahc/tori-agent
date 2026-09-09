@@ -53,10 +53,12 @@ Runtime hook surface stays explicit and deterministic:
 
 `config` must mutate host config in place and set official `default_agent`. Host should honor that value for fresh sessions, then pass actual agent through `chat.message` for authoritative session binding before guarded actions.
 
-Only explicit binding path in strict ABI is `chat.message` with `agent`. No repo-side fallback binds unclaimed sessions during `permission.ask` or `tool.execute.before`.
+Authoritative binding surfaces in strict ABI: `session.created` / `session.updated` event `properties.info.agent`, `session.next.agent.switched` event `properties.agent`, and `chat.message` with `agent`. No repo-side fallback binds unclaimed sessions during `permission.ask` or `tool.execute.before`.
 
 Session title proposals remain internal helper logic only. Not part of strict official plugin contract.
 
 Output suppression is host-enforced through `experimental.text.complete`. Hook rewrites text in place only; no custom retry/block status is exposed through official ABI.
 
 Repo guarantees ontology-derived agent config, canonical default-agent metadata, and deny-by-default behavior for unbound sessions on ontology-governed permissions. Native `write` / `edit` / `bash` enforcement depends on host calling both `permission.ask` and `tool.execute.before`.
+
+`workflow_state` public tool argument is `workflow_run_id`. Strict temporary alias `workflow_id` remains accepted only when `workflow_run_id` absent or equal, to avoid breaking active callers during rename.

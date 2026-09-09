@@ -39,6 +39,20 @@ interface CachedPluginSetup {
 
 const pluginSetupCache = new Map<string, Promise<CachedPluginSetup>>();
 
+function firstNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function eventSessionID(properties?: Record<string, unknown>): string | undefined {
+  return firstNonEmptyString(properties?.sessionID);
+}
+
+function eventSessionAgent(properties?: Record<string, unknown>): string | undefined {
+  const info = properties?.info;
+  if (!info || typeof info !== "object" || Array.isArray(info)) return undefined;
+  return firstNonEmptyString((info as { agent?: unknown }).agent);
+}
+
 export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string } = {}) {
   const runtime = options.runtime ?? "opencode";
   const configPath = options.configPath ?? "";
@@ -151,10 +165,41 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
   };
 
   const event: PluginOutput["event"] = async ({ event }) => {
-    if (event.type !== "session.created") return;
-    await ensureRuntimeDirs();
-    const resolvedSessionID = typeof event.properties?.sessionID === "string" ? event.properties.sessionID : undefined;
-    if (resolvedSessionID) ontologyRuntime.unbindSession(resolvedSessionID);
+    if (event.type === "session.created") {
+      await ensureRuntimeDirs();
+      const sessionID = eventSessionID(event.properties);
+      if (!sessionID) return;
+      const agent = eventSessionAgent(event.properties);
+      if (agent) {
+        ontologyRuntime.bindSession(sessionID, agent);
+        return;
+      }
+      ontologyRuntime.unbindSession(sessionID);
+      return;
+    }
+
+    if (event.type === "session.updated") {
+      const sessionID = eventSessionID(event.properties);
+      if (!sessionID || !(event.properties && "info" in event.properties)) return;
+      const agent = eventSessionAgent(event.properties);
+      if (agent) {
+        ontologyRuntime.bindSession(sessionID, agent);
+        return;
+      }
+      ontologyRuntime.unbindSession(sessionID);
+      return;
+    }
+
+    if (event.type === "session.next.agent.switched") {
+      const sessionID = eventSessionID(event.properties);
+      if (!sessionID) return;
+      const agent = firstNonEmptyString(event.properties?.agent);
+      if (agent) {
+        ontologyRuntime.bindSession(sessionID, agent);
+        return;
+      }
+      ontologyRuntime.unbindSession(sessionID);
+    }
   };
 
   return {

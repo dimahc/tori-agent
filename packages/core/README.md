@@ -19,7 +19,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 - Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
-- Runtime exposes single default main-session agent resolver. Host must honor `default_agent` and bind actual session agent through official `chat.message` metadata before guarded actions. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied.
+- Runtime exposes single default main-session agent resolver. Host must honor `default_agent` and bind actual session agent through earliest official surfaces available: `session.created` / `session.updated` event `properties.info.agent`, `session.next.agent.switched` event `properties.agent`, or `chat.message` metadata. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied.
 - Session-title helper still exists as internal utility; not part of strict official plugin ABI.
 - Output-governance helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `experimental.text.complete`.
 
@@ -30,7 +30,7 @@ Defined in [`src/tools/workflow.ts`](../src/tools/workflow.ts):
 | Function | Purpose |
 | ---------- | --------- |
 | `createWorkflowRun` | Create a new ontology-native workflow run |
-| `getWorkflowState` | Read current stage, iteration, tasks, and checks |
+| `getWorkflowState` | Read current stage, iteration, tasks, and checks for workflow run id |
 | `transitionStage` | Advance to the next stage with guard validation |
 | `recordTaskResult` | Append task evidence and update authoritative snapshot |
 | `recordCheckResult` | Append check evidence and update authoritative snapshot |

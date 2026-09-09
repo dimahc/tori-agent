@@ -66,6 +66,21 @@ describe("plugin ontology integration", () => {
     assert.ok(write.trigger_ci_check);
   });
 
+  test("workflow_state requires workflow_run_id and accepts strict legacy alias only when not conflicting", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-workflow-state-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const readOnly = buildReadOnlyTools(root, runtimePaths);
+
+    assert.deepEqual(readOnly.workflow_state.args, { workflow_run_id: {} });
+    assert.deepEqual(JSON.parse(await readOnly.workflow_state.execute({})), { error: "workflow_run_id required" });
+    assert.equal(JSON.parse(await readOnly.workflow_state.execute({ workflow_id: "workflow-run:test" })).snapshot.workflow_run["@id"], "workflow-run:test");
+    assert.deepEqual(
+      JSON.parse(await readOnly.workflow_state.execute({ workflow_run_id: "workflow-run:test", workflow_id: "workflow-run:other" })),
+      { error: "workflow_run_id conflicts with legacy workflow_id" },
+    );
+  });
+
   test("managed artifact id lookup cache invalidates when plan file changes", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-managed-id-cache-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
@@ -333,6 +348,51 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "deny");
   });
 
+  test("event binds session from official session.created info.agent surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const permissionBefore = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created-agent", permission: "write", patterns: ["README.md"] }, permissionBefore);
+    assert.equal(permissionBefore.status, "deny");
+
+    await plugin.event({ event: { type: "session.created", properties: { sessionID: "s-created-agent", info: { agent: "specialist:software-engineer" } } } });
+
+    const permissionAfter = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created-agent", permission: "write", patterns: ["README.md"] }, permissionAfter);
+    assert.equal(permissionAfter.status, "allow");
+  });
+
+  test("event updates binding from official session.updated info.agent surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-updated-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-updated-agent", agent: "tori" }, {});
+    let permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-updated-agent", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "deny");
+
+    await plugin.event({ event: { type: "session.updated", properties: { sessionID: "s-updated-agent", info: { agent: "specialist:software-engineer" } } } });
+
+    permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-updated-agent", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+  });
+
+  test("event updates binding from official session.next.agent.switched surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-agent-switched-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin.event({ event: { type: "session.next.agent.switched", properties: { sessionID: "s-switch", agent: "specialist:software-engineer" } } });
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-switch", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+  });
+
   test("permission.ask accepts official payload shape and denies tori native mutation permissions", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-unbound-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
@@ -405,6 +465,32 @@ describe("plugin ontology integration", () => {
     await plugin["tool.execute.before"]({ tool: "write", sessionID: "s-native-allow", callID: "1" }, { args: { filePath: "README.md" } });
     await plugin["tool.execute.before"]({ tool: "edit", sessionID: "s-native-allow", callID: "2" }, { args: { filePath: "README.md" } });
     await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-native-allow", callID: "3" }, { args: { command: "npm test" } });
+  });
+
+  test("tool.execute.before allows expanded readonly bash grants for specialists and reviewers only", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-bash-allowlist-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-spec-bash", agent: "specialist:software-engineer" }, {});
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-spec-bash", callID: "1" }, { args: { command: "pwd" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-spec-bash", callID: "2" }, { args: { command: "git status --short" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-spec-bash", callID: "3" }, { args: { command: "git log --oneline -10" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-spec-bash", callID: "4" }, { args: { command: "rg --files packages/core" } });
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-spec-bash", callID: "5" }, { args: { command: "git add README.md" } }),
+      /Unauthorized native tool execution for bash/,
+    );
+
+    await plugin["chat.message"]({ sessionID: "s-review-bash", agent: "reviewer:quality" }, {});
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-review-bash", callID: "6" }, { args: { command: "pwd" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-review-bash", callID: "7" }, { args: { command: "rg --files packages/core/tests" } });
+
+    await plugin["chat.message"]({ sessionID: "s-tori-bash", agent: "tori" }, {});
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-tori-bash", callID: "8" }, { args: { command: "pwd" } }),
+      /Unauthorized native tool execution for bash/,
+    );
   });
 
   test("experimental.text.complete rewrites repetitive self-talk output text in place", async () => {

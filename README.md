@@ -46,16 +46,19 @@ Main-session binding contract:
 - ontology declares exactly one default main-session agent per runtime
 - builtin default main-session agent is `agent:tori` -> host key `tori`
 - `config` mutates host config in place and sets official `default_agent`
-- `chat.message` binds `sessionID -> agent` only when host passes official `input.agent`
+- strongest official binding path now uses earliest authoritative host surfaces available:
+  - `session.created` / `session.updated` event `properties.info.agent` when host includes session info
+  - `session.next.agent.switched` event `properties.agent` when active agent changes
+  - `chat.message` `input.agent` remains binding path when host passes it
 - no silent fallback binding at `permission.ask`, `tool.execute.before`, or repo authorization path
 - unbound or unknown-agent sessions fail closed for ontology-governed permissions
-- `event` on `session.created` reads `event.properties.sessionID` for safe bootstrap/bookkeeping only; no binding payload returned
+- `event` on `session.created` still bootstraps runtime dirs; if official session agent surface absent, session stays unbound
 - host-native mutation tools (`write` / `edit` / `bash`) are enforced through `permission.ask` and `tool.execute.before`
 
 Hard host obligations:
 
 - honor `default_agent` when creating fresh sessions
-- pass actual bound agent through `chat.message` and repo-owned tool context when host already knows it
+- pass actual bound agent through official surfaces when host already knows it: session event info, agent-switched event, or `chat.message`
 - call `permission.ask` before every host-native `write` / `edit` / `bash` execution
 - call `tool.execute.before` before every host-native `write` / `edit` / `bash` execution
 - deny execution when `permission.ask` returns `deny`; do not substitute host defaults
@@ -99,6 +102,8 @@ Workflow runs persist under runtime `workflows/<workflow-run-slug>/`.
 - `journal/*.jsonld` — append-only transition/task/check evidence
 - top-level `workflows/*.jsonld` single-file artifacts are rejected with strict-format error
 - `workflow_state` output is explicit projection payload:
+  - tool argument is `workflow_run_id`
+  - strict temporary alias: legacy `workflow_id` accepted only when `workflow_run_id` absent or equal
   - `snapshot` — authoritative workflow snapshot
   - `journal_evidence` — append-only transition/task/check evidence
   - `latest_projections` — latest-only convenience view derived from snapshot + journal

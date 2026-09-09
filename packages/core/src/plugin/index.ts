@@ -71,7 +71,19 @@ const INVESTIGATION_TOOL_NAMES = new Set(["read", "workflow_state", "project_sta
 const SEARCH_TOOL_NAMES = new Set(["glob", "grep"]);
 
 function deriveWorkflowId(args: Record<string, unknown>): string | undefined {
+  if (typeof args.workflow_run_id === "string" && args.workflow_run_id) return args.workflow_run_id;
   return typeof args.workflow_id === "string" && args.workflow_id ? args.workflow_id : undefined;
+}
+
+function resolveWorkflowRunIdArg(args: Record<string, unknown>): { workflowRunId?: string; error?: string } {
+  const workflowRunId = typeof args.workflow_run_id === "string" && args.workflow_run_id ? args.workflow_run_id : undefined;
+  const legacyWorkflowId = typeof args.workflow_id === "string" && args.workflow_id ? args.workflow_id : undefined;
+  if (workflowRunId && legacyWorkflowId && workflowRunId !== legacyWorkflowId) {
+    return { error: "workflow_run_id conflicts with legacy workflow_id" };
+  }
+  const resolved = workflowRunId ?? legacyWorkflowId;
+  if (!resolved) return { error: "workflow_run_id required" };
+  return { workflowRunId: resolved };
 }
 
 function buildToolEvidenceAnchors(toolName: string, args: Record<string, unknown>, detail: string) {
@@ -557,12 +569,14 @@ export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePat
       },
     },
     workflow_state: {
-      description: "Read ontology-native workflow state.",
-      args: { workflow_id: {} },
-      async execute({ workflow_id }) {
-        if (typeof workflow_id !== "string") return JSON.stringify({ error: "workflow_id required" });
-        const state = await getWorkflowState(runtimePaths, workflow_id);
-        return JSON.stringify(state ?? { error: `workflow not found: ${workflow_id}` });
+      description: "Read ontology-native workflow state by workflow run id.",
+      args: { workflow_run_id: {} },
+      async execute(rawArgs) {
+        const args = rawArgs as Record<string, unknown>;
+        const { workflowRunId, error } = resolveWorkflowRunIdArg(args);
+        if (!workflowRunId) return JSON.stringify({ error });
+        const state = await getWorkflowState(runtimePaths, workflowRunId);
+        return JSON.stringify(state ?? { error: `workflow not found: ${workflowRunId}` });
       },
     },
     skill: {

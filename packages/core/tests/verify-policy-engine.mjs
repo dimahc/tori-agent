@@ -126,6 +126,42 @@ if (denyEnv.effect !== "deny") {
   process.exit(1);
 }
 
+const allowSpecialistPwd = engine.authorize({
+  agentId: "agent:specialist:software-engineer",
+  toolName: "bash",
+  toolId: "tool:bash",
+  pattern: "pwd",
+  runtimePaths,
+});
+if (allowSpecialistPwd.effect !== "allow") {
+  console.error("FAIL specialist pwd should allow", allowSpecialistPwd);
+  process.exit(1);
+}
+
+const allowReviewerGitLog = engine.authorize({
+  agentId: "agent:reviewer:quality",
+  toolName: "bash",
+  toolId: "tool:bash",
+  pattern: "git log --oneline -10",
+  runtimePaths,
+});
+if (allowReviewerGitLog.effect !== "allow") {
+  console.error("FAIL reviewer git log should allow", allowReviewerGitLog);
+  process.exit(1);
+}
+
+const denySpecialistGitAdd = engine.authorize({
+  agentId: "agent:specialist:software-engineer",
+  toolName: "bash",
+  toolId: "tool:bash",
+  pattern: "git add README.md",
+  runtimePaths,
+});
+if (denySpecialistGitAdd.effect !== "deny") {
+  console.error("FAIL specialist git add should deny", denySpecialistGitAdd);
+  process.exit(1);
+}
+
 const loopPolicy = engine.getExecutionLoopPolicy("agent:tori", "tool:skill");
 if (
   loopPolicy.max_identical_invocations !== 2 ||
@@ -149,7 +185,7 @@ if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sent
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
+  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });
 const anchorKinds = workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].evidence_anchors.map((anchor) => anchor.anchor_kind_id).sort();

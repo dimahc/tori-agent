@@ -10,7 +10,7 @@
       "capability_ids": ["capability:review"],
       "permission_grants": [
         { "@id": "permission:reviewer:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect repo" },
-        { "@id": "permission:reviewer:bash", "@type": "PermissionGrant", "tool_id": "tool:bash", "effect": "policy-effect:allow", "rationale": "Run readonly verification commands", "command_globs": ["npm *", "node *", "git status*", "git diff*"] },
+        { "@id": "permission:reviewer:bash", "@type": "PermissionGrant", "tool_id": "tool:bash", "effect": "policy-effect:allow", "rationale": "Run readonly verification and repo inspection commands", "command_globs": ["npm *", "node *", "pwd", "git status*", "git diff*", "git log*", "rg --files**"] },
         { "@id": "permission:reviewer:glob", "@type": "PermissionGrant", "tool_id": "tool:glob", "effect": "policy-effect:allow", "rationale": "Find files" },
         { "@id": "permission:reviewer:grep", "@type": "PermissionGrant", "tool_id": "tool:grep", "effect": "policy-effect:allow", "rationale": "Search files" },
         { "@id": "permission:reviewer:state", "@type": "PermissionGrant", "tool_id": "tool:project_state", "effect": "policy-effect:allow", "rationale": "Inspect artifact state" },
