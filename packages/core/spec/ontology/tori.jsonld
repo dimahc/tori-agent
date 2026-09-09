@@ -1,349 +1,657 @@
 {
-  "@context": "https://tori-agent.dev/ontology/2026/core/context",
-  "@graph": [
-    {
-      "@id": "capability:orchestration",
-      "@type": "Capability",
-      "label": "Orchestration",
-      "description": "Coordinate workflow execution and dispatch work"
-    },
-    {
-      "@id": "capability:workflow-governance",
-      "@type": "Capability",
-      "label": "Workflow governance",
-      "description": "Inspect and transition ontology-native workflow runs"
-    },
-    {
-      "@id": "capability:verification",
-      "@type": "Capability",
-      "label": "Verification",
-      "description": "Run and record mechanical verification"
-    },
-    {
-      "@id": "capability:artifact-observation",
-      "@type": "Capability",
-      "label": "Artifact observation",
-      "description": "Inspect managed artifacts and repository state"
-    },
-    {
-      "@id": "capability:checkpointing",
-      "@type": "Capability",
-      "label": "Checkpointing",
-      "description": "Persist continuation checkpoints"
-    },
-    {
-      "@id": "capability:investigation",
-      "@type": "Capability",
-      "label": "Investigation",
-      "description": "Inspect authoritative state and evidence"
-    },
-    {
-      "@id": "capability:search",
-      "@type": "Capability",
-      "label": "Search",
-      "description": "Search repository state and files"
-    },
-    {
-      "@id": "capability:clarification",
-      "@type": "Capability",
-      "label": "Clarification",
-      "description": "Request missing context from human"
-    },
-    {
-      "@id": "tool:task",
-      "@type": "Tool",
-      "label": "task",
-      "description": "Delegate substantive work to subagent",
-      "capability_ids": ["capability:orchestration"]
-    },
-    {
-      "@id": "tool:read",
-      "@type": "Tool",
-      "label": "read",
-      "description": "Inspect files and artifacts",
-      "capability_ids": ["capability:artifact-observation", "capability:investigation"]
-    },
-    {
-      "@id": "tool:structured_read",
-      "@type": "Tool",
-      "label": "structured_read",
-      "description": "Inspect large structured files with bounded readonly extraction",
-      "capability_ids": ["capability:artifact-observation", "capability:investigation", "capability:search"]
-    },
-    {
-      "@id": "tool:project_state",
-      "@type": "Tool",
-      "label": "project_state",
-      "description": "Read ontology-managed artifact state",
-      "capability_ids": ["capability:artifact-observation", "capability:investigation"]
-    },
-    {
-      "@id": "tool:workflow_state",
-      "@type": "Tool",
-      "label": "workflow_state",
-      "description": "Read ontology workflow run state",
-      "capability_ids": ["capability:workflow-governance", "capability:investigation"]
-    },
-    {
-      "@id": "tool:transition_stage",
-      "@type": "Tool",
-      "label": "transition_stage",
-      "description": "Apply ontology-governed workflow transition",
-      "capability_ids": ["capability:workflow-governance"]
-    },
-    {
-      "@id": "tool:record_task_result",
-      "@type": "Tool",
-      "label": "record_task_result",
-      "description": "Persist workflow task record",
-      "capability_ids": ["capability:workflow-governance"]
-    },
-    {
-      "@id": "tool:record_check_result",
-      "@type": "Tool",
-      "label": "record_check_result",
-      "description": "Persist workflow check record",
-      "capability_ids": ["capability:verification"]
-    },
-    {
-      "@id": "tool:run_mechanical_checks",
-      "@type": "Tool",
-      "label": "run_mechanical_checks",
-      "description": "Run repository contract checks",
-      "capability_ids": ["capability:verification"]
-    },
-    {
-      "@id": "tool:check_artifacts",
-      "@type": "Tool",
-      "label": "check_artifacts",
-      "description": "Validate cross-artifact consistency",
-      "capability_ids": ["capability:verification", "capability:investigation"]
-    },
-    {
-      "@id": "tool:trigger_ci_check",
-      "@type": "Tool",
-      "label": "trigger_ci_check",
-      "description": "Run predeclared safe verification check",
-      "capability_ids": ["capability:verification"]
-    },
-    {
-      "@id": "tool:save_checkpoint",
-      "@type": "Tool",
-      "label": "save_checkpoint",
-      "description": "Persist checkpoint file",
-      "capability_ids": ["capability:checkpointing"]
-    },
-    {
-      "@id": "tool:scratchpad",
-      "@type": "Tool",
-      "label": "scratchpad",
-      "description": "Append orchestration scratchpad entry",
-      "capability_ids": ["capability:orchestration"]
-    },
-    {
-      "@id": "tool:skill",
-      "@type": "Tool",
-      "label": "skill",
-      "description": "Load builtin skill text",
-      "capability_ids": ["capability:orchestration", "capability:investigation"]
-    },
-    {
-      "@id": "tool:question",
-      "@type": "Tool",
-      "label": "question",
-      "description": "Ask user clarification",
-      "capability_ids": ["capability:orchestration", "capability:clarification"]
-    },
-    {
-      "@id": "role:orchestrator",
-      "@type": "Role",
-      "label": "Orchestrator",
-      "description": "Read-mostly workflow orchestrator with no direct mutation power",
-      "capability_ids": [
-        "capability:orchestration",
-        "capability:workflow-governance",
-        "capability:verification",
-        "capability:artifact-observation",
-        "capability:checkpointing"
-      ],
-      "permission_grants": [
-        { "@id": "permission:orchestrator:task", "@type": "PermissionGrant", "tool_id": "tool:task", "effect": "policy-effect:allow", "rationale": "Dispatch work" },
-        { "@id": "permission:orchestrator:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect state" },
-        { "@id": "permission:orchestrator:project-state", "@type": "PermissionGrant", "tool_id": "tool:project_state", "effect": "policy-effect:allow", "rationale": "Inspect managed artifacts" },
-        { "@id": "permission:orchestrator:workflow-state", "@type": "PermissionGrant", "tool_id": "tool:workflow_state", "effect": "policy-effect:allow", "rationale": "Inspect workflow runs" },
-        { "@id": "permission:orchestrator:transition", "@type": "PermissionGrant", "tool_id": "tool:transition_stage", "effect": "policy-effect:allow", "rationale": "Advance workflow by ontology transition semantics" },
-        { "@id": "permission:orchestrator:record-task", "@type": "PermissionGrant", "tool_id": "tool:record_task_result", "effect": "policy-effect:allow", "rationale": "Persist delegated task evidence" },
-        { "@id": "permission:orchestrator:record-check", "@type": "PermissionGrant", "tool_id": "tool:record_check_result", "effect": "policy-effect:allow", "rationale": "Persist verification evidence" },
-        { "@id": "permission:orchestrator:artifacts", "@type": "PermissionGrant", "tool_id": "tool:check_artifacts", "effect": "policy-effect:allow", "rationale": "Validate artifact graph" },
-        { "@id": "permission:orchestrator:skill", "@type": "PermissionGrant", "tool_id": "tool:skill", "effect": "policy-effect:allow", "rationale": "Load builtin skills" },
-        { "@id": "permission:orchestrator:question", "@type": "PermissionGrant", "tool_id": "tool:question", "effect": "policy-effect:allow", "rationale": "Clarify requirements" }
-      ]
-    },
-    {
-      "@id": "workflow:orchestration-pipeline",
-      "@type": "WorkflowDefinition",
-      "label": "Orchestration pipeline",
-      "description": "Requirements to planning to execution to verification to delivery",
-      "stage_ids": [
-        "workflow-stage:requirements",
-        "workflow-stage:planning",
-        "workflow-stage:execution",
-        "workflow-stage:verification",
-        "workflow-stage:delivery",
-        "workflow-stage:completed",
-        "workflow-stage:needs-human"
-      ],
-      "transition_ids": [
-        "workflow-transition:req-to-plan",
-        "workflow-transition:plan-to-exec",
-        "workflow-transition:exec-to-verify",
-        "workflow-transition:verify-to-delivery",
-        "workflow-transition:verify-to-exec",
-        "workflow-transition:delivery-to-completed",
-        "workflow-transition:req-to-needs-human",
-        "workflow-transition:plan-to-needs-human",
-        "workflow-transition:exec-to-needs-human",
-        "workflow-transition:verify-to-needs-human",
-        "workflow-transition:delivery-to-needs-human"
-      ]
-    },
-    { "@id": "workflow-stage:requirements", "@type": "WorkflowStage", "label": "Requirements", "description": "Clarify problem, scope, acceptance", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-stage:planning", "@type": "WorkflowStage", "label": "Planning", "description": "Define execution approach", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-stage:execution", "@type": "WorkflowStage", "label": "Execution", "description": "Execute delegated work", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-stage:verification", "@type": "WorkflowStage", "label": "Verification", "description": "Run blocking verification and artifact checks", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-stage:delivery", "@type": "WorkflowStage", "label": "Delivery", "description": "Prepare final report", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-stage:completed", "@type": "WorkflowStage", "label": "Completed", "description": "Terminal success", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:completed" },
-    { "@id": "workflow-stage:needs-human", "@type": "WorkflowStage", "label": "Needs human", "description": "Blocked pending human input", "workflow_definition_id": "workflow:orchestration-pipeline", "next_status_id": "workflow-status:blocked" },
-    { "@id": "workflow-transition:req-to-plan", "@type": "WorkflowTransition", "label": "Requirements to planning", "description": "Move to planning once requirements are understood", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:planning", "next_status_id": "workflow-status:active" },
-    { "@id": "workflow-transition:plan-to-exec", "@type": "WorkflowTransition", "label": "Planning to execution", "description": "Move to execution once plan exists", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:execution", "next_status_id": "workflow-status:active", "increments_iteration": true },
-    { "@id": "workflow-transition:exec-to-verify", "@type": "WorkflowTransition", "label": "Execution to verification", "description": "Move to verification after execution work completes", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:verification", "next_status_id": "workflow-status:active", "resets_checks": true },
-    { "@id": "workflow-transition:verify-to-delivery", "@type": "WorkflowTransition", "label": "Verification to delivery", "description": "Delivery allowed only after required checks pass", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:delivery", "next_status_id": "workflow-status:active", "required_check_ids": ["check:mechanical"] },
-    { "@id": "workflow-transition:verify-to-exec", "@type": "WorkflowTransition", "label": "Verification to execution", "description": "Return to execution when blocking verification fails", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:execution", "next_status_id": "workflow-status:active", "increments_iteration": true },
-    { "@id": "workflow-transition:delivery-to-completed", "@type": "WorkflowTransition", "label": "Delivery to completed", "description": "Mark workflow complete after delivery report", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:completed", "next_status_id": "workflow-status:completed" },
-    { "@id": "workflow-transition:req-to-needs-human", "@type": "WorkflowTransition", "label": "Requirements to needs human", "description": "Block when requirements work lacks authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:requirements", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
-    { "@id": "workflow-transition:plan-to-needs-human", "@type": "WorkflowTransition", "label": "Planning to needs human", "description": "Block when planning cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:planning", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
-    { "@id": "workflow-transition:exec-to-needs-human", "@type": "WorkflowTransition", "label": "Execution to needs human", "description": "Block when human intervention is needed during execution", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:execution", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
-    { "@id": "workflow-transition:verify-to-needs-human", "@type": "WorkflowTransition", "label": "Verification to needs human", "description": "Block when verification cannot proceed autonomously", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:verification", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
-    { "@id": "workflow-transition:delivery-to-needs-human", "@type": "WorkflowTransition", "label": "Delivery to needs human", "description": "Block when delivery lacks reproducible authority-backed context", "workflow_definition_id": "workflow:orchestration-pipeline", "from_stage_id": "workflow-stage:delivery", "to_stage_id": "workflow-stage:needs-human", "next_status_id": "workflow-status:blocked" },
-    {
-      "@id": "policy:deny-env-file-access",
-      "@type": "Policy",
-      "label": "Deny env file access",
-      "description": "Deny direct read and mutation of dotenv files",
-      "policy_kind_id": "policy-kind:authorization",
-      "effect": "policy-effect:deny",
-      "tool_ids": ["tool:read", "tool:structured_read", "tool:write", "tool:edit"],
-      "path_globs": ["**/.env", "**/.env.*", ".env", ".env.*"]
-    },
-    {
-      "@id": "policy:tori-no-direct-mutation",
-      "@type": "Policy",
-      "label": "Tori no direct mutation",
-      "description": "Tori may not use substantive mutation tools directly",
-      "policy_kind_id": "policy-kind:authorization",
-      "effect": "policy-effect:deny",
-      "subject_agent_ids": ["agent:tori"],
-      "tool_ids": ["tool:write", "tool:edit", "tool:bash", "tool:register_spec", "tool:mark_block_done", "tool:complete_plan", "tool:write_append", "tool:trigger_ci_check", "tool:run_mechanical_checks", "tool:save_checkpoint", "tool:scratchpad"]
-    },
-    {
-      "@id": "policy:delivery-requires-mechanical-check",
-      "@type": "Policy",
-      "label": "Delivery requires mechanical check",
-      "description": "Delivery transition requires persisted mechanical check pass",
-      "policy_kind_id": "policy-kind:transition",
-      "workflow_definition_ids": ["workflow:orchestration-pipeline"],
-      "from_stage_ids": ["workflow-stage:verification"],
-      "to_stage_ids": ["workflow-stage:delivery"],
-      "required_check_ids": ["check:mechanical"],
-      "required_check_status_id": "check-status:passed"
-    },
-    {
-      "@id": "policy:return-to-execution-requires-failed-blocking-check",
-      "@type": "Policy",
-      "label": "Return to execution requires failed blocking check",
-      "description": "Verification may return to execution only when a persisted blocking check failed",
-      "policy_kind_id": "policy-kind:transition",
-      "workflow_definition_ids": ["workflow:orchestration-pipeline"],
-      "from_stage_ids": ["workflow-stage:verification"],
-      "to_stage_ids": ["workflow-stage:execution"],
-      "require_failed_check_policy_ids": ["check-policy:blocking"]
-    },
-    {
-      "@id": "policy:tori-tool-loop-cap",
-      "@type": "Policy",
-      "label": "Tori tool loop cap",
-      "description": "Cap identical tool invocations, repeated failures, and bounded cognition expansion for Tori",
-      "policy_kind_id": "policy-kind:execution-loop",
-      "subject_agent_ids": ["agent:tori"],
-      "max_identical_invocations": 2,
-      "max_identical_failures": 2,
-      "max_consecutive_failures": 3,
-      "max_investigation_actions": 6,
-      "max_search_actions": 4,
-      "max_speculation_actions": 2,
-      "max_missing_context_failures": 1,
-      "escalation_stage_id": "workflow-stage:needs-human"
-    },
-    {
-      "@id": "policy:tori-verify-retry-cap",
-      "@type": "Policy",
-      "label": "Tori verification retry cap",
-      "description": "Cap verification to execution retries and escalate on no progress or iteration exhaustion",
-      "policy_kind_id": "policy-kind:transition",
-      "workflow_definition_ids": ["workflow:orchestration-pipeline"],
-      "from_stage_ids": ["workflow-stage:verification"],
-      "to_stage_ids": ["workflow-stage:execution"],
-      "max_transition_retries": 2,
-      "max_no_progress_retries": 1,
-      "max_identical_failures": 2,
-      "max_iteration": 3,
-      "escalation_stage_id": "workflow-stage:needs-human"
-    },
-    {
-      "@id": "policy:tori-output-governance",
-      "@type": "Policy",
-      "label": "Tori output governance",
-      "description": "Block repeated output paragraphs, repeated sentences, and self-talk markers in final responses",
-      "policy_kind_id": "policy-kind:output-governance",
-      "subject_agent_ids": ["agent:tori"],
-      "max_repeated_paragraphs": 1,
-      "max_repeated_sentences": 1,
-      "max_self_talk_markers": 0
-    },
-    {
-      "@id": "agent:tori",
-      "@type": "Agent",
-      "label": "Tori",
-      "description": "Strict ontology-governed orchestrator",
-      "role_ids": ["role:orchestrator"],
-      "capability_ids": [
-        "capability:orchestration",
-        "capability:workflow-governance",
-        "capability:verification",
-        "capability:artifact-observation",
-        "capability:checkpointing"
-      ],
-      "tool_ids": [
-        "tool:task",
-        "tool:read",
-        "tool:project_state",
-        "tool:workflow_state",
-        "tool:transition_stage",
-        "tool:record_task_result",
-        "tool:record_check_result",
-        "tool:check_artifacts",
-        "tool:skill",
-        "tool:question"
-      ],
-      "prompt_ref": "prompt:tori",
-      "metadata": {
-        "color": "error",
-        "default_main_session": true,
-        "human_tone": true,
-        "mode": "all",
-        "temperature": 0.3,
-        "runtime_ids": ["opencode", "kilocode"]
-      }
-    }
-  ]
+    "@context": "https://tori-agent.dev/ontology/2026/core/context",
+    "@graph": [
+        {
+            "@id": "capability:orchestration",
+            "@type": "Capability",
+            "label": "Orchestration",
+            "description": "Coordinate workflow execution and dispatch work"
+        },
+        {
+            "@id": "capability:workflow-governance",
+            "@type": "Capability",
+            "label": "Workflow governance",
+            "description": "Inspect and transition ontology-native workflow runs"
+        },
+        {
+            "@id": "capability:verification",
+            "@type": "Capability",
+            "label": "Verification",
+            "description": "Run and record mechanical verification"
+        },
+        {
+            "@id": "capability:artifact-observation",
+            "@type": "Capability",
+            "label": "Artifact observation",
+            "description": "Inspect managed artifacts and repository state"
+        },
+        {
+            "@id": "capability:checkpointing",
+            "@type": "Capability",
+            "label": "Checkpointing",
+            "description": "Persist continuation checkpoints"
+        },
+        {
+            "@id": "capability:investigation",
+            "@type": "Capability",
+            "label": "Investigation",
+            "description": "Inspect authoritative state and evidence"
+        },
+        {
+            "@id": "capability:search",
+            "@type": "Capability",
+            "label": "Search",
+            "description": "Search repository state and files"
+        },
+        {
+            "@id": "capability:clarification",
+            "@type": "Capability",
+            "label": "Clarification",
+            "description": "Request missing context from human"
+        },
+        {
+            "@id": "tool:task",
+            "@type": "Tool",
+            "label": "task",
+            "description": "Delegate substantive work to subagent",
+            "capability_ids": [
+                "capability:orchestration"
+            ]
+        },
+        {
+            "@id": "tool:read",
+            "@type": "Tool",
+            "label": "read",
+            "description": "Inspect files and artifacts",
+            "capability_ids": [
+                "capability:artifact-observation",
+                "capability:investigation"
+            ]
+        },
+        {
+            "@id": "tool:structured_read",
+            "@type": "Tool",
+            "label": "structured_read",
+            "description": "Inspect large structured files with bounded readonly extraction",
+            "capability_ids": [
+                "capability:artifact-observation",
+                "capability:investigation",
+                "capability:search"
+            ]
+        },
+        {
+            "@id": "tool:project_state",
+            "@type": "Tool",
+            "label": "project_state",
+            "description": "Read ontology-managed artifact state",
+            "capability_ids": [
+                "capability:artifact-observation",
+                "capability:investigation"
+            ]
+        },
+        {
+            "@id": "tool:workflow_state",
+            "@type": "Tool",
+            "label": "workflow_state",
+            "description": "Read ontology workflow run state",
+            "capability_ids": [
+                "capability:workflow-governance",
+                "capability:investigation"
+            ]
+        },
+        {
+            "@id": "tool:transition_stage",
+            "@type": "Tool",
+            "label": "transition_stage",
+            "description": "Apply ontology-governed workflow transition",
+            "capability_ids": [
+                "capability:workflow-governance"
+            ]
+        },
+        {
+            "@id": "tool:record_task_result",
+            "@type": "Tool",
+            "label": "record_task_result",
+            "description": "Persist workflow task record",
+            "capability_ids": [
+                "capability:workflow-governance"
+            ]
+        },
+        {
+            "@id": "tool:record_check_result",
+            "@type": "Tool",
+            "label": "record_check_result",
+            "description": "Persist workflow check record",
+            "capability_ids": [
+                "capability:verification"
+            ]
+        },
+        {
+            "@id": "tool:run_mechanical_checks",
+            "@type": "Tool",
+            "label": "run_mechanical_checks",
+            "description": "Run repository contract checks",
+            "capability_ids": [
+                "capability:verification"
+            ]
+        },
+        {
+            "@id": "tool:check_artifacts",
+            "@type": "Tool",
+            "label": "check_artifacts",
+            "description": "Validate cross-artifact consistency",
+            "capability_ids": [
+                "capability:verification",
+                "capability:investigation"
+            ]
+        },
+        {
+            "@id": "tool:trigger_ci_check",
+            "@type": "Tool",
+            "label": "trigger_ci_check",
+            "description": "Run predeclared safe verification check",
+            "capability_ids": [
+                "capability:verification"
+            ]
+        },
+        {
+            "@id": "tool:save_checkpoint",
+            "@type": "Tool",
+            "label": "save_checkpoint",
+            "description": "Persist checkpoint file",
+            "capability_ids": [
+                "capability:checkpointing"
+            ]
+        },
+        {
+            "@id": "tool:scratchpad",
+            "@type": "Tool",
+            "label": "scratchpad",
+            "description": "Append orchestration scratchpad entry",
+            "capability_ids": [
+                "capability:orchestration"
+            ]
+        },
+        {
+            "@id": "tool:skill",
+            "@type": "Tool",
+            "label": "skill",
+            "description": "Load builtin skill text",
+            "capability_ids": [
+                "capability:orchestration",
+                "capability:investigation"
+            ]
+        },
+        {
+            "@id": "tool:question",
+            "@type": "Tool",
+            "label": "question",
+            "description": "Ask user clarification",
+            "capability_ids": [
+                "capability:orchestration",
+                "capability:clarification"
+            ]
+        },
+        {
+            "@id": "role:orchestrator",
+            "@type": "Role",
+            "label": "Orchestrator",
+            "description": "Read-mostly workflow orchestrator with no direct mutation power",
+            "capability_ids": [
+                "capability:orchestration",
+                "capability:workflow-governance",
+                "capability:verification",
+                "capability:artifact-observation",
+                "capability:checkpointing"
+            ],
+            "permission_grants": [
+                {
+                    "@id": "permission:orchestrator:task",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:task",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Dispatch work"
+                },
+                {
+                    "@id": "permission:orchestrator:read",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:read",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Inspect state"
+                },
+                {
+                    "@id": "permission:orchestrator:project-state",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:project_state",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Inspect managed artifacts"
+                },
+                {
+                    "@id": "permission:orchestrator:workflow-state",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:workflow_state",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Inspect workflow runs"
+                },
+                {
+                    "@id": "permission:orchestrator:transition",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:transition_stage",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Advance workflow by ontology transition semantics"
+                },
+                {
+                    "@id": "permission:orchestrator:record-task",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:record_task_result",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Persist delegated task evidence"
+                },
+                {
+                    "@id": "permission:orchestrator:record-check",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:record_check_result",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Persist verification evidence"
+                },
+                {
+                    "@id": "permission:orchestrator:artifacts",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:check_artifacts",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Validate artifact graph"
+                },
+                {
+                    "@id": "permission:orchestrator:skill",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:skill",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Load builtin skills"
+                },
+                {
+                    "@id": "permission:orchestrator:question",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:question",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Clarify requirements"
+                }
+            ]
+        },
+        {
+            "@id": "workflow:orchestration-pipeline",
+            "@type": "WorkflowDefinition",
+            "label": "Orchestration pipeline",
+            "description": "Requirements to planning to execution to verification to delivery",
+            "stage_ids": [
+                "workflow-stage:requirements",
+                "workflow-stage:planning",
+                "workflow-stage:execution",
+                "workflow-stage:verification",
+                "workflow-stage:delivery",
+                "workflow-stage:completed",
+                "workflow-stage:needs-human"
+            ],
+            "transition_ids": [
+                "workflow-transition:req-to-plan",
+                "workflow-transition:plan-to-exec",
+                "workflow-transition:exec-to-verify",
+                "workflow-transition:verify-to-delivery",
+                "workflow-transition:verify-to-exec",
+                "workflow-transition:delivery-to-completed",
+                "workflow-transition:req-to-needs-human",
+                "workflow-transition:plan-to-needs-human",
+                "workflow-transition:exec-to-needs-human",
+                "workflow-transition:verify-to-needs-human",
+                "workflow-transition:delivery-to-needs-human"
+            ]
+        },
+        {
+            "@id": "workflow-stage:requirements",
+            "@type": "WorkflowStage",
+            "label": "Requirements",
+            "description": "Clarify problem, scope, acceptance",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-stage:planning",
+            "@type": "WorkflowStage",
+            "label": "Planning",
+            "description": "Define execution approach",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-stage:execution",
+            "@type": "WorkflowStage",
+            "label": "Execution",
+            "description": "Execute delegated work",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-stage:verification",
+            "@type": "WorkflowStage",
+            "label": "Verification",
+            "description": "Run blocking verification and artifact checks",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-stage:delivery",
+            "@type": "WorkflowStage",
+            "label": "Delivery",
+            "description": "Prepare final report",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-stage:completed",
+            "@type": "WorkflowStage",
+            "label": "Completed",
+            "description": "Terminal success",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:completed"
+        },
+        {
+            "@id": "workflow-stage:needs-human",
+            "@type": "WorkflowStage",
+            "label": "Needs human",
+            "description": "Blocked pending human input",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "workflow-transition:req-to-plan",
+            "@type": "WorkflowTransition",
+            "label": "Requirements to planning",
+            "description": "Move to planning once requirements are understood",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:requirements",
+            "to_stage_id": "workflow-stage:planning",
+            "next_status_id": "workflow-status:active"
+        },
+        {
+            "@id": "workflow-transition:plan-to-exec",
+            "@type": "WorkflowTransition",
+            "label": "Planning to execution",
+            "description": "Move to execution once plan exists",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:planning",
+            "to_stage_id": "workflow-stage:execution",
+            "next_status_id": "workflow-status:active",
+            "increments_iteration": true
+        },
+        {
+            "@id": "workflow-transition:exec-to-verify",
+            "@type": "WorkflowTransition",
+            "label": "Execution to verification",
+            "description": "Move to verification after execution work completes",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:execution",
+            "to_stage_id": "workflow-stage:verification",
+            "next_status_id": "workflow-status:active",
+            "resets_checks": true
+        },
+        {
+            "@id": "workflow-transition:verify-to-delivery",
+            "@type": "WorkflowTransition",
+            "label": "Verification to delivery",
+            "description": "Delivery allowed only after required checks pass",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:verification",
+            "to_stage_id": "workflow-stage:delivery",
+            "next_status_id": "workflow-status:active",
+            "required_check_ids": [
+                "check:mechanical"
+            ]
+        },
+        {
+            "@id": "workflow-transition:verify-to-exec",
+            "@type": "WorkflowTransition",
+            "label": "Verification to execution",
+            "description": "Return to execution when blocking verification fails",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:verification",
+            "to_stage_id": "workflow-stage:execution",
+            "next_status_id": "workflow-status:active",
+            "increments_iteration": true
+        },
+        {
+            "@id": "workflow-transition:delivery-to-completed",
+            "@type": "WorkflowTransition",
+            "label": "Delivery to completed",
+            "description": "Mark workflow complete after delivery report",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:delivery",
+            "to_stage_id": "workflow-stage:completed",
+            "next_status_id": "workflow-status:completed"
+        },
+        {
+            "@id": "workflow-transition:req-to-needs-human",
+            "@type": "WorkflowTransition",
+            "label": "Requirements to needs human",
+            "description": "Block when requirements work lacks authority-backed context",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:requirements",
+            "to_stage_id": "workflow-stage:needs-human",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "workflow-transition:plan-to-needs-human",
+            "@type": "WorkflowTransition",
+            "label": "Planning to needs human",
+            "description": "Block when planning cannot proceed autonomously",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:planning",
+            "to_stage_id": "workflow-stage:needs-human",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "workflow-transition:exec-to-needs-human",
+            "@type": "WorkflowTransition",
+            "label": "Execution to needs human",
+            "description": "Block when human intervention is needed during execution",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:execution",
+            "to_stage_id": "workflow-stage:needs-human",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "workflow-transition:verify-to-needs-human",
+            "@type": "WorkflowTransition",
+            "label": "Verification to needs human",
+            "description": "Block when verification cannot proceed autonomously",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:verification",
+            "to_stage_id": "workflow-stage:needs-human",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "workflow-transition:delivery-to-needs-human",
+            "@type": "WorkflowTransition",
+            "label": "Delivery to needs human",
+            "description": "Block when delivery lacks reproducible authority-backed context",
+            "workflow_definition_id": "workflow:orchestration-pipeline",
+            "from_stage_id": "workflow-stage:delivery",
+            "to_stage_id": "workflow-stage:needs-human",
+            "next_status_id": "workflow-status:blocked"
+        },
+        {
+            "@id": "policy:deny-env-file-access",
+            "@type": "Policy",
+            "label": "Deny env file access",
+            "description": "Deny direct read and mutation of dotenv files",
+            "policy_kind_id": "policy-kind:authorization",
+            "effect": "policy-effect:deny",
+            "tool_ids": [
+                "tool:read",
+                "tool:structured_read",
+                "tool:write",
+                "tool:jq",
+                "tool:edit"
+            ],
+            "path_globs": [
+                "**/.env",
+                "**/.env.*",
+                ".env",
+                ".env.*"
+            ]
+        },
+        {
+            "@id": "policy:tori-no-direct-mutation",
+            "@type": "Policy",
+            "label": "Tori no direct mutation",
+            "description": "Tori may not use substantive mutation tools directly",
+            "policy_kind_id": "policy-kind:authorization",
+            "effect": "policy-effect:deny",
+            "subject_agent_ids": [
+                "agent:tori"
+            ],
+            "tool_ids": [
+                "tool:write",
+                "tool:edit",
+                "tool:bash",
+                "tool:register_spec",
+                "tool:mark_block_done",
+                "tool:complete_plan",
+                "tool:write_append",
+                "tool:trigger_ci_check",
+                "tool:run_mechanical_checks",
+                "tool:save_checkpoint",
+                "tool:scratchpad"
+            ]
+        },
+        {
+            "@id": "policy:delivery-requires-mechanical-check",
+            "@type": "Policy",
+            "label": "Delivery requires mechanical check",
+            "description": "Delivery transition requires persisted mechanical check pass",
+            "policy_kind_id": "policy-kind:transition",
+            "workflow_definition_ids": [
+                "workflow:orchestration-pipeline"
+            ],
+            "from_stage_ids": [
+                "workflow-stage:verification"
+            ],
+            "to_stage_ids": [
+                "workflow-stage:delivery"
+            ],
+            "required_check_ids": [
+                "check:mechanical"
+            ],
+            "required_check_status_id": "check-status:passed"
+        },
+        {
+            "@id": "policy:return-to-execution-requires-failed-blocking-check",
+            "@type": "Policy",
+            "label": "Return to execution requires failed blocking check",
+            "description": "Verification may return to execution only when a persisted blocking check failed",
+            "policy_kind_id": "policy-kind:transition",
+            "workflow_definition_ids": [
+                "workflow:orchestration-pipeline"
+            ],
+            "from_stage_ids": [
+                "workflow-stage:verification"
+            ],
+            "to_stage_ids": [
+                "workflow-stage:execution"
+            ],
+            "require_failed_check_policy_ids": [
+                "check-policy:blocking"
+            ]
+        },
+        {
+            "@id": "policy:tori-tool-loop-cap",
+            "@type": "Policy",
+            "label": "Tori tool loop cap",
+            "description": "Cap identical tool invocations, repeated failures, and bounded cognition expansion for Tori",
+            "policy_kind_id": "policy-kind:execution-loop",
+            "subject_agent_ids": [
+                "agent:tori"
+            ],
+            "max_identical_invocations": 2,
+            "max_identical_failures": 2,
+            "max_consecutive_failures": 3,
+            "max_investigation_actions": 6,
+            "max_search_actions": 4,
+            "max_speculation_actions": 2,
+            "max_missing_context_failures": 1,
+            "escalation_stage_id": "workflow-stage:needs-human"
+        },
+        {
+            "@id": "policy:tori-verify-retry-cap",
+            "@type": "Policy",
+            "label": "Tori verification retry cap",
+            "description": "Cap verification to execution retries and escalate on no progress or iteration exhaustion",
+            "policy_kind_id": "policy-kind:transition",
+            "workflow_definition_ids": [
+                "workflow:orchestration-pipeline"
+            ],
+            "from_stage_ids": [
+                "workflow-stage:verification"
+            ],
+            "to_stage_ids": [
+                "workflow-stage:execution"
+            ],
+            "max_transition_retries": 2,
+            "max_no_progress_retries": 1,
+            "max_identical_failures": 2,
+            "max_iteration": 3,
+            "escalation_stage_id": "workflow-stage:needs-human"
+        },
+        {
+            "@id": "policy:tori-output-governance",
+            "@type": "Policy",
+            "label": "Tori output governance",
+            "description": "Block repeated output paragraphs, repeated sentences, and self-talk markers in final responses",
+            "policy_kind_id": "policy-kind:output-governance",
+            "subject_agent_ids": [
+                "agent:tori"
+            ],
+            "max_repeated_paragraphs": 1,
+            "max_repeated_sentences": 1,
+            "max_self_talk_markers": 0
+        },
+        {
+            "@id": "agent:tori",
+            "@type": "Agent",
+            "label": "Tori",
+            "description": "Strict ontology-governed orchestrator",
+            "role_ids": [
+                "role:orchestrator"
+            ],
+            "capability_ids": [
+                "capability:orchestration",
+                "capability:workflow-governance",
+                "capability:verification",
+                "capability:artifact-observation",
+                "capability:checkpointing"
+            ],
+            "tool_ids": [
+                "tool:task",
+                "tool:read",
+                "tool:project_state",
+                "tool:workflow_state",
+                "tool:transition_stage",
+                "tool:record_task_result",
+                "tool:record_check_result",
+                "tool:check_artifacts",
+                "tool:skill",
+                "tool:question"
+            ],
+            "prompt_ref": "prompt:tori",
+            "metadata": {
+                "color": "error",
+                "default_main_session": true,
+                "human_tone": true,
+                "mode": "all",
+                "temperature": 0.3,
+                "runtime_ids": [
+                    "opencode",
+                    "kilocode"
+                ]
+            }
+        }
+    ]
 }
