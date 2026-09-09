@@ -108,6 +108,70 @@ describe("lifecycle strict ontology", () => {
     assert.ok(result.issues.some((issue) => issue.type === "stale_status"));
   });
 
+  test("artifact cache invalidates after external managed file change", async () => {
+    const planPath = join(runtimePaths.execPlansDir, "plan.md");
+    await writeFile(
+      planPath,
+      [
+        "---",
+        "artifact_id: exec-plan:test",
+        `artifact_type_id: ${ARTIFACT_TYPE.execPlan}`,
+        `status_id: ${ARTIFACT_STATUS.active}`,
+        'title: "Plan"',
+        "created_at: 2026-09-08T00:00:00.000Z",
+        "---",
+        "",
+        "- [x] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    let state = await projectState(root, runtimePaths);
+    assert.equal(state.exec_plans[0].status_id, ARTIFACT_STATUS.active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      planPath,
+      [
+        "---",
+        "artifact_id: exec-plan:test",
+        `artifact_type_id: ${ARTIFACT_TYPE.execPlan}`,
+        `status_id: ${ARTIFACT_STATUS.completed}`,
+        'title: "Plan"',
+        "created_at: 2026-09-08T00:00:00.000Z",
+        "updated_at: 2026-09-09T00:00:00.000Z",
+        "---",
+        "",
+        "- [x] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    state = await projectState(root, runtimePaths);
+    assert.equal(state.exec_plans[0].status_id, ARTIFACT_STATUS.completed);
+  });
+
+  test("artifact directory cache invalidates after external file add", async () => {
+    let state = await projectState(root, runtimePaths);
+    assert.equal(state.exec_plans.length, 0);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      join(runtimePaths.execPlansDir, "plan-added.md"),
+      [
+        "---",
+        "artifact_id: exec-plan:added",
+        `artifact_type_id: ${ARTIFACT_TYPE.execPlan}`,
+        `status_id: ${ARTIFACT_STATUS.active}`,
+        'title: "Added Plan"',
+        "created_at: 2026-09-08T00:00:00.000Z",
+        "---",
+        "",
+        "- [ ] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    state = await projectState(root, runtimePaths);
+    assert.equal(state.exec_plans.length, 1);
+    assert.equal(state.exec_plans[0].artifact_id, "exec-plan:added");
+  });
+
   test("runMechanicalChecks executes repo-defined commands", async () => {
     const result = await runMechanicalChecks(root);
     assert.equal(result.ok, true);

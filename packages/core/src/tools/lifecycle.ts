@@ -14,6 +14,45 @@ import { listWorkflowRuns } from "./workflow.js";
 
 const exec = promisify(execCallback);
 
+interface CachedArtifactFile {
+  readonly mtimeMs: number;
+  readonly size: number;
+  readonly frontmatter: ManagedArtifactFrontmatter;
+  readonly body: string;
+  readonly checkedBlocks: number;
+  readonly uncheckedBlocks: number;
+}
+
+interface CachedReviewChecks {
+  readonly mtimeMs: number;
+  readonly size: number;
+  readonly checks: ReviewCheckDefinition[];
+}
+
+interface CachedArtifactDirectory {
+  readonly mtimeMs: number;
+  readonly files: string[];
+}
+
+const artifactFileCache = new Map<string, CachedArtifactFile>();
+const artifactDirectoryCache = new Map<string, CachedArtifactDirectory>();
+const reviewChecksCache = new Map<string, CachedReviewChecks>();
+
+function isErrnoWithCode(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === code;
+}
+
+function cloneFrontmatter(frontmatter: ManagedArtifactFrontmatter): ManagedArtifactFrontmatter {
+  return {
+    ...frontmatter,
+    related_artifact_ids: frontmatter.related_artifact_ids ? [...frontmatter.related_artifact_ids] : undefined,
+  };
+}
+
+function blockCountsFromCache(cached: CachedArtifactFile): { checked: number; unchecked: number } {
+  return { checked: cached.checkedBlocks, unchecked: cached.uncheckedBlocks };
+}
+
 function parseFrontmatter(content: string): { frontmatter: Partial<ManagedArtifactFrontmatter>; body: string } {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
   if (!match) {
@@ -56,14 +95,65 @@ function strictArtifact(frontmatter: Partial<ManagedArtifactFrontmatter>, file: 
   return frontmatter as ManagedArtifactFrontmatter;
 }
 
-async function readArtifactFile(filePath: string): Promise<{ frontmatter: ManagedArtifactFrontmatter; body: string }> {
+async function readArtifactFile(filePath: string): Promise<{ frontmatter: ManagedArtifactFrontmatter; body: string; blockCounts: { checked: number; unchecked: number } }> {
+  const metadata = await stat(filePath);
+  const cached = artifactFileCache.get(filePath);
+  if (cached && cached.mtimeMs === metadata.mtimeMs && cached.size === metadata.size) {
+    return {
+      frontmatter: cloneFrontmatter(cached.frontmatter),
+      body: cached.body,
+      blockCounts: blockCountsFromCache(cached),
+    };
+  }
   const content = await readFile(filePath, "utf8");
   const parsed = parseFrontmatter(content);
-  return { frontmatter: strictArtifact(parsed.frontmatter, filePath), body: parsed.body };
+  const frontmatter = strictArtifact(parsed.frontmatter, filePath);
+  const blockCounts = countBlocks(parsed.body);
+  artifactFileCache.set(filePath, {
+    mtimeMs: metadata.mtimeMs,
+    size: metadata.size,
+    frontmatter: cloneFrontmatter(frontmatter),
+    body: parsed.body,
+    checkedBlocks: blockCounts.checked,
+    uncheckedBlocks: blockCounts.unchecked,
+  });
+  return { frontmatter, body: parsed.body, blockCounts };
 }
 
-function artifactStateFrom(frontmatter: ManagedArtifactFrontmatter, file: string, runtimePaths: RuntimePaths, body?: string): ArtifactState {
-  const blockCounts = body !== undefined ? countBlocks(body) : { checked: 0, unchecked: 0 };
+async function listArtifactFiles(dir: string): Promise<string[]> {
+  await mkdir(dir, { recursive: true });
+  const metadata = await stat(dir);
+  const cached = artifactDirectoryCache.get(dir);
+  if (cached && cached.mtimeMs === metadata.mtimeMs) {
+    return [...cached.files];
+  }
+  const files = (await readdir(dir)).filter((file) => file.endsWith(".md"));
+  artifactDirectoryCache.set(dir, { mtimeMs: metadata.mtimeMs, files: [...files] });
+  return files;
+}
+
+async function writeArtifactFile(filePath: string, frontmatter: ManagedArtifactFrontmatter, body: string, listingMayChange = false): Promise<void> {
+  const content = `${serializeFrontmatter(frontmatter)}\n${body}`;
+  await writeFile(filePath, content, "utf8");
+  const metadata = await stat(filePath);
+  const blockCounts = countBlocks(body);
+  artifactFileCache.set(filePath, {
+    mtimeMs: metadata.mtimeMs,
+    size: metadata.size,
+    frontmatter: cloneFrontmatter(frontmatter),
+    body,
+    checkedBlocks: blockCounts.checked,
+    uncheckedBlocks: blockCounts.unchecked,
+  });
+  if (listingMayChange) artifactDirectoryCache.delete(dirname(filePath));
+}
+
+function artifactStateFrom(
+  frontmatter: ManagedArtifactFrontmatter,
+  file: string,
+  runtimePaths: RuntimePaths,
+  blockCounts: { checked: number; unchecked: number } = { checked: 0, unchecked: 0 },
+): ArtifactState {
   return {
     ...frontmatter,
     file,
@@ -73,15 +163,25 @@ function artifactStateFrom(frontmatter: ManagedArtifactFrontmatter, file: string
   };
 }
 
-async function readArtifactDir(dir: string, runtimePaths: RuntimePaths): Promise<ArtifactState[]> {
-  await mkdir(dir, { recursive: true });
-  const files = (await readdir(dir)).filter((file) => file.endsWith(".md"));
-  const states: ArtifactState[] = [];
-  for (const file of files) {
-    const { frontmatter, body } = await readArtifactFile(join(dir, file));
-    states.push(artifactStateFrom(frontmatter, file, runtimePaths, body));
+async function readArtifactDir(dir: string, runtimePaths: RuntimePaths, allowRefresh = true): Promise<ArtifactState[]> {
+  const files = await listArtifactFiles(dir);
+  const states = await Promise.all(files.map(async (file) => {
+    try {
+      const { frontmatter, blockCounts } = await readArtifactFile(join(dir, file));
+      return artifactStateFrom(frontmatter, file, runtimePaths, blockCounts);
+    } catch (error) {
+      if (allowRefresh && isErrnoWithCode(error, "ENOENT")) {
+        artifactFileCache.delete(join(dir, file));
+        artifactDirectoryCache.delete(dir);
+        return null;
+      }
+      throw error;
+    }
+  }));
+  if (allowRefresh && states.some((state) => state === null)) {
+    return readArtifactDir(dir, runtimePaths, false);
   }
-  return states;
+  return states.filter((state): state is ArtifactState => state !== null);
 }
 
 function resolveWithin(root: string, file: string): string {
@@ -94,12 +194,18 @@ function resolveWithin(root: string, file: string): string {
 }
 
 export async function projectState(_projectRoot: string, runtimePaths: RuntimePaths): Promise<ProjectStateReport> {
+  const [specs, execPlans, briefs, workflowRuns] = await Promise.all([
+    readArtifactDir(runtimePaths.specsDir, runtimePaths),
+    readArtifactDir(runtimePaths.execPlansDir, runtimePaths),
+    readArtifactDir(runtimePaths.briefsDir, runtimePaths),
+    listWorkflowRuns(runtimePaths),
+  ]);
   return {
     runtime_id: runtimePaths.runtimeId,
-    specs: await readArtifactDir(runtimePaths.specsDir, runtimePaths),
-    exec_plans: await readArtifactDir(runtimePaths.execPlansDir, runtimePaths),
-    briefs: await readArtifactDir(runtimePaths.briefsDir, runtimePaths),
-    workflow_runs: await listWorkflowRuns(runtimePaths),
+    specs,
+    exec_plans: execPlans,
+    briefs,
+    workflow_runs: workflowRuns,
   };
 }
 
@@ -176,7 +282,7 @@ export async function registerSpecImpl(
     created_at: now,
   };
   const body = `# ${title}\n\n## Summary\n\n## Requirements\n\n## Verification\n`;
-  await writeFile(target, `${serializeFrontmatter(frontmatter)}\n${body}`, "utf8");
+  await writeArtifactFile(target, frontmatter, body, true);
   return { created: true, file: target, artifact_id: artifactId };
 }
 
@@ -198,7 +304,7 @@ export async function markBlockDone(
   }
   const nextBody = body.replace(pattern, `- [x] ${blockName}`);
   const updated: ManagedArtifactFrontmatter = { ...frontmatter, updated_at: new Date().toISOString() };
-  await writeFile(target, `${serializeFrontmatter(updated)}\n${nextBody}`, "utf8");
+  await writeArtifactFile(target, updated, nextBody);
   const counts = countBlocks(nextBody);
   return { artifact_id: updated.artifact_id, checked_blocks: counts.checked, unchecked_blocks: counts.unchecked, all_done: counts.unchecked === 0 };
 }
@@ -209,8 +315,8 @@ export async function completePlan(
   planFile: string,
 ): Promise<ArtifactState> {
   const target = resolveWithin(runtimePaths.execPlansDir, planFile);
-  const { frontmatter, body } = await readArtifactFile(target);
-  const counts = countBlocks(body);
+  const { frontmatter, body, blockCounts } = await readArtifactFile(target);
+  const counts = blockCounts;
   if (counts.unchecked > 0) {
     throw new Error(`Cannot complete plan with ${counts.unchecked} unchecked block(s)`);
   }
@@ -219,8 +325,8 @@ export async function completePlan(
     status_id: ARTIFACT_STATUS.completed,
     updated_at: new Date().toISOString(),
   };
-  await writeFile(target, `${serializeFrontmatter(updated)}\n${body}`, "utf8");
-  return artifactStateFrom(updated, basename(target), runtimePaths, body);
+  await writeArtifactFile(target, updated, body);
+  return artifactStateFrom(updated, basename(target), runtimePaths, counts);
 }
 
 export async function saveCheckpoint(
@@ -329,8 +435,20 @@ export function parseReviewChecks(content: string): ReviewCheckDefinition[] {
 }
 
 export async function loadReviewChecks(projectRoot: string): Promise<ReviewCheckDefinition[]> {
-  const agentsMd = await readFile(join(projectRoot, "AGENTS.md"), "utf8");
-  return parseReviewChecks(agentsMd);
+  const agentsPath = join(projectRoot, "AGENTS.md");
+  const metadata = await stat(agentsPath);
+  const cached = reviewChecksCache.get(agentsPath);
+  if (cached && cached.mtimeMs === metadata.mtimeMs && cached.size === metadata.size) {
+    return cached.checks.map((check) => ({ ...check }));
+  }
+  const agentsMd = await readFile(agentsPath, "utf8");
+  const checks = parseReviewChecks(agentsMd);
+  reviewChecksCache.set(agentsPath, {
+    mtimeMs: metadata.mtimeMs,
+    size: metadata.size,
+    checks: checks.map((check) => ({ ...check })),
+  });
+  return checks;
 }
 
 export async function getReviewCheck(projectRoot: string, checkId: string): Promise<ReviewCheckDefinition | null> {

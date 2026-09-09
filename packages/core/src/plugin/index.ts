@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import { CHECK_POLICY, WORKFLOW_STAGE, getToolId, type RuntimeId, type RuntimePaths } from "@tori-agent/ontology";
 import type { OntologyRuntime } from "../ontology/runtime.js";
@@ -57,6 +57,10 @@ interface LazyToolMeta extends ToolRegistryEntry {
 }
 
 const lazyRegistry = new Map<string, LazyToolMeta>();
+const registeredToolRegistries = new WeakSet<ToolRegistry>();
+const authorizedRegistryCache = new WeakMap<ToolRegistry, Map<string, ToolRegistry>>();
+const budgetAwareRegistryCache = new WeakMap<ToolRegistry, WeakMap<OntologyRuntime, ToolRegistry>>();
+const managedArtifactIdCache = new Map<string, { mtimeMs: number; size: number; artifactId: string | null }>();
 
 export function registerLazyTool(meta: LazyToolMeta): void {
   lazyRegistry.set(meta.name, meta);
@@ -77,7 +81,19 @@ export function registerToolInLazyRegistry(
   args: Record<string, unknown>,
   execute: ToolRegistryEntry["execute"],
 ): void {
+  const existing = lazyRegistry.get(name);
+  if (existing && existing.category === category && existing.description === description && existing.args === args && existing.execute === execute) {
+    return;
+  }
   registerLazyTool({ name, category, description, args, execute });
+}
+
+export function ensureToolRegistryRegistered(registry: ToolRegistry, category = "core"): void {
+  if (registeredToolRegistries.has(registry)) return;
+  for (const [name, tool] of Object.entries(registry)) {
+    registerToolInLazyRegistry(name, category, tool.description, tool.args, tool.execute);
+  }
+  registeredToolRegistries.add(registry);
 }
 
 export function buildDiscoveryTools(): Record<string, ToolRegistryEntry> {
@@ -131,8 +147,12 @@ export function createBudgetAwareToolExecutor(
   baseTools: ToolRegistry,
   options: { ontologyRuntime: OntologyRuntime },
 ): ToolRegistry {
+  const cachedByRuntime = budgetAwareRegistryCache.get(baseTools);
+  const cached = cachedByRuntime?.get(options.ontologyRuntime);
+  if (cached) return cached;
+
   const loopStates = new Map<string, ToolLoopSessionState>();
-  return Object.fromEntries(
+  const wrapped = Object.fromEntries(
     Object.entries(baseTools).map(([name, tool]) => [
       name,
       {
@@ -178,6 +198,11 @@ export function createBudgetAwareToolExecutor(
       } satisfies ToolRegistryEntry,
     ]),
   );
+
+  const byRuntime = cachedByRuntime ?? new WeakMap<OntologyRuntime, ToolRegistry>();
+  byRuntime.set(options.ontologyRuntime, wrapped);
+  if (!cachedByRuntime) budgetAwareRegistryCache.set(baseTools, byRuntime);
+  return wrapped;
 }
 
 const NATIVE_MUTATION_TOOLS = new Set(["write", "edit", "bash"]);
@@ -249,7 +274,16 @@ export function createAuthorizedToolExecutor(
   baseTools: ToolRegistry,
   options: { ontologyRuntime: OntologyRuntime; projectRoot: string; runtimePaths: RuntimePaths },
 ): ToolRegistry {
-  return Object.fromEntries(
+  const cacheKey = JSON.stringify({
+    projectRoot: options.projectRoot,
+    runtimeRoot: options.runtimePaths.runtimeRoot,
+    runtimeId: options.runtimePaths.runtimeId,
+  });
+  const cachedByKey = authorizedRegistryCache.get(baseTools);
+  const cached = cachedByKey?.get(cacheKey);
+  if (cached) return cached;
+
+  const wrapped = Object.fromEntries(
     Object.entries(baseTools).map(([name, tool]) => [
       name,
       {
@@ -269,6 +303,11 @@ export function createAuthorizedToolExecutor(
       } satisfies ToolRegistryEntry,
     ]),
   );
+
+  const byKey = cachedByKey ?? new Map<string, ToolRegistry>();
+  byKey.set(cacheKey, wrapped);
+  if (!cachedByKey) authorizedRegistryCache.set(baseTools, byKey);
+  return wrapped;
 }
 
 async function loadSkillContent(skillsDir: string, name: string): Promise<string> {
@@ -331,12 +370,23 @@ export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePat
 async function resolveArtifactIdForManagedFile(runtimePaths: RuntimePaths, planFile: string): Promise<string | null> {
   const candidate = join(runtimePaths.execPlansDir, planFile);
   try {
+    const metadata = await stat(candidate);
+    const cached = managedArtifactIdCache.get(candidate);
+    if (cached && cached.mtimeMs === metadata.mtimeMs && cached.size === metadata.size) {
+      return cached.artifactId;
+    }
     const content = await readFile(candidate, "utf8");
     const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
-    if (!match) return null;
+    if (!match) {
+      managedArtifactIdCache.set(candidate, { mtimeMs: metadata.mtimeMs, size: metadata.size, artifactId: null });
+      return null;
+    }
     const artifactIdMatch = match[1].match(/^artifact_id:\s*(.+)$/m);
-    return artifactIdMatch ? artifactIdMatch[1].trim() : null;
+    const artifactId = artifactIdMatch ? artifactIdMatch[1].trim() : null;
+    managedArtifactIdCache.set(candidate, { mtimeMs: metadata.mtimeMs, size: metadata.size, artifactId });
+    return artifactId;
   } catch {
+    managedArtifactIdCache.delete(candidate);
     return null;
   }
 }

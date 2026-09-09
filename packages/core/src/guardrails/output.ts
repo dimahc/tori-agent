@@ -1,11 +1,19 @@
 import type { OutputGovernancePolicy, WorkflowRun } from "@tori-agent/ontology";
 
+const workflowProgressSignatureCache = new WeakMap<WorkflowRun, string>();
+
 export interface AssistantOutputAnalysis {
   normalizedParagraphCounts: Record<string, number>;
   normalizedSentenceCounts: Record<string, number>;
   repeatedParagraphs: string[];
   repeatedSentences: string[];
   selfTalkMarkers: string[];
+}
+
+interface TextUnits {
+  readonly paragraphs: string[];
+  readonly sentences: string[];
+  readonly normalizedText: string;
 }
 
 export interface AssistantOutputDecision {
@@ -71,6 +79,14 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
+function collectTextUnits(text: string): TextUnits {
+  return {
+    paragraphs: splitParagraphs(text),
+    sentences: splitSentences(text),
+    normalizedText: normalizeTextUnit(text),
+  };
+}
+
 function countNormalized(units: string[]): Record<string, number> {
   return units.reduce<Record<string, number>>((acc, unit) => {
     const normalized = normalizeTextUnit(unit);
@@ -87,10 +103,13 @@ function repeatedKeys(counts: Record<string, number>, maxAllowed = 1): string[] 
 }
 
 export function analyzeAssistantOutput(text: string, policy: OutputGovernancePolicy = {}): AssistantOutputAnalysis {
-  const paragraphCounts = countNormalized(splitParagraphs(text));
-  const sentenceCounts = countNormalized(splitSentences(text));
-  const normalized = normalizeTextUnit(text);
-  const selfTalkMarkers = SELF_TALK_MARKERS.filter((marker) => normalized.includes(marker));
+  return analyzeAssistantOutputUnits(collectTextUnits(text), policy);
+}
+
+function analyzeAssistantOutputUnits(units: TextUnits, policy: OutputGovernancePolicy = {}): AssistantOutputAnalysis {
+  const paragraphCounts = countNormalized(units.paragraphs);
+  const sentenceCounts = countNormalized(units.sentences);
+  const selfTalkMarkers = SELF_TALK_MARKERS.filter((marker) => units.normalizedText.includes(marker));
   return {
     normalizedParagraphCounts: paragraphCounts,
     normalizedSentenceCounts: sentenceCounts,
@@ -110,10 +129,14 @@ export function normalizeFailureSignature(toolName: string, args: Record<string,
 }
 
 export function buildWorkflowProgressSignature(workflowRun: WorkflowRun): string {
-  return stableStringify({
+  const cached = workflowProgressSignatureCache.get(workflowRun);
+  if (cached) return cached;
+  const signature = stableStringify({
     related_artifact_ids: [...workflowRun.related_artifact_ids].sort(),
     task_record_index: workflowRun.task_record_index ?? {},
   });
+  workflowProgressSignatureCache.set(workflowRun, signature);
+  return signature;
 }
 
 function dedupeParagraphs(text: string): string {
@@ -128,6 +151,16 @@ function dedupeParagraphs(text: string): string {
     .join("\n\n");
 }
 
+function dedupeParagraphList(paragraphs: string[]): string[] {
+  const seen = new Set<string>();
+  return paragraphs.filter((paragraph) => {
+    const normalized = normalizeTextUnit(paragraph);
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
 function stripSelfTalkParagraphs(text: string): string {
   return splitParagraphs(text)
     .filter((paragraph) => {
@@ -135,6 +168,13 @@ function stripSelfTalkParagraphs(text: string): string {
       return !SELF_TALK_MARKERS.some((marker) => normalized.includes(marker));
     })
     .join("\n\n");
+}
+
+function stripSelfTalkParagraphList(paragraphs: string[]): string[] {
+  return paragraphs.filter((paragraph) => {
+    const normalized = normalizeTextUnit(paragraph);
+    return !SELF_TALK_MARKERS.some((marker) => normalized.includes(marker));
+  });
 }
 
 function dedupeSentences(text: string): string {
@@ -150,8 +190,29 @@ function dedupeSentences(text: string): string {
   return kept.join(" ").trim();
 }
 
+function dedupeSentenceList(sentences: string[]): string[] {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const sentence of sentences) {
+    const normalized = normalizeTextUnit(sentence);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    kept.push(sentence);
+  }
+  return kept;
+}
+
 function rewriteAssistantOutputText(text: string): string {
   return dedupeSentences(dedupeParagraphs(stripSelfTalkParagraphs(text))).trim();
+}
+
+function rewriteAssistantOutputUnits(units: TextUnits): string {
+  const filteredParagraphs = dedupeParagraphList(stripSelfTalkParagraphList(units.paragraphs));
+  const paragraphText = filteredParagraphs.join("\n\n");
+  const sourceSentences = filteredParagraphs.length === units.paragraphs.length
+    ? units.sentences
+    : splitSentences(paragraphText);
+  return dedupeSentenceList(sourceSentences).join(" ").trim();
 }
 
 function policyExceeded(analysis: AssistantOutputAnalysis, policy: OutputGovernancePolicy): boolean {
@@ -206,10 +267,14 @@ export function sanitizeAssistantOutputText(
   text: string,
   policy: OutputGovernancePolicy = {},
 ): AssistantOutputSanitization {
-  const analysis = analyzeAssistantOutput(text, policy);
+  const units = collectTextUnits(text);
+  const analysis = analyzeAssistantOutputUnits(units, policy);
   const selfTalkCap = policy.max_self_talk_markers ?? Number.MAX_SAFE_INTEGER;
   const hasSelfTalk = analysis.selfTalkMarkers.length > selfTalkCap;
-  const rewritten = rewriteAssistantOutputText(text);
+  if (!policyExceeded(analysis, policy)) {
+    return { text, changed: false, analysis };
+  }
+  const rewritten = rewriteAssistantOutputUnits(units);
   if (!rewritten || rewritten === text) {
     return { text, changed: false, analysis };
   }

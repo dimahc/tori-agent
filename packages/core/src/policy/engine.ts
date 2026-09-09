@@ -1,9 +1,7 @@
 import {
   CHECK_STATUS,
-  ENTITY_TYPES,
   POLICY_EFFECT,
   POLICY_KIND,
-  getToolId,
   type AgentDefinition,
   type AuthorizationDecision,
   type AuthorizationRequest,
@@ -21,16 +19,47 @@ import {
 import type { PolicyEngine } from "../types/policy.js";
 import { buildWorkflowProgressSignature } from "../guardrails/output.js";
 
-function matchesAny(patterns: string[] | undefined, value: string): boolean {
-  if (!patterns || patterns.length === 0) return true;
-  return patterns.some((pattern) => {
-    const escaped = pattern
-      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-      .replace(/\*\*/g, "::DOUBLE_STAR::")
-      .replace(/\*/g, "[^/]*")
-      .replace(/::DOUBLE_STAR::/g, ".*");
-    return new RegExp(`^${escaped}$`).test(value);
-  });
+interface CompiledMatcher {
+  readonly regexes?: readonly RegExp[];
+}
+
+interface CompiledGrant {
+  readonly grant: PermissionGrant;
+  readonly pathMatcher: CompiledMatcher;
+  readonly commandMatcher: CompiledMatcher;
+}
+
+interface CompiledPolicy {
+  readonly index: number;
+  readonly policy: PolicyDefinition;
+  readonly pathMatcher: CompiledMatcher;
+  readonly commandMatcher: CompiledMatcher;
+}
+
+interface AgentPolicyContext {
+  readonly agent: AgentDefinition;
+  readonly roles: RoleDefinition[];
+}
+
+function compileGlob(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "::DOUBLE_STAR::")
+    .replace(/\*/g, "[^/]*")
+    .replace(/::DOUBLE_STAR::/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
+function compileMatcher(patterns?: string[]): CompiledMatcher {
+  if (!patterns || patterns.length === 0) return {};
+  return {
+    regexes: patterns.map((pattern) => compileGlob(pattern)),
+  };
+}
+
+function matchesAny(matcher: CompiledMatcher, value: string): boolean {
+  if (!matcher.regexes || matcher.regexes.length === 0) return true;
+  return matcher.regexes.some((regex) => regex.test(value));
 }
 
 function normalizePatterns(pattern?: string | string[]): string[] {
@@ -38,10 +67,10 @@ function normalizePatterns(pattern?: string | string[]): string[] {
   return Array.isArray(pattern) ? pattern : [pattern];
 }
 
-function matchesAllPatterns(policyPatterns: string[] | undefined, requestPatterns: string[]): boolean {
-  if (!policyPatterns || policyPatterns.length === 0) return true;
+function matchesAllPatterns(matcher: CompiledMatcher, requestPatterns: string[]): boolean {
+  if (!matcher.regexes || matcher.regexes.length === 0) return true;
   if (requestPatterns.length === 0) return false;
-  return requestPatterns.every((pattern) => matchesAny(policyPatterns, pattern));
+  return requestPatterns.every((pattern) => matchesAny(matcher, pattern));
 }
 
 function snapshotIndex(workflowRun: WorkflowRun): Record<string, PersistedWorkflowCheckSnapshot> {
@@ -49,23 +78,115 @@ function snapshotIndex(workflowRun: WorkflowRun): Record<string, PersistedWorkfl
 }
 
 export class PolicyEngineImpl implements PolicyEngine {
-  constructor(private readonly bundle: OntologyBundle) {}
+  private readonly agentsById = new Map<OntologyId, AgentDefinition>();
+  private readonly rolesById = new Map<OntologyId, RoleDefinition>();
+  private readonly agentContexts = new Map<OntologyId, AgentPolicyContext>();
+  private readonly grantsByAgentAndTool = new Map<OntologyId, Map<OntologyId, CompiledGrant[]>>();
+  private readonly authorizationPolicies: CompiledPolicy[] = [];
+  private readonly transitionPolicies: CompiledPolicy[] = [];
+  private readonly executionPolicies: PolicyDefinition[] = [];
+  private readonly outputPolicies: PolicyDefinition[] = [];
+  private readonly transitionsByKey = new Map<string, OntologyBundle["workflowTransitions"][number]>();
+  private readonly transitionPoliciesByKey = new Map<string, CompiledPolicy[]>();
+  private readonly executionLoopPolicyCache = new Map<string, ExecutionLoopPolicy>();
+  private readonly outputGovernancePolicyCache = new Map<OntologyId, OutputGovernancePolicy>();
 
-  authorize(request: AuthorizationRequest): AuthorizationDecision {
-    const agent = this.bundle.byId.get(request.agentId);
-    if (!agent || agent["@type"] !== ENTITY_TYPES.Agent) {
-      return { effect: "deny", matchedGrantIds: [], reason: `Unknown agent ${request.agentId}` };
+  constructor(private readonly bundle: OntologyBundle) {
+    for (const agent of bundle.agents) {
+      this.agentsById.set(agent["@id"], agent);
+    }
+    for (const role of bundle.roles) {
+      this.rolesById.set(role["@id"], role);
+    }
+    for (const agent of bundle.agents) {
+      const roles = agent.role_ids
+        .map((roleId) => this.rolesById.get(roleId))
+        .filter((value): value is RoleDefinition => Boolean(value));
+      this.agentContexts.set(agent["@id"], { agent, roles });
+
+      const grantsByTool = new Map<OntologyId, CompiledGrant[]>();
+      for (const role of roles) {
+        for (const grant of role.permission_grants) {
+          const compiled: CompiledGrant = {
+            grant,
+            pathMatcher: compileMatcher(grant.path_globs),
+            commandMatcher: compileMatcher(grant.command_globs),
+          };
+          const grants = grantsByTool.get(grant.tool_id);
+          if (grants) {
+            grants.push(compiled);
+          } else {
+            grantsByTool.set(grant.tool_id, [compiled]);
+          }
+        }
+      }
+      this.grantsByAgentAndTool.set(agent["@id"], grantsByTool);
     }
 
-    const toolId = getToolId(request.toolName);
-    const roles = (agent as AgentDefinition).role_ids
-      .map((roleId) => this.bundle.byId.get(roleId))
-      .filter((value): value is RoleDefinition => value?.["@type"] === ENTITY_TYPES.Role);
+    for (const [index, policy] of bundle.policies.entries()) {
+      switch (policy.policy_kind_id) {
+        case POLICY_KIND.authorization:
+          this.authorizationPolicies.push({
+            index,
+            policy,
+            pathMatcher: compileMatcher(policy.path_globs),
+            commandMatcher: compileMatcher(policy.command_globs),
+          });
+          break;
+        case POLICY_KIND.transition:
+          this.transitionPolicies.push({
+            index,
+            policy,
+            pathMatcher: compileMatcher(policy.path_globs),
+            commandMatcher: compileMatcher(policy.command_globs),
+          });
+          break;
+        case POLICY_KIND.executionLoop:
+          this.executionPolicies.push(policy);
+          break;
+        case POLICY_KIND.outputGovernance:
+          this.outputPolicies.push(policy);
+          break;
+        default:
+          break;
+      }
+    }
+
+    for (const transition of bundle.workflowTransitions) {
+      this.transitionsByKey.set(this.transitionKey(transition.workflow_definition_id, transition.from_stage_id, transition.to_stage_id), transition);
+    }
+
+    for (const compiledPolicy of this.transitionPolicies) {
+      const policy = compiledPolicy.policy;
+      const workflowIds = policy.workflow_definition_ids?.length ? policy.workflow_definition_ids : ["*"];
+      const fromStageIds = policy.from_stage_ids?.length ? policy.from_stage_ids : ["*"];
+      const toStageIds = policy.to_stage_ids?.length ? policy.to_stage_ids : ["*"];
+      for (const workflowId of workflowIds) {
+        for (const fromStageId of fromStageIds) {
+          for (const toStageId of toStageIds) {
+            const key = this.transitionKey(workflowId, fromStageId, toStageId);
+            const policies = this.transitionPoliciesByKey.get(key);
+            if (policies) {
+              policies.push(compiledPolicy);
+            } else {
+              this.transitionPoliciesByKey.set(key, [compiledPolicy]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  authorize(request: AuthorizationRequest): AuthorizationDecision {
+    const context = this.agentContexts.get(request.agentId);
+    if (!context) {
+      return { effect: "deny", matchedGrantIds: [], reason: `Unknown agent ${request.agentId}` };
+    }
 
     const grantMatches: PermissionGrant[] = [];
     const patterns = normalizePatterns(request.pattern);
 
-    const denyPolicies = this.getMatchingAuthorizationPolicies(agent as AgentDefinition, roles, request, patterns)
+    const denyPolicies = this.getMatchingAuthorizationPolicies(context, request, patterns)
       .filter((policy) => policy.effect === POLICY_EFFECT.deny);
 
     if (denyPolicies.length > 0) {
@@ -77,16 +198,19 @@ export class PolicyEngineImpl implements PolicyEngine {
       };
     }
 
-    for (const role of roles) {
-      for (const grant of role.permission_grants) {
-        if (grant.tool_id !== toolId) continue;
-        if (patterns.length > 0 && grant.path_globs && !matchesAllPatterns(grant.path_globs, patterns)) {
-          continue;
-        }
-        if (patterns.length > 0 && grant.command_globs && !matchesAllPatterns(grant.command_globs, patterns)) {
-          continue;
-        }
-        grantMatches.push(grant);
+    const grants = this.grantsByAgentAndTool.get(request.agentId)?.get(request.toolId) ?? [];
+    for (const compiledGrant of grants) {
+      if (patterns.length > 0 && !matchesAllPatterns(compiledGrant.pathMatcher, patterns)) continue;
+      if (patterns.length > 0 && !matchesAllPatterns(compiledGrant.commandMatcher, patterns)) continue;
+      grantMatches.push(compiledGrant.grant);
+    }
+
+    if (grantMatches.length === 0 && request.toolId !== request.toolName) {
+      const fallbackGrants = this.grantsByAgentAndTool.get(request.agentId)?.get(request.toolName) ?? [];
+      for (const compiledGrant of fallbackGrants) {
+        if (patterns.length > 0 && !matchesAllPatterns(compiledGrant.pathMatcher, patterns)) continue;
+        if (patterns.length > 0 && !matchesAllPatterns(compiledGrant.commandMatcher, patterns)) continue;
+        grantMatches.push(compiledGrant.grant);
       }
     }
 
@@ -104,12 +228,7 @@ export class PolicyEngineImpl implements PolicyEngine {
   }
 
   canTransition(workflowRun: WorkflowRun, toStageId: OntologyId): TransitionDecision {
-    const transition = this.bundle.workflowTransitions.find(
-      (candidate) =>
-        candidate.workflow_definition_id === workflowRun.definition_id &&
-        candidate.from_stage_id === workflowRun.stage_id &&
-        candidate.to_stage_id === toStageId,
-    );
+    const transition = this.transitionsByKey.get(this.transitionKey(workflowRun.definition_id, workflowRun.stage_id, toStageId));
 
     if (!transition) {
       return {
@@ -187,73 +306,97 @@ export class PolicyEngineImpl implements PolicyEngine {
   clearWorkflowRun(_workflowRunId: OntologyId): void {}
 
   getExecutionLoopPolicy(agentId: OntologyId, toolId?: OntologyId): ExecutionLoopPolicy {
-    return this.bundle.policies
-      .filter((policy) => policy.policy_kind_id === POLICY_KIND.executionLoop)
-      .filter((policy) => this.policyAppliesToAgent(policy, this.getAgent(agentId), this.getRoles(agentId)))
+    const cacheKey = `${agentId}:${toolId ?? "*"}`;
+    const cached = this.executionLoopPolicyCache.get(cacheKey);
+    if (cached) return { ...cached };
+
+    const context = this.getAgentContext(agentId);
+    const computed = this.executionPolicies
+      .filter((policy) => this.policyAppliesToAgent(policy, context))
       .filter((policy) => !policy.tool_ids || !toolId || policy.tool_ids.includes(toolId))
       .reduce<ExecutionLoopPolicy>((acc, policy) => ({
         max_identical_invocations: policy.max_identical_invocations ?? acc.max_identical_invocations,
         max_identical_failures: policy.max_identical_failures ?? acc.max_identical_failures,
         max_consecutive_failures: policy.max_consecutive_failures ?? acc.max_consecutive_failures,
       }), {});
+    this.executionLoopPolicyCache.set(cacheKey, computed);
+    return { ...computed };
   }
 
   getOutputGovernancePolicy(agentId: OntologyId): OutputGovernancePolicy {
-    return this.bundle.policies
-      .filter((policy) => policy.policy_kind_id === POLICY_KIND.outputGovernance)
-      .filter((policy) => this.policyAppliesToAgent(policy, this.getAgent(agentId), this.getRoles(agentId)))
+    const cached = this.outputGovernancePolicyCache.get(agentId);
+    if (cached) return { ...cached };
+
+    const context = this.getAgentContext(agentId);
+    const computed = this.outputPolicies
+      .filter((policy) => this.policyAppliesToAgent(policy, context))
       .reduce<OutputGovernancePolicy>((acc, policy) => ({
         max_repeated_paragraphs: policy.max_repeated_paragraphs ?? acc.max_repeated_paragraphs,
         max_repeated_sentences: policy.max_repeated_sentences ?? acc.max_repeated_sentences,
         max_self_talk_markers: policy.max_self_talk_markers ?? acc.max_self_talk_markers,
       }), {});
+    this.outputGovernancePolicyCache.set(agentId, computed);
+    return { ...computed };
   }
 
   private getMatchingAuthorizationPolicies(
-    agent: AgentDefinition,
-    roles: RoleDefinition[],
+    context: AgentPolicyContext,
     request: AuthorizationRequest,
     patterns: string[],
   ): PolicyDefinition[] {
-    return this.bundle.policies.filter((policy) => {
-      if (policy.policy_kind_id !== POLICY_KIND.authorization) return false;
-      if (!this.policyAppliesToAgent(policy, agent, roles)) return false;
-      if (policy.tool_ids && !policy.tool_ids.includes(request.toolId)) return false;
-      if (!matchesAllPatterns(policy.path_globs, patterns)) return false;
-      if (!matchesAllPatterns(policy.command_globs, patterns)) return false;
-      return true;
+    return this.authorizationPolicies.flatMap(({ policy, pathMatcher, commandMatcher }) => {
+      if (!this.policyAppliesToAgent(policy, context)) return [];
+      if (policy.tool_ids && !policy.tool_ids.includes(request.toolId)) return [];
+      if (!matchesAllPatterns(pathMatcher, patterns)) return [];
+      if (!matchesAllPatterns(commandMatcher, patterns)) return [];
+      return [policy];
     });
   }
 
   private getMatchingTransitionPolicies(workflowRun: WorkflowRun, toStageId: OntologyId): PolicyDefinition[] {
-    return this.bundle.policies.filter((policy) => {
-      if (policy.policy_kind_id !== POLICY_KIND.transition) return false;
-      if (policy.workflow_definition_ids && !policy.workflow_definition_ids.includes(workflowRun.definition_id)) return false;
-      if (policy.from_stage_ids && !policy.from_stage_ids.includes(workflowRun.stage_id)) return false;
-      if (policy.to_stage_ids && !policy.to_stage_ids.includes(toStageId)) return false;
-      return true;
-    });
+    const keys = [
+      this.transitionKey(workflowRun.definition_id, workflowRun.stage_id, toStageId),
+      this.transitionKey(workflowRun.definition_id, workflowRun.stage_id, "*"),
+      this.transitionKey(workflowRun.definition_id, "*", toStageId),
+      this.transitionKey(workflowRun.definition_id, "*", "*"),
+      this.transitionKey("*", workflowRun.stage_id, toStageId),
+      this.transitionKey("*", workflowRun.stage_id, "*"),
+      this.transitionKey("*", "*", toStageId),
+      this.transitionKey("*", "*", "*"),
+    ];
+    const seen = new Set<OntologyId>();
+    const matches: CompiledPolicy[] = [];
+    for (const key of keys) {
+      for (const policy of this.transitionPoliciesByKey.get(key) ?? []) {
+        if (seen.has(policy.policy["@id"])) continue;
+        seen.add(policy.policy["@id"]);
+        if (policy.policy.workflow_definition_ids && !policy.policy.workflow_definition_ids.includes(workflowRun.definition_id)) continue;
+        if (policy.policy.from_stage_ids && !policy.policy.from_stage_ids.includes(workflowRun.stage_id)) continue;
+        if (policy.policy.to_stage_ids && !policy.policy.to_stage_ids.includes(toStageId)) continue;
+        matches.push(policy);
+      }
+    }
+    matches.sort((left, right) => left.index - right.index);
+    return matches.map((entry) => entry.policy);
   }
 
-  private getAgent(agentId: OntologyId): AgentDefinition {
-    const agent = this.bundle.byId.get(agentId);
-    if (!agent || agent["@type"] !== ENTITY_TYPES.Agent) {
+  private policyAppliesToAgent(policy: PolicyDefinition, context: AgentPolicyContext): boolean {
+    if (policy.subject_agent_ids && !policy.subject_agent_ids.includes(context.agent["@id"])) return false;
+    if (policy.subject_role_ids && !context.roles.some((role) => policy.subject_role_ids!.includes(role["@id"]))) return false;
+    if (policy.capability_ids && !policy.capability_ids.some((capabilityId) => context.agent.capability_ids.includes(capabilityId))) return false;
+    return true;
+  }
+
+  private getAgentContext(agentId: OntologyId): AgentPolicyContext {
+    const context = this.agentContexts.get(agentId);
+    if (!context) {
       throw new Error(`Unknown agent ${agentId}`);
     }
-    return agent as AgentDefinition;
+    return context;
   }
 
-  private getRoles(agentId: OntologyId): RoleDefinition[] {
-    return this.getAgent(agentId).role_ids
-      .map((roleId) => this.bundle.byId.get(roleId))
-      .filter((value): value is RoleDefinition => value?.["@type"] === ENTITY_TYPES.Role);
-  }
-
-  private policyAppliesToAgent(policy: PolicyDefinition, agent: AgentDefinition, roles: RoleDefinition[]): boolean {
-    if (policy.subject_agent_ids && !policy.subject_agent_ids.includes(agent["@id"])) return false;
-    if (policy.subject_role_ids && !roles.some((role) => policy.subject_role_ids!.includes(role["@id"]))) return false;
-    if (policy.capability_ids && !policy.capability_ids.some((capabilityId) => agent.capability_ids.includes(capabilityId))) return false;
-    return true;
+  private transitionKey(workflowDefinitionId: OntologyId | "*", fromStageId: OntologyId | "*", toStageId: OntologyId | "*"): string {
+    return `${workflowDefinitionId}|${fromStageId}|${toStageId}`;
   }
 
   private evaluateRequiredChecks(

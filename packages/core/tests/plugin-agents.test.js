@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildRuntimePaths } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
+import { createWorkflowRun, getWorkflowState } from "../dist/tools/workflow.js";
 import {
   deriveNativeMutationAuthorizationPattern,
   deriveSessionTitle,
@@ -13,6 +14,7 @@ import {
   buildWriteTools,
   createAuthorizedToolExecutor,
   createBudgetAwareToolExecutor,
+  ensureToolRegistryRegistered,
   isNativeMutationTool,
 } from "../dist/index.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
@@ -53,6 +55,65 @@ describe("plugin ontology integration", () => {
     assert.ok(write.transition_stage);
     assert.ok(write.record_check_result);
     assert.ok(write.trigger_ci_check);
+  });
+
+  test("managed artifact id lookup cache invalidates when plan file changes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-managed-id-cache-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    await mkdir(runtimePaths.execPlansDir, { recursive: true });
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const tools = buildWriteTools(root, runtimePaths, "opencode");
+    const planPath = join(runtimePaths.execPlansDir, "plan.md");
+    await writeFile(
+      planPath,
+      [
+        "---",
+        "artifact_id: exec-plan:one",
+        "artifact_type_id: artifact-type:exec-plan",
+        "status_id: artifact-status:active",
+        'title: "Plan"',
+        "created_at: 2026-09-09T00:00:00.000Z",
+        "---",
+        "",
+        "- [ ] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    await tools.record_task_result.execute({
+      workflow_id: "workflow-run:test",
+      task_id: "task-1",
+      agent: "agent:specialist:software-engineer",
+      status: "task-status:passed",
+      plan_file: "plan.md",
+    });
+    let state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.ok(state.workflow_run.related_artifact_ids.includes("exec-plan:one"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      planPath,
+      [
+        "---",
+        "artifact_id: exec-plan:two",
+        "artifact_type_id: artifact-type:exec-plan",
+        "status_id: artifact-status:active",
+        'title: "Plan"',
+        "created_at: 2026-09-09T00:00:00.000Z",
+        "updated_at: 2026-09-09T00:00:01.000Z",
+        "---",
+        "",
+        "- [ ] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    await tools.record_task_result.execute({
+      workflow_id: "workflow-run:test",
+      task_id: "task-2",
+      agent: "agent:specialist:software-engineer",
+      status: "task-status:passed",
+      plan_file: "plan.md",
+    });
+    state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.ok(state.workflow_run.related_artifact_ids.includes("exec-plan:two"));
   });
 
   test("authorized tool executor blocks tori direct and surrogate mutation tools", async () => {
@@ -345,6 +406,56 @@ describe("plugin ontology integration", () => {
     assert.equal(config.ontology.authoritative, true);
     assert.equal(config.ontology.hostOntologyField, true);
     assert.ok(config.ontology.authoritative_agent_keys.includes("tori"));
+  });
+
+  test("runtime initialize one-flight returns same instance under concurrent first use", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-init-once-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const [first, second] = await Promise.all([
+      initializeOntologyRuntime({ runtimePaths }),
+      initializeOntologyRuntime({ runtimePaths }),
+    ]);
+    assert.equal(first, second);
+    assert.deepEqual(first.getDefaultMainSessionAgent("opencode"), second.getDefaultMainSessionAgent("opencode"));
+  });
+
+  test("runtime agent configs are stable across repeated calls and not aliased", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-config-cache-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const first = await runtime.buildRuntimeAgentConfigs("opencode");
+    first.tori.tools.read = false;
+    first.tori.permission.read = "deny";
+    const second = await runtime.buildRuntimeAgentConfigs("opencode");
+    assert.equal(second.tori.tools.read, true);
+    assert.equal(second.tori.permission.read, "allow");
+    assert.notEqual(first, second);
+    assert.notEqual(first.tori, second.tori);
+  });
+
+  test("tool registry registration helper avoids rewrapping side effects", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-register-cache-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    const tools = createAuthorizedToolExecutor(
+      createBudgetAwareToolExecutor({ ...buildReadOnlyTools(root, runtimePaths), ...buildWriteTools(root, runtimePaths, "opencode") }, { ontologyRuntime: runtime }),
+      { ontologyRuntime: runtime, projectRoot: root, runtimePaths },
+    );
+    ensureToolRegistryRegistered(tools);
+    ensureToolRegistryRegistered(tools);
+    const list = JSON.parse(await buildReadOnlyTools(root, runtimePaths).list_available_tools.execute({}));
+    const names = list.tools.map((tool) => tool.name);
+    assert.equal(names.length, new Set(names).size);
+  });
+
+  test("plugin factory reuses setup for same runtime context", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-setup-cache-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const first = await factory({ directory: root, worktree: root });
+    const second = await factory({ directory: root, worktree: root });
+    assert.equal(first.tool, second.tool);
+    assert.equal(first.config, second.config);
+    assert.equal(first["permission.ask"], second["permission.ask"]);
   });
 
   test("native tool helper derives authorization patterns from official args", async () => {

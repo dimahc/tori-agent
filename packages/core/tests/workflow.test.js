@@ -1,19 +1,24 @@
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   CHECK_POLICY,
   CHECK_STATUS,
+  ENTITY_TYPES,
+  ONTOLOGY_CONTEXT_IRI,
   TASK_STATUS,
+  WELL_KNOWN_IDS,
   WORKFLOW_STAGE,
+  WORKFLOW_STATUS,
   buildRuntimePaths,
 } from "@tori-agent/ontology";
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
 import {
   createWorkflowRun,
   getWorkflowState,
+  listWorkflowRuns,
   recordCheckResult,
   recordTaskResult,
   transitionStage,
@@ -117,5 +122,74 @@ describe("workflow strict ontology", () => {
     assert.equal(state.check_records[0].result_status_id, CHECK_STATUS.passed);
     assert.equal(state.workflow_run.check_record_index["check:mechanical"].check_policy_id, CHECK_POLICY.blocking);
     assert.equal(state.workflow_run.task_record_index["workflow-task:workflow-run_test:task-1"].requesting_agent_id, "agent:specialist:software-engineer");
+  });
+
+  test("workflow document cache invalidates after external file change", async () => {
+    await createWorkflowRun(runtimePaths, "workflow-run:test");
+    const file = join(runtimePaths.workflowsDir, "workflow-run_test.jsonld");
+    const current = JSON.parse(await readFile(file, "utf8"));
+    current["@graph"][0].stage_id = WORKFLOW_STAGE.planning;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(file, JSON.stringify(current, null, 2), "utf8");
+    const state = await getWorkflowState(runtimePaths, "workflow-run:test");
+    assert.equal(state.workflow_run.stage_id, WORKFLOW_STAGE.planning);
+  });
+
+  test("workflow directory cache invalidates after external file add and rewrite", async () => {
+    let runs = await listWorkflowRuns(runtimePaths);
+    assert.equal(runs.length, 0);
+    await createWorkflowRun(runtimePaths, "workflow-run:first");
+    runs = await listWorkflowRuns(runtimePaths);
+    assert.equal(runs.length, 1);
+
+    const secondFile = join(runtimePaths.workflowsDir, "workflow-run_second.jsonld");
+    const now = "2026-09-09T00:00:00.000Z";
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      secondFile,
+      JSON.stringify({
+        "@context": ONTOLOGY_CONTEXT_IRI,
+        "@graph": [
+          {
+            "@id": "workflow-run:second",
+            "@type": ENTITY_TYPES.WorkflowRun,
+            label: "workflow-run:second",
+            description: "Workflow run workflow-run:second",
+            definition_id: WELL_KNOWN_IDS.orchestrationWorkflow,
+            stage_id: WORKFLOW_STAGE.execution,
+            status_id: WORKFLOW_STATUS.active,
+            iteration: 1,
+            task_record_ids: [],
+            check_record_ids: [],
+            check_status_index: {},
+            check_record_index: {},
+            task_record_index: {},
+            related_artifact_ids: [],
+            created_at: now,
+            updated_at: now,
+            loop_state: {
+              transition_counts: {},
+              retry_counts: {},
+              no_progress_counts: {},
+              progress_signatures: {},
+              failure_signatures: {},
+              identical_failure_counts: {},
+            },
+            history: [{ from_stage_id: null, to_stage_id: WORKFLOW_STAGE.execution, occurred_at: now }],
+          },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+    runs = await listWorkflowRuns(runtimePaths);
+    assert.equal(runs.length, 2);
+    assert.ok(runs.some((run) => run["@id"] === "workflow-run:second"));
+
+    const second = JSON.parse(await readFile(secondFile, "utf8"));
+    second["@graph"][0].stage_id = WORKFLOW_STAGE.verification;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(secondFile, JSON.stringify(second, null, 2), "utf8");
+    runs = await listWorkflowRuns(runtimePaths);
+    assert.equal(runs.find((run) => run["@id"] === "workflow-run:second")?.stage_id, WORKFLOW_STAGE.verification);
   });
 });

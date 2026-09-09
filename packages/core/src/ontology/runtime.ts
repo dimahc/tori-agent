@@ -10,8 +10,10 @@ import {
   type OntologyBundle,
   type OntologyId,
   type OutputGovernancePolicy,
+  type RoleDefinition,
   type RuntimeId,
   type RuntimePaths,
+  type ToolDefinition,
 } from "@tori-agent/ontology";
 import { OntologyCompiler } from "./compiler.js";
 import { PolicyEngineImpl } from "../policy/engine.js";
@@ -64,15 +66,31 @@ export interface SessionAgentBinding {
 
 type GenericConfigRecord = Record<string, unknown>;
 
+interface RuntimeDerivedState {
+  readonly agentsById: Map<OntologyId, AgentDefinition>;
+  readonly rolesById: Map<OntologyId, RoleDefinition>;
+  readonly toolsById: Map<OntologyId, ToolDefinition>;
+  readonly agentIdByHostName: Map<string, OntologyId>;
+  readonly governedToolNames: Set<string>;
+  readonly toolsMapByAgentId: Map<OntologyId, Record<string, boolean>>;
+  readonly permissionMapByAgentId: Map<OntologyId, Record<string, "allow" | "deny">>;
+  readonly agentsByCapability: Map<OntologyId, AgentDefinition[]>;
+}
+
 export class OntologyRuntime {
   private readonly compiler: OntologyCompiler;
   private readonly serializer = new JSONLDSerializer();
   private readonly runtimePaths?: RuntimePaths;
   private initialized = false;
+  private initializePromise: Promise<void> | null = null;
   private bundle: OntologyBundle | null = null;
   private policyEngine: PolicyEngineImpl | null = null;
+  private derived: RuntimeDerivedState | null = null;
   private readonly sessionAgents = new Map<string, OntologyId>();
   private readonly unknownSessionAgents = new Set<string>();
+  private readonly promptCache = new Map<OntologyId, Promise<string>>();
+  private readonly runtimeAgentConfigCache = new Map<RuntimeId, Promise<Record<string, RuntimeAgentConfig>>>();
+  private readonly defaultMainSessionAgentCache = new Map<RuntimeId, DefaultMainSessionAgent>();
 
   constructor(compiler = new OntologyCompiler(), options: OntologyRuntimeOptions = {}) {
     this.compiler = compiler;
@@ -81,15 +99,17 @@ export class OntologyRuntime {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    await this.compiler.initialize();
-    const result = await this.compiler.compileAll();
-    if (result.errors.length > 0) {
-      throw new Error(`Ontology compilation failed: ${result.errors.map((entry) => `${entry.specId}: ${entry.error}`).join(" | ")}`);
+    if (this.initializePromise) {
+      await this.initializePromise;
+      return;
     }
-    this.bundle = this.compiler.getRegistry().getBundle();
-    this.policyEngine = new PolicyEngineImpl(this.bundle);
-    await this.serializer.initialize();
-    this.initialized = true;
+    this.initializePromise = this.initializeInternal();
+    try {
+      await this.initializePromise;
+    } catch (error) {
+      this.initializePromise = null;
+      throw error;
+    }
   }
 
   getBundle(): OntologyBundle {
@@ -134,20 +154,12 @@ export class OntologyRuntime {
 
   async buildRuntimeAgentConfigs(runtimeId: RuntimeId): Promise<Record<string, RuntimeAgentConfig>> {
     this.assertInitialized();
-    const configs: Record<string, RuntimeAgentConfig> = {};
-    for (const agent of this.bundle!.agents) {
-      if (!agent.metadata.runtime_ids.includes(runtimeId)) continue;
-      configs[this.toHostAgentKey(agent["@id"])] = {
-        description: agent.description,
-        temperature: agent.metadata.temperature,
-        mode: agent.metadata.mode,
-        color: agent.metadata.color,
-        prompt: await this.loadPrompt(agent.prompt_ref),
-        tools: this.buildToolsMap(agent),
-        permission: this.buildHostPermission(agent),
-      };
+    let pending = this.runtimeAgentConfigCache.get(runtimeId);
+    if (!pending) {
+      pending = this.buildRuntimeAgentConfigsCanonical(runtimeId);
+      this.runtimeAgentConfigCache.set(runtimeId, pending);
     }
-    return configs;
+    return this.cloneRuntimeAgentConfigs(await pending);
   }
 
   async buildRuntimeConfigEnvelope(runtimeId: RuntimeId): Promise<RuntimeConfigEnvelope> {
@@ -195,18 +207,23 @@ export class OntologyRuntime {
 
   getDefaultMainSessionAgent(runtimeId: RuntimeId): DefaultMainSessionAgent {
     this.assertInitialized();
-    const candidates = this.bundle!.agents.filter(
-      (agent) => agent.metadata.runtime_ids.includes(runtimeId) && agent.metadata.mode === "all" && agent.metadata.default_main_session === true,
-    );
-    if (candidates.length !== 1) {
-      throw new Error(
-        `Ontology must define exactly one default main-session agent for runtime ${runtimeId}; found ${candidates.length}`,
+    let cached = this.defaultMainSessionAgentCache.get(runtimeId);
+    if (!cached) {
+      const candidates = this.bundle!.agents.filter(
+        (agent) => agent.metadata.runtime_ids.includes(runtimeId) && agent.metadata.mode === "all" && agent.metadata.default_main_session === true,
       );
+      if (candidates.length !== 1) {
+        throw new Error(
+          `Ontology must define exactly one default main-session agent for runtime ${runtimeId}; found ${candidates.length}`,
+        );
+      }
+      cached = {
+        agentId: candidates[0]["@id"],
+        hostAgentName: this.toHostAgentKey(candidates[0]["@id"]),
+      };
+      this.defaultMainSessionAgentCache.set(runtimeId, cached);
     }
-    return {
-      agentId: candidates[0]["@id"],
-      hostAgentName: this.toHostAgentKey(candidates[0]["@id"]),
-    };
+    return { ...cached };
   }
 
   bindSessionToDefaultMainAgent(sessionId: string, runtimeId: RuntimeId): SessionAgentBinding {
@@ -247,7 +264,7 @@ export class OntologyRuntime {
     this.assertInitialized();
     const normalized = toolName.replace(/^tool[.:]/, "");
     const toolId = getToolId(normalized);
-    return this.bundle!.tools.some((tool) => tool["@id"] === toolId || tool["@id"] === normalized);
+    return this.derived!.governedToolNames.has(normalized) || this.derived!.governedToolNames.has(toolId);
   }
 
   authorizeToolExecution(
@@ -287,13 +304,26 @@ export class OntologyRuntime {
 
   getAgentsByCapability(capabilityId: OntologyId): AgentDefinition[] {
     this.assertInitialized();
-    return this.bundle!.agents.filter((agent) => agent.capability_ids.includes(capabilityId));
+    return [...(this.derived!.agentsByCapability.get(capabilityId) ?? [])];
   }
 
   agentHasCapability(agentId: OntologyId, capabilityId: OntologyId): boolean {
     this.assertInitialized();
-    const agent = this.bundle!.agents.find((entry) => entry["@id"] === agentId);
+    const agent = this.derived!.agentsById.get(agentId);
     return Boolean(agent?.capability_ids.includes(capabilityId));
+  }
+
+  private async initializeInternal(): Promise<void> {
+    await this.compiler.initialize();
+    const result = await this.compiler.compileAll();
+    if (result.errors.length > 0) {
+      throw new Error(`Ontology compilation failed: ${result.errors.map((entry) => `${entry.specId}: ${entry.error}`).join(" | ")}`);
+    }
+    this.bundle = this.compiler.getRegistry().getBundle();
+    this.derived = this.buildDerivedState(this.bundle);
+    this.policyEngine = new PolicyEngineImpl(this.bundle);
+    await this.serializer.initialize();
+    this.initialized = true;
   }
 
   private assertInitialized(): void {
@@ -303,10 +333,7 @@ export class OntologyRuntime {
   }
 
   private resolveAgentId(hostAgentName: string): OntologyId | undefined {
-    const exact = this.bundle!.agents.find((agent) => agent["@id"] === hostAgentName);
-    if (exact) return exact["@id"];
-    const prefixed = this.bundle!.agents.find((agent) => this.toHostAgentKey(agent["@id"]) === hostAgentName);
-    return prefixed?.["@id"];
+    return this.derived!.agentIdByHostName.get(hostAgentName);
   }
 
   private asRecord(value: unknown): GenericConfigRecord {
@@ -331,6 +358,106 @@ export class OntologyRuntime {
   }
 
   private async loadPrompt(promptRef: OntologyId): Promise<string> {
+    let pending = this.promptCache.get(promptRef);
+    if (!pending) {
+      pending = this.loadPromptUncached(promptRef);
+      this.promptCache.set(promptRef, pending);
+    }
+    return pending;
+  }
+
+  private buildToolsMap(agent: AgentDefinition): Record<string, boolean> {
+    return this.cloneBooleanMap(this.derived!.toolsMapByAgentId.get(agent["@id"]) ?? {});
+  }
+
+  private buildHostPermission(agent: AgentDefinition): Record<string, "allow" | "deny"> {
+    return this.clonePermissionMap(this.derived!.permissionMapByAgentId.get(agent["@id"]) ?? { external_directory: "deny" });
+  }
+
+  private toHostAgentKey(agentId: OntologyId): string {
+    return agentId.replace(/^agent:/, "");
+  }
+
+  private async buildRuntimeAgentConfigsCanonical(runtimeId: RuntimeId): Promise<Record<string, RuntimeAgentConfig>> {
+    const configs: Record<string, RuntimeAgentConfig> = {};
+    for (const agent of this.bundle!.agents) {
+      if (!agent.metadata.runtime_ids.includes(runtimeId)) continue;
+      configs[this.toHostAgentKey(agent["@id"])] = {
+        description: agent.description,
+        temperature: agent.metadata.temperature,
+        mode: agent.metadata.mode,
+        color: agent.metadata.color,
+        prompt: await this.loadPrompt(agent.prompt_ref),
+        tools: this.buildToolsMap(agent),
+        permission: this.buildHostPermission(agent),
+      };
+    }
+    return configs;
+  }
+
+  private buildDerivedState(bundle: OntologyBundle): RuntimeDerivedState {
+    const agentsById = new Map<OntologyId, AgentDefinition>(bundle.agents.map((agent) => [agent["@id"], agent]));
+    const rolesById = new Map<OntologyId, RoleDefinition>(bundle.roles.map((role) => [role["@id"], role]));
+    const toolsById = new Map<OntologyId, ToolDefinition>(bundle.tools.map((tool) => [tool["@id"], tool]));
+    const agentIdByHostName = new Map<OntologyId, OntologyId>();
+    const governedToolNames = new Set<string>();
+    const toolsMapByAgentId = new Map<OntologyId, Record<string, boolean>>();
+    const permissionMapByAgentId = new Map<OntologyId, Record<string, "allow" | "deny">>();
+    const agentsByCapability = new Map<OntologyId, AgentDefinition[]>();
+
+    for (const tool of bundle.tools) {
+      governedToolNames.add(tool["@id"]);
+      governedToolNames.add(tool["@id"].replace(/^tool:/, ""));
+    }
+
+    for (const agent of bundle.agents) {
+      agentIdByHostName.set(agent["@id"], agent["@id"]);
+      agentIdByHostName.set(this.toHostAgentKey(agent["@id"]), agent["@id"]);
+
+      const tools: Record<string, boolean> = {};
+      for (const toolId of agent.tool_ids) {
+        const tool = toolsById.get(toolId);
+        if (!tool) continue;
+        tools[tool["@id"].replace("tool:", "")] = true;
+      }
+      toolsMapByAgentId.set(agent["@id"], tools);
+
+      const permissions: Record<string, "allow" | "deny"> = { external_directory: "deny" };
+      for (const roleId of agent.role_ids) {
+        const role = rolesById.get(roleId);
+        if (!role) continue;
+        for (const grant of role.permission_grants) {
+          const toolName = grant.tool_id.replace("tool:", "");
+          permissions[toolName] = grant.effect === "policy-effect:allow" ? "allow" : "deny";
+        }
+      }
+      if (permissions.write === "allow" && permissions.edit === undefined) permissions.edit = "allow";
+      if (permissions.edit === "allow" && permissions.write === undefined) permissions.write = "allow";
+      permissionMapByAgentId.set(agent["@id"], permissions);
+
+      for (const capabilityId of agent.capability_ids) {
+        const agents = agentsByCapability.get(capabilityId);
+        if (agents) {
+          agents.push(agent);
+        } else {
+          agentsByCapability.set(capabilityId, [agent]);
+        }
+      }
+    }
+
+    return {
+      agentsById,
+      rolesById,
+      toolsById,
+      agentIdByHostName,
+      governedToolNames,
+      toolsMapByAgentId,
+      permissionMapByAgentId,
+      agentsByCapability,
+    };
+  }
+
+  private async loadPromptUncached(promptRef: OntologyId): Promise<string> {
     const fileName = promptRef.replace("prompt:", "") + ".md";
     const localPrompt = this.runtimePaths ? join(this.runtimePaths.ontologyDir, "prompts", fileName) : null;
     const candidates = [localPrompt, join(getBuiltinOntologyPromptDir(), fileName)].filter((value): value is string => Boolean(value));
@@ -345,33 +472,24 @@ export class OntologyRuntime {
     throw new Error(`Prompt not found for ${promptRef}`);
   }
 
-  private buildToolsMap(agent: AgentDefinition): Record<string, boolean> {
-    const tools: Record<string, boolean> = {};
-    for (const toolId of agent.tool_ids) {
-      const tool = this.bundle!.tools.find((candidate) => candidate["@id"] === toolId);
-      if (!tool) continue;
-      tools[tool["@id"].replace("tool:", "")] = true;
-    }
-    return tools;
+  private cloneRuntimeAgentConfigs(configs: Record<string, RuntimeAgentConfig>): Record<string, RuntimeAgentConfig> {
+    return Object.fromEntries(Object.entries(configs).map(([key, config]) => [key, this.cloneRuntimeAgentConfig(config)]));
   }
 
-  private buildHostPermission(agent: AgentDefinition): Record<string, "allow" | "deny"> {
-    const permissions: Record<string, "allow" | "deny"> = { external_directory: "deny" };
-    for (const roleId of agent.role_ids) {
-      const role = this.bundle!.roles.find((candidate) => candidate["@id"] === roleId);
-      if (!role) continue;
-      for (const grant of role.permission_grants) {
-        const toolName = grant.tool_id.replace("tool:", "");
-        permissions[toolName] = grant.effect === "policy-effect:allow" ? "allow" : "deny";
-      }
-    }
-    if (permissions.write === "allow" && permissions.edit === undefined) permissions.edit = "allow";
-    if (permissions.edit === "allow" && permissions.write === undefined) permissions.write = "allow";
-    return permissions;
+  private cloneRuntimeAgentConfig(config: RuntimeAgentConfig): RuntimeAgentConfig {
+    return {
+      ...config,
+      tools: this.cloneBooleanMap(config.tools),
+      permission: this.clonePermissionMap(config.permission),
+    };
   }
 
-  private toHostAgentKey(agentId: OntologyId): string {
-    return agentId.replace(/^agent:/, "");
+  private cloneBooleanMap(source: Record<string, boolean>): Record<string, boolean> {
+    return { ...source };
+  }
+
+  private clonePermissionMap(source: Record<string, "allow" | "deny">): Record<string, "allow" | "deny"> {
+    return { ...source };
   }
 }
 
