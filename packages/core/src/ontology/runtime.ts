@@ -62,6 +62,8 @@ export interface SessionAgentBinding {
   source: "ontology-default-main-agent";
 }
 
+type GenericConfigRecord = Record<string, unknown>;
+
 export class OntologyRuntime {
   private readonly compiler: OntologyCompiler;
   private readonly serializer = new JSONLDSerializer();
@@ -70,6 +72,7 @@ export class OntologyRuntime {
   private bundle: OntologyBundle | null = null;
   private policyEngine: PolicyEngineImpl | null = null;
   private readonly sessionAgents = new Map<string, OntologyId>();
+  private readonly unknownSessionAgents = new Set<string>();
 
   constructor(compiler = new OntologyCompiler(), options: OntologyRuntimeOptions = {}) {
     this.compiler = compiler;
@@ -113,7 +116,11 @@ export class OntologyRuntime {
     const agentId = this.resolveAgentId(hostAgentName);
     if (agentId) {
       this.sessionAgents.set(sessionId, agentId);
+      this.unknownSessionAgents.delete(sessionId);
+      return;
     }
+    this.sessionAgents.delete(sessionId);
+    this.unknownSessionAgents.add(sessionId);
   }
 
   getBoundAgent(sessionId: string): OntologyId | undefined {
@@ -122,6 +129,7 @@ export class OntologyRuntime {
 
   unbindSession(sessionId: string): void {
     this.sessionAgents.delete(sessionId);
+    this.unknownSessionAgents.delete(sessionId);
   }
 
   async buildRuntimeAgentConfigs(runtimeId: RuntimeId): Promise<Record<string, RuntimeAgentConfig>> {
@@ -163,6 +171,31 @@ export class OntologyRuntime {
     };
   }
 
+  async integrateHostConfig(runtimeId: RuntimeId, hostConfig: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const compiled = await this.buildRuntimeConfigEnvelope(runtimeId);
+    const base = this.asRecord(hostConfig);
+    const hostAgents = this.asRecord(base.agent);
+    const mergedAgents: GenericConfigRecord = { ...hostAgents };
+
+    for (const [agentKey, agentConfig] of Object.entries(compiled.agent)) {
+      mergedAgents[agentKey] = this.mergeOntologyAgentConfig(hostAgents[agentKey], agentConfig);
+    }
+
+    return {
+      ...base,
+      agent: mergedAgents,
+      defaultAgent: compiled.defaultAgent,
+      session: {
+        ...this.asRecord(base.session),
+        ...compiled.session,
+      },
+      ontology: {
+        ...this.asRecord(base.ontology),
+        ...compiled.ontology,
+      },
+    };
+  }
+
   getDefaultMainSessionAgent(runtimeId: RuntimeId): DefaultMainSessionAgent {
     this.assertInitialized();
     const candidates = this.bundle!.agents.filter(
@@ -182,6 +215,7 @@ export class OntologyRuntime {
   bindSessionToDefaultMainAgent(sessionId: string, runtimeId: RuntimeId): SessionAgentBinding {
     const binding = this.getDefaultMainSessionAgent(runtimeId);
     this.sessionAgents.set(sessionId, binding.agentId);
+    this.unknownSessionAgents.delete(sessionId);
     return {
       agent: binding.hostAgentName,
       agentId: binding.agentId,
@@ -192,7 +226,7 @@ export class OntologyRuntime {
 
   authorizeSession(sessionId: string, toolName: string, pattern?: string | string[], runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"]): AuthorizationDecision {
     this.assertInitialized();
-    const agentId = this.sessionAgents.get(sessionId);
+    const agentId = this.sessionAgents.get(sessionId) ?? this.bindSessionToDefaultMainAgentIfSafe(sessionId, runtimePaths?.runtimeId ?? this.runtimePaths?.runtimeId);
     if (!agentId) {
       return { effect: "deny", matchedGrantIds: [], reason: `Session ${sessionId} not bound to ontology agent` };
     }
@@ -260,11 +294,30 @@ export class OntologyRuntime {
     }
   }
 
+  private bindSessionToDefaultMainAgentIfSafe(sessionId: string, runtimeId?: RuntimeId): OntologyId | undefined {
+    if (!runtimeId || this.unknownSessionAgents.has(sessionId)) return undefined;
+    return this.bindSessionToDefaultMainAgent(sessionId, runtimeId).agentId;
+  }
+
   private resolveAgentId(hostAgentName: string): OntologyId | undefined {
     const exact = this.bundle!.agents.find((agent) => agent["@id"] === hostAgentName);
     if (exact) return exact["@id"];
     const prefixed = this.bundle!.agents.find((agent) => this.toHostAgentKey(agent["@id"]) === hostAgentName);
     return prefixed?.["@id"];
+  }
+
+  private asRecord(value: unknown): GenericConfigRecord {
+    return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as GenericConfigRecord) } : {};
+  }
+
+  private mergeOntologyAgentConfig(hostAgentConfig: unknown, ontologyAgentConfig: RuntimeAgentConfig): GenericConfigRecord {
+    const host = this.asRecord(hostAgentConfig);
+    return {
+      ...host,
+      ...ontologyAgentConfig,
+      tools: { ...ontologyAgentConfig.tools },
+      permission: { ...ontologyAgentConfig.permission },
+    };
   }
 
   private async loadPrompt(promptRef: OntologyId): Promise<string> {

@@ -303,6 +303,32 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "deny");
   });
 
+  test("fresh session permission fallback resolves to default tori without explicit binding hook", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-fallback-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const permission = { status: "deny" };
+    await plugin["permission.ask"]({ sessionID: "s-fallback", type: "read", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "allow");
+
+    const writePermission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-fallback", type: "write", pattern: "README.md" }, writePermission);
+    assert.equal(writePermission.status, "deny");
+  });
+
+  test("unknown host agent binding stays denied and does not fall back to tori", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-unknown-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-unknown", agent: "host-private-agent" }, {});
+
+    const permission = { status: "allow" };
+    await plugin["permission.ask"]({ sessionID: "s-unknown", type: "read", pattern: "README.md" }, permission);
+    assert.equal(permission.status, "deny");
+  });
+
   test("assistant output hook rewrites repeated self-talk paragraphs", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-output-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
@@ -340,34 +366,51 @@ describe("plugin ontology integration", () => {
     assert.match(output.reason, /self-talk persists|Repeated self-talk/);
   });
 
-  test("harness config output keeps compiled ontology agents authoritative", async () => {
+  test("harness config integration preserves host-private fields and host-only agents while keeping ontology authority", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-merge-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
     const config = await plugin.config({
+      hostPrivate: { picker: { enabled: true } },
       agent: {
         tori: {
+          label: "Host Tori Label",
           prompt: "host override",
+          metadata: { hostPicker: "keep-me" },
           tools: { write: true },
           permission: { write: "allow" },
         },
         rogue: {
           prompt: "rogue",
+          hostPrivate: true,
         },
       },
+      session: {
+        hostSessionField: true,
+      },
+      ontology: {
+        hostOntologyField: true,
+      },
     });
+
+    assert.equal(config.hostPrivate.picker.enabled, true);
+    assert.equal(config.agent.tori.label, "Host Tori Label");
+    assert.equal(config.agent.tori.metadata.hostPicker, "keep-me");
     assert.notEqual(config.agent.tori.prompt, "host override");
     assert.equal(config.agent.tori.tools.write, undefined);
     assert.equal(config.agent.tori.permission.write, undefined);
-    assert.equal(config.agent.rogue, undefined);
+    assert.equal(config.agent.rogue.prompt, "rogue");
+    assert.equal(config.agent.rogue.hostPrivate, true);
     assert.equal(config.defaultAgent, "tori");
     assert.deepEqual(config.session, {
+      hostSessionField: true,
       defaultAgent: "tori",
       defaultAgentId: "agent:tori",
       authoritative: true,
       source: "ontology",
     });
     assert.equal(config.ontology.authoritative, true);
+    assert.equal(config.ontology.hostOntologyField, true);
     assert.ok(config.ontology.authoritativeAgentKeys.includes("tori"));
   });
 

@@ -91,14 +91,7 @@ export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string 
 
     return {
       config: async (config) => {
-        const compiled = await ontologyRuntime.buildRuntimeConfigEnvelope(runtime);
-        return {
-          ...config,
-          agent: compiled.agent,
-          defaultAgent: compiled.defaultAgent,
-          session: compiled.session,
-          ontology: compiled.ontology,
-        };
+        return ontologyRuntime.integrateHostConfig(runtime, config);
       },
       tool: tools as Record<string, unknown>,
       event: async ({ event, sessionID, agent }, output) => {
