@@ -57,6 +57,7 @@
 - Update plugin export and event logging
 - Implement extensive caching for runtime and tool operations
 - Refine agent prompts and tool-choice hierarchies
+- Update specialist and tori definitions
 
 ### Fixed
 
