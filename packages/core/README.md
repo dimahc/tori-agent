@@ -19,6 +19,7 @@ Strict ontology core library. Build before tests so `dist/` exists.
 - Runtime no longer mirrors compiled builtin ontology or copied builtin skills into project runtime directories during bootstrap.
 - Runtime tool wrapping (lifecycle + workflow tools)
 - Runtime tool wrapping includes ontology-driven loop caps for repeated identical calls and repeated failures.
+- Runtime read-only tool set includes `structured_read` for bounded inspection of huge structured files without shell fallback.
 - Runtime exposes single default main-session agent resolver. Host must honor `default_agent` and bind actual session agent through earliest official surfaces available: `session.created` / `session.updated` event `properties.info.agent`, `session.next.agent.switched` event `properties.agent`, or `chat.message` metadata. No fallback binds fresh unclaimed sessions at permission boundary; unbound or unknown-agent sessions stay denied.
 - Session-title helper still exists as internal utility; not part of strict official plugin ABI.
 - Output-governance helper enforces deterministic duplicate/self-talk suppression for final responses when host calls `experimental.text.complete`.
@@ -44,6 +45,7 @@ Defined in [`src/tools/lifecycle.ts`](../src/tools/lifecycle.ts):
 | `projectState` | Scan specs, exec-plans, briefs, and workflows |
 | `checkArtifacts` | Cross-artifact consistency scan |
 | `runMechanicalChecks` | Lint + test pre-filter (reads `## Review Checks` from AGENTS.md) |
+| `structuredRead` | Bounded readonly extraction for large structured files |
 | `markBlockDone` | Mark an exec-plan block as completed |
 | `completePlan` | Set an exec-plan to completed (refuses if unchecked blocks remain) |
 | `registerSpec` | Create a new spec file with minimal frontmatter |

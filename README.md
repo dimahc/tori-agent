@@ -128,6 +128,8 @@ Current repo contract:
 
 `project_state` and `check_artifacts` are derived operational views, not authorities. Both now expose scan provenance and projection metadata. `save_checkpoint`, `scratchpad`, and `write_append` outputs are explicitly labeled narrative-only.
 
+`structured_read` adds bounded readonly inspection for huge structured files under project root only. V1 modes: `stat`, `slice_bytes`, `slice_chars`, `json_pointer`, `object_keys`, `pretty`. JSON modes fail closed on malformed JSON. Output always includes non-authoritative projection metadata plus path/mode/format/truncation metadata.
+
 ## Development
 
 ```bash

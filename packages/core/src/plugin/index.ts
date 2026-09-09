@@ -16,6 +16,7 @@ import {
   writeAppend,
   markBlockDone,
 } from "../tools/lifecycle.js";
+import { structuredRead } from "../tools/structured-read.js";
 import {
   createWorkflowRun,
   escalateWorkflowNeedHuman,
@@ -475,6 +476,11 @@ function deriveAuthorizationPattern(
   runtimePaths: RuntimePaths,
 ): string | string[] | undefined {
   switch (toolName) {
+    case "structured_read": {
+      const inputPath = firstStringValue(args, ["path", "filePath", "file"]);
+      if (!inputPath) return undefined;
+      return relative(projectRoot, safeResolve(projectRoot, inputPath)) || ".";
+    }
     case "write_append":
       return typeof args.file === "string" ? args.file : undefined;
     case "mark_block_done":
@@ -565,6 +571,19 @@ export function buildReadOnlyTools(projectRoot: string, runtimePaths: RuntimePat
       args: {},
       async execute() {
         return JSON.stringify(await runMechanicalChecks(projectRoot));
+      },
+    },
+    structured_read: {
+      description: "Inspect large structured files with bounded readonly extraction modes.",
+      args: {
+        path: {},
+        mode: {},
+        offset: {},
+        length: {},
+        pointer: {},
+      },
+      async execute(rawArgs) {
+        return JSON.stringify(await structuredRead(projectRoot, rawArgs));
       },
     },
     workflow_state: {

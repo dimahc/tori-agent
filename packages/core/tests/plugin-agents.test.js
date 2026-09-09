@@ -29,11 +29,13 @@ describe("plugin ontology integration", () => {
     assert.equal(configs.tori.permission.transition_stage, "allow");
     assert.equal(configs.tori.tools.transition_stage, true);
     assert.equal(configs.tori.tools.write, undefined);
+    assert.equal(configs.tori.tools.structured_read, undefined);
     assert.equal(configs.tori.tools.run_mechanical_checks, undefined);
     assert.equal(configs.tori.tools.trigger_ci_check, undefined);
     assert.equal(configs.tori.tools.save_checkpoint, undefined);
     assert.equal(configs.tori.tools.scratchpad, undefined);
     assert.ok(configs["specialist:software-engineer"]);
+    assert.equal(configs["specialist:software-engineer"].tools.structured_read, true);
   });
 
   test("runtime permission map does not synthesize write/edit symmetry", async () => {
@@ -61,6 +63,7 @@ describe("plugin ontology integration", () => {
     const readOnly = buildReadOnlyTools(root, runtimePaths);
     const write = buildWriteTools(root, runtimePaths, "opencode");
     assert.ok(readOnly.workflow_state);
+    assert.ok(readOnly.structured_read);
     assert.ok(write.transition_stage);
     assert.ok(write.record_check_result);
     assert.ok(write.trigger_ci_check);

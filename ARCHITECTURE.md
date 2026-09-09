@@ -56,6 +56,7 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 - `workflow_state`: non-authoritative projection with explicit sections for `snapshot` authority, `journal_evidence`, and `latest_projections`
 - `project_state`: non-authoritative filesystem scan projection with source provenance
 - `check_artifacts`: non-authoritative consistency projection derived from `project_state`
+- `structured_read`: non-authoritative bounded extraction projection for huge structured files; project-root confined, readonly, deterministic truncation, malformed JSON denied for JSON modes
 - `save_checkpoint`, `scratchpad`, `write_append`: narrative-only outputs, never live policy or current-state authority
 
 ## Test coverage added/updated

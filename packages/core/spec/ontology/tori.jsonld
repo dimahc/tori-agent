@@ -64,6 +64,13 @@
       "capability_ids": ["capability:artifact-observation", "capability:investigation"]
     },
     {
+      "@id": "tool:structured_read",
+      "@type": "Tool",
+      "label": "structured_read",
+      "description": "Inspect large structured files with bounded readonly extraction",
+      "capability_ids": ["capability:artifact-observation", "capability:investigation", "capability:search"]
+    },
+    {
       "@id": "tool:project_state",
       "@type": "Tool",
       "label": "project_state",
@@ -225,7 +232,7 @@
       "description": "Deny direct read and mutation of dotenv files",
       "policy_kind_id": "policy-kind:authorization",
       "effect": "policy-effect:deny",
-      "tool_ids": ["tool:read", "tool:write", "tool:edit"],
+      "tool_ids": ["tool:read", "tool:structured_read", "tool:write", "tool:edit"],
       "path_globs": ["**/.env", "**/.env.*", ".env", ".env.*"]
     },
     {

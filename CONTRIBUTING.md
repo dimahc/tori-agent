@@ -69,3 +69,5 @@ Output suppression is host-enforced through `experimental.text.complete`. Hook r
 Repo guarantees ontology-derived agent config, canonical default-agent metadata, and deny-by-default behavior for unbound sessions on ontology-governed permissions. Native `write` / `edit` / `bash` enforcement depends on host calling both `permission.ask` and `tool.execute.before`.
 
 `workflow_state` public tool argument is `workflow_run_id`. Strict temporary alias `workflow_id` remains accepted only when `workflow_run_id` absent or equal, to avoid breaking active callers during rename.
+
+`structured_read` is repo-defined readonly extraction tool for huge structured files. Keep it bounded, project-root confined, deterministic, no subprocess, no shell fallback, no writes, no network. New path-bearing readonly tools must derive authorization pattern from input path so deny policies like dotenv coverage still apply.

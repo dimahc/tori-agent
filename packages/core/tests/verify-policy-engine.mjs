@@ -31,6 +31,30 @@ if (allowRead.effect !== "allow") {
   process.exit(1);
 }
 
+const allowStructuredReadReviewer = engine.authorize({
+  agentId: "agent:reviewer:quality",
+  toolName: "structured_read",
+  toolId: "tool:structured_read",
+  pattern: "README.md",
+  runtimePaths,
+});
+if (allowStructuredReadReviewer.effect !== "allow") {
+  console.error("FAIL reviewer structured_read should allow", allowStructuredReadReviewer);
+  process.exit(1);
+}
+
+const allowStructuredReadSpecialist = engine.authorize({
+  agentId: "agent:specialist:software-engineer",
+  toolName: "structured_read",
+  toolId: "tool:structured_read",
+  pattern: "README.md",
+  runtimePaths,
+});
+if (allowStructuredReadSpecialist.effect !== "allow") {
+  console.error("FAIL specialist structured_read should allow", allowStructuredReadSpecialist);
+  process.exit(1);
+}
+
 const denyToriWrite = engine.authorize({
   agentId: "agent:tori",
   toolName: "write",
@@ -126,6 +150,18 @@ if (denyEnv.effect !== "deny") {
   process.exit(1);
 }
 
+const denyEnvStructuredRead = engine.authorize({
+  agentId: "agent:specialist:software-engineer",
+  toolName: "structured_read",
+  toolId: "tool:structured_read",
+  pattern: ".env",
+  runtimePaths,
+});
+if (denyEnvStructuredRead.effect !== "deny") {
+  console.error("FAIL env structured_read should deny", denyEnvStructuredRead);
+  process.exit(1);
+}
+
 const allowSpecialistPwd = engine.authorize({
   agentId: "agent:specialist:software-engineer",
   toolName: "bash",
@@ -185,7 +221,7 @@ if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sent
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
+  checks: [allowRead.effect, allowStructuredReadReviewer.effect, allowStructuredReadSpecialist.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, denyEnvStructuredRead.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });
 const anchorKinds = workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].evidence_anchors.map((anchor) => anchor.anchor_kind_id).sort();
