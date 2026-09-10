@@ -32,6 +32,7 @@
 - Align runtime with strict contract
 - Enforce bounded cognition authority model
 - Add structured_read tool
+- Add ask policy effect and per-role bash command globs
 
 ### Changed
 
