@@ -193,7 +193,7 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
       deriveNativeMutationAuthorizationPattern(toolName, output.args),
       runtimePaths,
     );
-    if (decision.effect !== "allow") {
+    if (decision.effect === "deny") {
       throw new Error(`Unauthorized native tool execution for ${toolName}: ${decision.reason}`);
     }
     await nativeBudgetTools[toolName]?.execute?.((output.args ?? {}) as Record<string, unknown>, {

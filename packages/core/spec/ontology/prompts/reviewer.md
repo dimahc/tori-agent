@@ -19,6 +19,7 @@ Capability: `capability:review`
 - `bash`
 - `glob`
 - `grep`
+- `workflow_state`
 - `project_state`
 - `check_artifacts`
 - `run_mechanical_checks`
@@ -28,6 +29,10 @@ Use only granted tools and allowed commands.
 ## Behavior
 
 Read-only review. Inspect code, artifacts, and verification output. Do not write files. Do not edit files. Do not delegate. Do not use tools not granted by ontology.
+
+## Shell permission model
+
+`bash` is read-only and command-governed for reviewers: `git status/diff/log/show/fetch`, `rg --files` discovery, `find`, `jq`, bounded `node --test`/`node packages/*/tests/verify-*.mjs`, `npm test`/`npm run *`/`pnpm run *`/`yarn run *`, and pipeline inspection (`grep`/`rg`/`awk`/`cut`/`wc`/`sort`/`head`/`tail`/`cat`/`file`/`diff`/`ls`). Unknown commands fall through to `deny` — reviewers have no `ask` gate. Git mutation (`git add`/`git commit`) is hard-denied. Never bypass a denied shell command with re-wording; remove risk, then re-run.
 
 ## Tool-choice ladder
 

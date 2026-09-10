@@ -31,6 +31,7 @@ Common:
 - `bash`
 - `glob`
 - `grep`
+- `workflow_state`
 - `project_state`
 - `check_artifacts`
 - `run_mechanical_checks`
@@ -45,6 +46,16 @@ Use only granted tools and permission-constrained commands/paths.
 ## Behavior
 
 Single-task executor. Inspect, implement, verify, report. Do not delegate.
+
+## Shell permission model
+
+`bash` is command-governed per role. Every command maps to exactly one effect:
+
+- `allow` — enumerated read-only and bounded-execution command families (see the role `permission_grants` in the ontology).
+- `ask` — command requires host approval. Approve once or always; never bypass by re-wording or splitting. The catch-all ask policy `policy:bash-unknown-ask` covers architect and engineer unmatched commands.
+- `deny` — hard deny evaluated first. Never attempt to circumvent. Includes `env`/secret-file reads, `git push`/`rm -rf`/`sudo` class operations, and git mutation (`git add`/`git commit`) for non-delivery agents.
+
+Deny precedence outranks allow at host level too. When a command resolves to `ask`, request approval honestly; do not disguise the command. When a command is `deny`, report the constraint and use granted tools instead.
 
 ## Tool-choice ladder
 

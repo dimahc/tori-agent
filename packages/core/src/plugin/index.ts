@@ -533,6 +533,19 @@ export function deriveNativeMutationAuthorizationPattern(toolName: string, args:
       return firstStringValue(record, ["filePath", "file", "path"]);
     case "edit":
       return firstStringValue(record, ["filePath", "file", "path"]);
+    case "glob": {
+      const globPattern = firstStringValue(record, ["pattern"]);
+      const globPath = firstStringValue(record, ["path"]);
+      if (globPath && globPattern) return join(globPath, globPattern);
+      return globPattern;
+    }
+    case "grep": {
+      const grepPath = firstStringValue(record, ["path"]);
+      const grepInclude = firstStringValue(record, ["include"]);
+      if (grepPath && grepInclude) return join(grepPath, grepInclude);
+      if (grepPath) return grepPath;
+      return grepInclude;
+    }
     case "bash": {
       return commandFromArgs(record);
     }

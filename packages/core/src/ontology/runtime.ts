@@ -39,7 +39,7 @@ export interface RuntimeAgentConfig {
   color: string;
   prompt: string;
   tools: Record<string, boolean>;
-  permission: Record<string, "allow" | "deny">;
+  permission: Record<string, "allow" | "deny" | "ask">;
 }
 
 export interface DefaultMainSessionAgent {
@@ -80,7 +80,7 @@ interface RuntimeDerivedState {
   readonly agentIdByHostName: Map<string, OntologyId>;
   readonly governedToolNames: Set<string>;
   readonly toolsMapByAgentId: Map<OntologyId, Record<string, boolean>>;
-  readonly permissionMapByAgentId: Map<OntologyId, Record<string, "allow" | "deny">>;
+  readonly permissionMapByAgentId: Map<OntologyId, Record<string, "allow" | "deny" | "ask">>;
   readonly agentsByCapability: Map<OntologyId, AgentDefinition[]>;
 }
 
@@ -459,7 +459,7 @@ export class OntologyRuntime {
     return this.cloneBooleanMap(this.derived!.toolsMapByAgentId.get(agent["@id"]) ?? {});
   }
 
-  private buildHostPermission(agent: AgentDefinition): Record<string, "allow" | "deny"> {
+  private buildHostPermission(agent: AgentDefinition): Record<string, "allow" | "deny" | "ask"> {
     return this.clonePermissionMap(this.derived!.permissionMapByAgentId.get(agent["@id"]) ?? { external_directory: "deny" });
   }
 
@@ -492,7 +492,7 @@ export class OntologyRuntime {
     const agentIdByHostName = new Map<OntologyId, OntologyId>();
     const governedToolNames = new Set<string>();
     const toolsMapByAgentId = new Map<OntologyId, Record<string, boolean>>();
-    const permissionMapByAgentId = new Map<OntologyId, Record<string, "allow" | "deny">>();
+    const permissionMapByAgentId = new Map<OntologyId, Record<string, "allow" | "deny" | "ask">>();
     const agentsByCapability = new Map<OntologyId, AgentDefinition[]>();
 
     for (const tool of bundle.tools) {
@@ -512,13 +512,28 @@ export class OntologyRuntime {
       }
       toolsMapByAgentId.set(agent["@id"], tools);
 
-      const permissions: Record<string, "allow" | "deny"> = { external_directory: "deny" };
+      const permissions: Record<string, "allow" | "deny" | "ask"> = { external_directory: "deny" };
+      const agentRoles = agent.role_ids
+        .map((roleId) => rolesById.get(roleId))
+        .filter((role): role is RoleDefinition => Boolean(role));
       for (const roleId of agent.role_ids) {
         const role = rolesById.get(roleId);
         if (!role) continue;
         for (const grant of role.permission_grants) {
           const toolName = grant.tool_id.replace("tool:", "");
-          permissions[toolName] = grant.effect === "policy-effect:allow" ? "allow" : "deny";
+          permissions[toolName] =
+            grant.effect === "policy-effect:allow" ? "allow" : grant.effect === "policy-effect:ask" ? "ask" : "deny";
+        }
+      }
+      for (const policy of bundle.policies) {
+        if (policy.policy_kind_id !== "policy-kind:authorization" || policy.effect !== "policy-effect:ask") continue;
+        if (policy.subject_agent_ids && !policy.subject_agent_ids.includes(agent["@id"])) continue;
+        if (policy.subject_role_ids && !agentRoles.some((role) => policy.subject_role_ids!.includes(role["@id"]))) continue;
+        if (policy.capability_ids && !policy.capability_ids.some((capabilityId) => agent.capability_ids.includes(capabilityId))) continue;
+        for (const toolId of policy.tool_ids ?? []) {
+          const toolName = toolId.replace("tool:", "");
+          if (permissions[toolName] === "deny") continue;
+          permissions[toolName] = "ask";
         }
       }
       permissionMapByAgentId.set(agent["@id"], permissions);
@@ -576,7 +591,7 @@ export class OntologyRuntime {
     return { ...source };
   }
 
-  private clonePermissionMap(source: Record<string, "allow" | "deny">): Record<string, "allow" | "deny"> {
+  private clonePermissionMap(source: Record<string, "allow" | "deny" | "ask">): Record<string, "allow" | "deny" | "ask"> {
     return { ...source };
   }
 }

@@ -109,6 +109,7 @@ export const ENTITY_TYPES = {
 export const POLICY_EFFECT = {
   allow: "policy-effect:allow",
   deny: "policy-effect:deny",
+  ask: "policy-effect:ask",
 } as const;
 
 export const POLICY_KIND = {
@@ -200,6 +201,7 @@ export const TOOL_IDS = {
   completePlan: "tool:complete_plan",
   glob: "tool:glob",
   grep: "tool:grep",
+  jq: "tool:jq",
   markBlockDone: "tool:mark_block_done",
   projectState: "tool:project_state",
   question: "tool:question",
@@ -229,6 +231,7 @@ export const TOOL_NAME_TO_ID: Record<string, OntologyId> = {
   edit: TOOL_IDS.edit,
   glob: TOOL_IDS.glob,
   grep: TOOL_IDS.grep,
+  jq: TOOL_IDS.jq,
   mark_block_done: TOOL_IDS.markBlockDone,
   project_state: TOOL_IDS.projectState,
   question: TOOL_IDS.question,
@@ -529,7 +532,7 @@ export interface AuthorizationRequest {
 }
 
 export interface AuthorizationDecision {
-  effect: "allow" | "deny";
+  effect: "allow" | "deny" | "ask";
   matchedGrantIds: OntologyId[];
   reason: string;
 }

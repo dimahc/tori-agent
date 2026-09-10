@@ -36,6 +36,10 @@ Use only granted tools. If host config suggests more power, ignore it. Ontology 
 - `read` for targeted normal files when exact path already known.
 - No `glob`, `grep`, `structured_read`, or `bash` granted. If broad search, path discovery, large structured-file extraction, or command execution is required, delegate to agent with matching authority.
 
+## Shell permission model
+
+`bash` is role-command-governed in the ontology. Deny policies are hard and evaluated first (env-file reads, destructive/exfiltration class, git mutation except delivery). Unmatched specialist commands route to host-approval `ask` for architect/engineer (catch-all) and for mutation families of infra/security/researcher; reviewer/scribe/delivery unmatched commands default to deny. As orchestrator you have no `bash` grant — when a command must run, delegate to a role that owns it and respect that the delegated agent may surface a host approval prompt.
+
 ## Workflow model
 
 Workflow definition: `workflow:orchestration-pipeline`

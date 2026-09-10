@@ -262,15 +262,47 @@ export async function structuredRead(projectRoot: string, rawArgs: Record<string
   if (mode === "slice_chars") {
     const offsetChars = integerArg(rawArgs.offset_chars ?? rawArgs.offset, "offset_chars", 0);
     const requestedChars = integerArg(rawArgs.length_chars ?? rawArgs.length, "length_chars", MAX_SLICE_CHARS);
-    const { text: slice, truncation } = readTextSlice(text, offsetChars, requestedChars);
-    return buildResponse(
-      buildMetadata(relativePath, mode, "text", fileBytes, truncation),
-      {
-        offset_chars: offsetChars,
-        returned_chars: slice.length,
-        text: slice,
-      },
-    );
+
+    const estimatedMaxBytes = offsetChars * 4 + MAX_SLICE_CHARS * 4 + 8;
+    if (fileBytes <= estimatedMaxBytes) {
+      const { text: slice, truncation } = readTextSlice(text, offsetChars, requestedChars);
+      return buildResponse(
+        buildMetadata(relativePath, mode, "text", fileBytes, truncation),
+        {
+          offset_chars: offsetChars,
+          returned_chars: slice.length,
+          text: slice,
+        },
+      );
+    }
+
+    const startByte = Math.max(0, offsetChars * 4 - 4);
+    const readLength = Math.min(fileBytes - startByte, requestedChars * 4 + 12);
+    const buffer = Buffer.alloc(readLength);
+    const handle = await open(resolvedPath, "r");
+    try {
+      const { bytesRead } = await handle.read(buffer, 0, readLength, startByte);
+      const chunk = buffer.subarray(0, bytesRead);
+      let trimBytes = 0;
+      if (startByte > 0) {
+        while (trimBytes < chunk.length && trimBytes < 4 && (chunk[trimBytes] & 0xC0) === 0x80) {
+          trimBytes++;
+        }
+      }
+      const decoded = chunk.subarray(trimBytes).toString("utf8");
+      const cappedChars = Math.min(requestedChars, MAX_SLICE_CHARS);
+      const { text: slice, truncation } = readTextSlice(decoded, 0, cappedChars);
+      return buildResponse(
+        buildMetadata(relativePath, mode, "text", fileBytes, truncation),
+        {
+          offset_chars: offsetChars,
+          returned_chars: slice.length,
+          text: slice,
+        },
+      );
+    } finally {
+      await handle.close();
+    }
   }
 
   const document = parseJson(text, mode);

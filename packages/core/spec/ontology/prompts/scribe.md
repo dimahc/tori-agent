@@ -30,10 +30,16 @@ Capabilities:
 - `grep`
 - `question`
 - `project_state`
+- `workflow_state`
+- `bash`
 - `check_artifacts`
 - `run_mechanical_checks`
 
 Use only granted tools and allowed paths. Runtime root is host-resolved `.opencode/` or `.kilocode/`, plus allowed repo docs paths `docs/**`, `README.md`, and `CHANGELOG.md`.
+
+## Shell permission model
+
+`bash` is restricted to read-only git inspection (`git status`/`diff`/`log`/`show`) — enough to ground changelogs and release notes. Anything else is hard-denied. `write`/`edit` are restricted to managed artifact paths.
 
 ## Behavior
 
@@ -46,7 +52,8 @@ Write delegated managed artifacts and allowed repository documentation. Do not u
 - `glob` for path discovery.
 - `grep` for content search.
 - `read` for normal files and style inspection.
-- No `structured_read`, `workflow_state`, or `bash` granted. Do not imply those capabilities.
+- `workflow_state` only when a delegated artifact needs workflow-run context.
+- `bash` only for read-only git history inspection.
 
 ## Operating protocol
 

@@ -729,6 +729,61 @@ describe("plugin ontology integration", () => {
     assert.equal(deriveNativeMutationAuthorizationPattern("bash", { command: "npm test" }), "npm test");
   });
 
+  test("native glob pattern derivation combines path and pattern for deny matching", async () => {
+    assert.equal(deriveNativeMutationAuthorizationPattern("glob", { pattern: ".env" }), ".env");
+    assert.equal(deriveNativeMutationAuthorizationPattern("glob", { pattern: "**/.env" }), "**/.env");
+    assert.equal(deriveNativeMutationAuthorizationPattern("glob", { pattern: "*.ts", path: ".env" }), ".env/*.ts");
+    assert.equal(deriveNativeMutationAuthorizationPattern("glob", { pattern: "**/*", path: "src" }), "src/**/*");
+    assert.equal(deriveNativeMutationAuthorizationPattern("glob", { pattern: "**/*" }), "**/*");
+  });
+
+  test("native grep pattern derivation combines path and include for deny matching", async () => {
+    assert.equal(deriveNativeMutationAuthorizationPattern("grep", { path: ".env" }), ".env");
+    assert.equal(deriveNativeMutationAuthorizationPattern("grep", { path: "src", include: "*.ts" }), "src/*.ts");
+    assert.equal(deriveNativeMutationAuthorizationPattern("grep", { include: ".env" }), ".env");
+    assert.equal(deriveNativeMutationAuthorizationPattern("grep", {}), undefined);
+  });
+
+  test("tool.execute.before denies native glob targeting env files via full plugin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-glob-deny-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-glob-deny", agent: "specialist:software-engineer" }, {});
+
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "glob", sessionID: "s-glob-deny", callID: "1" }, { args: { pattern: ".env" } }),
+      /Unauthorized native tool execution for glob/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "glob", sessionID: "s-glob-deny", callID: "2" }, { args: { pattern: "**/.env" } }),
+      /Unauthorized native tool execution for glob/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "glob", sessionID: "s-glob-deny", callID: "3" }, { args: { pattern: ".env.json" } }),
+      /Unauthorized native tool execution for glob/,
+    );
+    await plugin["tool.execute.before"]({ tool: "glob", sessionID: "s-glob-deny", callID: "4" }, { args: { pattern: "**/*.ts", path: "src" } });
+  });
+
+  test("tool.execute.before denies native grep targeting env files via full plugin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-grep-deny-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-grep-deny", agent: "specialist:software-engineer" }, {});
+
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "grep", sessionID: "s-grep-deny", callID: "1" }, { args: { path: ".env" } }),
+      /Unauthorized native tool execution for grep/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "grep", sessionID: "s-grep-deny", callID: "2" }, { args: { include: ".env" } }),
+      /Unauthorized native tool execution for grep/,
+    );
+    await plugin["tool.execute.before"]({ tool: "grep", sessionID: "s-grep-deny", callID: "3" }, { args: { path: "src", include: "*.ts" } });
+  });
+
   test("fresh project with no local ontology still loads builtin tori", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-fresh-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));

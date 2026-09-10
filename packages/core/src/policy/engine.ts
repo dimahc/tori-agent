@@ -52,7 +52,7 @@ function compileGlob(pattern: string): RegExp {
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*\*/g, "::DOUBLE_STAR::")
-    .replace(/\*/g, "[^/]*")
+    .replace(/\*/g, ".*")
     .replace(/::DOUBLE_STAR::/g, ".*");
   return new RegExp(`^${escaped}$`);
 }
@@ -230,16 +230,36 @@ export class PolicyEngineImpl implements PolicyEngine {
       }
     }
 
+    const allowGrant = grantMatches.find((grant) => grant.effect === POLICY_EFFECT.allow);
+    if (allowGrant) {
+      return {
+        effect: "allow",
+        matchedGrantIds: grantMatches.map((grant) => grant["@id"]),
+        reason: `${request.toolName} allowed by ${allowGrant["@id"]}`,
+      };
+    }
+
+    const askPolicies = this.getMatchingAuthorizationPolicies(context, request, patterns)
+      .filter((policy) => policy.effect === POLICY_EFFECT.ask);
+
+    const askGrant = grantMatches.find((grant) => grant.effect === POLICY_EFFECT.ask);
+    if (askGrant || askPolicies.length > 0) {
+      const decider = askGrant ?? askPolicies[askPolicies.length - 1];
+      return {
+        effect: "ask",
+        matchedGrantIds: [...grantMatches.map((grant) => grant["@id"]), ...askPolicies.map((policy) => policy["@id"])],
+        reason: `${request.toolName} pending approval by ${decider["@id"]}`,
+      };
+    }
+
     if (grantMatches.length === 0) {
       return { effect: "deny", matchedGrantIds: [], reason: `No permission grant for ${request.toolName}` };
     }
 
-    const last = grantMatches[grantMatches.length - 1];
-
     return {
-      effect: last.effect === POLICY_EFFECT.allow ? "allow" : "deny",
+      effect: "deny",
       matchedGrantIds: grantMatches.map((grant) => grant["@id"]),
-      reason: `${request.toolName} resolved by ${last["@id"]}`,
+      reason: `${request.toolName} denied by ${grantMatches[grantMatches.length - 1]["@id"]}`,
     };
   }
 
