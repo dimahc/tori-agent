@@ -83,6 +83,7 @@
 - Align workflow_state and bindings
 - Harden workflow ontology validation
 - Enforce loop-stop budgets
+- Resolve absolute opencode paths against ontology globs
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
