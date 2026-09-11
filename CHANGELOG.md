@@ -66,6 +66,7 @@
 - Formalize runtime layering and tool invariants
 - Raise delegation, review, and delivery prompt quality
 - Add regression tests for legacy session event parsing
+- Use getBoundAgent for session binding check
 
 ### Fixed
 
