@@ -88,6 +88,8 @@
 - Enforce loop-stop budgets
 - Resolve absolute opencode paths against ontology globs
 - Prevent race condition in session binding
+- Read agent from info.agent on all binding surfaces
+- Grant orchestrator read-only bash commands
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
