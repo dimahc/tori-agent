@@ -79,15 +79,27 @@ if (denyToriEdit.effect !== "deny") {
   process.exit(1);
 }
 
-const denyToriBash = engine.authorize({
+const allowToriBash = engine.authorize({
   agentId: "agent:tori",
   toolName: "bash",
   toolId: "tool:bash",
   pattern: "npm test",
   runtimePaths,
 });
+if (allowToriBash.effect !== "allow") {
+  console.error("FAIL tori npm test should allow", allowToriBash);
+  process.exit(1);
+}
+
+const denyToriBash = engine.authorize({
+  agentId: "agent:tori",
+  toolName: "bash",
+  toolId: "tool:bash",
+  pattern: "git push origin main",
+  runtimePaths,
+});
 if (denyToriBash.effect !== "deny") {
-  console.error("FAIL tori bash should deny", denyToriBash);
+  console.error("FAIL tori git push should deny", denyToriBash);
   process.exit(1);
 }
 
@@ -203,9 +215,6 @@ if (
   loopPolicy.max_identical_invocations !== 2 ||
   loopPolicy.max_identical_failures !== 2 ||
   loopPolicy.max_consecutive_failures !== 3 ||
-  loopPolicy.max_investigation_actions !== 6 ||
-  loopPolicy.max_search_actions !== 4 ||
-  loopPolicy.max_speculation_actions !== 2 ||
   loopPolicy.max_missing_context_failures !== 1
 ) {
   console.error("FAIL tori loop policy missing", loopPolicy);
@@ -217,9 +226,6 @@ if (
   reviewerLoopPolicy.max_identical_invocations !== 2 ||
   reviewerLoopPolicy.max_identical_failures !== 2 ||
   reviewerLoopPolicy.max_consecutive_failures !== 2 ||
-  reviewerLoopPolicy.max_investigation_actions !== 8 ||
-  reviewerLoopPolicy.max_search_actions !== 6 ||
-  reviewerLoopPolicy.max_speculation_actions !== 1 ||
   reviewerLoopPolicy.max_missing_context_failures !== 1
 ) {
   console.error("FAIL reviewer loop policy missing", reviewerLoopPolicy);
@@ -231,9 +237,6 @@ if (
   specialistLoopPolicy.max_identical_invocations !== 2 ||
   specialistLoopPolicy.max_identical_failures !== 2 ||
   specialistLoopPolicy.max_consecutive_failures !== 3 ||
-  specialistLoopPolicy.max_investigation_actions !== 10 ||
-  specialistLoopPolicy.max_search_actions !== 8 ||
-  specialistLoopPolicy.max_speculation_actions !== 1 ||
   specialistLoopPolicy.max_missing_context_failures !== 1
 ) {
   console.error("FAIL specialist loop policy missing", specialistLoopPolicy);
@@ -249,7 +252,7 @@ if (outputPolicy.max_repeated_paragraphs !== 1 || outputPolicy.max_repeated_sent
 console.log("ALL CHECKS PASSED", {
   agents: bundle.agents.length,
   roles: bundle.roles.length,
-  checks: [allowRead.effect, allowStructuredReadReviewer.effect, allowStructuredReadSpecialist.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, denyEnvStructuredRead.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, reviewerLoopPolicy.max_search_actions, specialistLoopPolicy.max_investigation_actions, outputPolicy.max_self_talk_markers],
+  checks: [allowRead.effect, allowStructuredReadReviewer.effect, allowStructuredReadSpecialist.effect, denyToriWrite.effect, denyToriEdit.effect, denyToriBash.effect, denyToriCi.effect, denyEnvStructuredRead.effect, allowSpecialistPwd.effect, allowReviewerGitLog.effect, denySpecialistGitAdd.effect, transition.allowed, loopPolicy.max_identical_invocations, reviewerLoopPolicy.max_identical_failures, specialistLoopPolicy.max_consecutive_failures, outputPolicy.max_self_talk_markers],
   sampleStatus: TASK_STATUS.running,
 });
 const anchorKinds = workflowState.snapshot.workflow_run.check_state_index["check:mechanical"].evidence_anchors.map((anchor) => anchor.anchor_kind_id).sort();

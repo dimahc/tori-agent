@@ -282,6 +282,26 @@
                     "tool_id": "tool:question",
                     "effect": "policy-effect:allow",
                     "rationale": "Clarify requirements"
+                },
+                {
+                    "@id": "permission:orchestrator:bash",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:bash",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Run repository inspection and mechanical verification",
+                    "command_globs": [
+                        "git status*",
+                        "git diff*",
+                        "git log*",
+                        "git show*",
+                        "git fetch*",
+                        "pnpm run *",
+                        "pnpm exec tsc*",
+                        "pnpm exec vitest*",
+                        "npm run *",
+                        "npm test",
+                        "node --test *"
+                    ]
                 }
             ]
         },
@@ -896,7 +916,6 @@
             "tool_ids": [
                 "tool:write",
                 "tool:edit",
-                "tool:bash",
                 "tool:register_spec",
                 "tool:mark_block_done",
                 "tool:complete_plan",
@@ -958,9 +977,6 @@
             "max_identical_invocations": 2,
             "max_identical_failures": 2,
             "max_consecutive_failures": 3,
-            "max_investigation_actions": 6,
-            "max_search_actions": 4,
-            "max_speculation_actions": 2,
             "max_missing_context_failures": 1,
             "escalation_stage_id": "workflow-stage:needs-human"
         },
@@ -1016,6 +1032,7 @@
             "tool_ids": [
                 "tool:task",
                 "tool:read",
+                "tool:bash",
                 "tool:project_state",
                 "tool:workflow_state",
                 "tool:transition_stage",

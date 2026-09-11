@@ -82,12 +82,27 @@ describe("bash ask effect", () => {
     assert.equal(decide(runtime, runtimePaths, "infra", "terraform plan -out /tmp/plan.out").effect, "allow");
   });
 
-  test("host permission overlay marks bash ask for catch-all roles and stays allow for reviewer", async () => {
+  test("host permission surfaces bash as native rule object per role", async () => {
     const { runtime } = await makeRuntime();
     const configs = await runtime.buildRuntimeAgentConfigs("opencode");
-    assert.equal(configs["specialist:software-engineer"].permission.bash, "ask");
-    assert.equal(configs["specialist:software-architect"].permission.bash, "ask");
-    assert.equal(configs["specialist:infrastructure"].permission.bash, "ask");
-    assert.equal(configs["reviewer:quality"].permission.bash, "allow");
+    const engineerRules = configs["specialist:software-engineer"].permission.bash;
+    assert.equal(typeof engineerRules, "object");
+    assert.equal(engineerRules["*"], "ask");
+    assert.equal(engineerRules["git diff*"], "allow");
+    assert.equal(engineerRules["git add*"], "deny");
+    const reviewerRules = configs["reviewer:quality"].permission.bash;
+    assert.equal(typeof reviewerRules, "object");
+    assert.equal(reviewerRules["*"], "deny");
+    assert.equal(reviewerRules["node --test *"], "allow");
+    assert.equal(reviewerRules["npm test"], "allow");
+    assert.equal(reviewerRules["git add*"], "deny");
+    const infraRules = configs["specialist:infrastructure"].permission.bash;
+    assert.equal(infraRules["terraform apply*"], "ask");
+    assert.equal(infraRules["terraform plan*"], "allow");
+    const toriRules = configs.tori.permission.bash;
+    assert.equal(toriRules["*"], "deny");
+    assert.equal(toriRules["npm test"], "allow");
+    assert.equal(toriRules["pnpm exec tsc*"], "allow");
+    assert.equal(toriRules["git push*"], "deny");
   });
 });

@@ -41,15 +41,12 @@ export const ontologyContext = {
   max_consecutive_failures: "tori:max_consecutive_failures",
   max_identical_failures: "tori:max_identical_failures",
   max_identical_invocations: "tori:max_identical_invocations",
-  max_investigation_actions: "tori:max_investigation_actions",
   max_iteration: "tori:max_iteration",
   max_missing_context_failures: "tori:max_missing_context_failures",
   max_no_progress_retries: "tori:max_no_progress_retries",
   max_repeated_paragraphs: "tori:max_repeated_paragraphs",
   max_repeated_sentences: "tori:max_repeated_sentences",
-  max_search_actions: "tori:max_search_actions",
   max_self_talk_markers: "tori:max_self_talk_markers",
-  max_speculation_actions: "tori:max_speculation_actions",
   max_transition_retries: "tori:max_transition_retries",
   next_status_id: "tori:next_status_id",
   escalation_stage_id: "tori:escalation_stage_id",
@@ -344,12 +341,9 @@ export interface PolicyDefinition extends OntologyEntity {
   max_identical_invocations?: number;
   max_identical_failures?: number;
   max_consecutive_failures?: number;
-  max_investigation_actions?: number;
-  max_search_actions?: number;
   max_missing_context_failures?: number;
   max_transition_retries?: number;
   max_no_progress_retries?: number;
-  max_speculation_actions?: number;
   max_iteration?: number;
   escalation_stage_id?: OntologyId;
   max_repeated_paragraphs?: number;
@@ -369,9 +363,6 @@ export interface ExecutionLoopPolicy {
   max_identical_invocations?: number;
   max_identical_failures?: number;
   max_consecutive_failures?: number;
-  max_investigation_actions?: number;
-  max_search_actions?: number;
-  max_speculation_actions?: number;
   max_missing_context_failures?: number;
   escalation_stage_id?: OntologyId;
 }

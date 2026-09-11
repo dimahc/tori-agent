@@ -32,6 +32,9 @@ export interface OntologyRuntimeOptions {
   runtimePaths?: RuntimePaths;
 }
 
+export type PermissionEffect = "allow" | "deny" | "ask";
+export type PermissionValue = PermissionEffect | Record<string, PermissionEffect>;
+
 export interface RuntimeAgentConfig {
   description: string;
   temperature: number;
@@ -39,7 +42,7 @@ export interface RuntimeAgentConfig {
   color: string;
   prompt: string;
   tools: Record<string, boolean>;
-  permission: Record<string, "allow" | "deny" | "ask">;
+  permission: Record<string, PermissionValue>;
 }
 
 export interface DefaultMainSessionAgent {
@@ -80,7 +83,7 @@ interface RuntimeDerivedState {
   readonly agentIdByHostName: Map<string, OntologyId>;
   readonly governedToolNames: Set<string>;
   readonly toolsMapByAgentId: Map<OntologyId, Record<string, boolean>>;
-  readonly permissionMapByAgentId: Map<OntologyId, Record<string, "allow" | "deny" | "ask">>;
+  readonly permissionMapByAgentId: Map<OntologyId, Record<string, PermissionValue>>;
   readonly agentsByCapability: Map<OntologyId, AgentDefinition[]>;
 }
 
@@ -442,7 +445,12 @@ export class OntologyRuntime {
       ...host,
       ...ontologyAgentConfig,
       tools: { ...ontologyAgentConfig.tools },
-      permission: { ...ontologyAgentConfig.permission },
+      permission: Object.fromEntries(
+        Object.entries(ontologyAgentConfig.permission).map(([key, value]) => [
+          key,
+          typeof value === "object" ? { ...value } : value,
+        ]),
+      ),
     };
   }
 
@@ -459,7 +467,7 @@ export class OntologyRuntime {
     return this.cloneBooleanMap(this.derived!.toolsMapByAgentId.get(agent["@id"]) ?? {});
   }
 
-  private buildHostPermission(agent: AgentDefinition): Record<string, "allow" | "deny" | "ask"> {
+  private buildHostPermission(agent: AgentDefinition): Record<string, PermissionValue> {
     return this.clonePermissionMap(this.derived!.permissionMapByAgentId.get(agent["@id"]) ?? { external_directory: "deny" });
   }
 
@@ -492,7 +500,7 @@ export class OntologyRuntime {
     const agentIdByHostName = new Map<OntologyId, OntologyId>();
     const governedToolNames = new Set<string>();
     const toolsMapByAgentId = new Map<OntologyId, Record<string, boolean>>();
-    const permissionMapByAgentId = new Map<OntologyId, Record<string, "allow" | "deny" | "ask">>();
+    const permissionMapByAgentId = new Map<OntologyId, Record<string, PermissionValue>>();
     const agentsByCapability = new Map<OntologyId, AgentDefinition[]>();
 
     for (const tool of bundle.tools) {
@@ -512,28 +520,61 @@ export class OntologyRuntime {
       }
       toolsMapByAgentId.set(agent["@id"], tools);
 
-      const permissions: Record<string, "allow" | "deny" | "ask"> = { external_directory: "deny" };
+      const permissions: Record<string, PermissionValue> = { external_directory: "deny" };
       const agentRoles = agent.role_ids
         .map((roleId) => rolesById.get(roleId))
         .filter((role): role is RoleDefinition => Boolean(role));
-      for (const roleId of agent.role_ids) {
-        const role = rolesById.get(roleId);
-        if (!role) continue;
+      const bashGrantGlobs: string[] = [];
+      const bashAskGlobs: string[] = [];
+      const bashDenyGlobs: string[] = [];
+      let bashHasCatchAllAsk = false;
+
+      for (const role of agentRoles) {
         for (const grant of role.permission_grants) {
           const toolName = grant.tool_id.replace("tool:", "");
+          if (toolName === "bash" && grant.command_globs && grant.effect !== "policy-effect:deny") {
+            if (grant.effect === "policy-effect:allow") bashGrantGlobs.push(...grant.command_globs);
+            continue;
+          }
           permissions[toolName] =
             grant.effect === "policy-effect:allow" ? "allow" : grant.effect === "policy-effect:ask" ? "ask" : "deny";
         }
       }
       for (const policy of bundle.policies) {
-        if (policy.policy_kind_id !== "policy-kind:authorization" || policy.effect !== "policy-effect:ask") continue;
+        if (policy.policy_kind_id !== "policy-kind:authorization") continue;
+        if (policy.effect !== "policy-effect:ask" && policy.effect !== "policy-effect:deny") continue;
         if (policy.subject_agent_ids && !policy.subject_agent_ids.includes(agent["@id"])) continue;
         if (policy.subject_role_ids && !agentRoles.some((role) => policy.subject_role_ids!.includes(role["@id"]))) continue;
         if (policy.capability_ids && !policy.capability_ids.some((capabilityId) => agent.capability_ids.includes(capabilityId))) continue;
-        for (const toolId of policy.tool_ids ?? []) {
-          const toolName = toolId.replace("tool:", "");
-          if (permissions[toolName] === "deny") continue;
-          permissions[toolName] = "ask";
+        const bashGlobs = (policy.command_globs ?? []).filter(
+          (g) => (policy.tool_ids ?? []).length === 1 && policy.tool_ids![0] === "tool:bash",
+        );
+        const isBashOnly = bashGlobs.length > 0;
+        if (isBashOnly) {
+          if (policy.effect === "policy-effect:ask") {
+            bashAskGlobs.push(...bashGlobs);
+            if (bashGlobs.includes("*")) bashHasCatchAllAsk = true;
+          } else {
+            bashDenyGlobs.push(...bashGlobs);
+          }
+        }
+        if (!isBashOnly && policy.effect === "policy-effect:ask") {
+          for (const toolId of policy.tool_ids ?? []) {
+            const toolName = toolId.replace("tool:", "");
+            if (permissions[toolName] === "deny") continue;
+            permissions[toolName] = "ask";
+          }
+        }
+      }
+      if (toolsById.has("tool:bash")) {
+        if (bashGrantGlobs.length || bashAskGlobs.length || bashDenyGlobs.length) {
+          const bashRules: Record<string, PermissionEffect> = { "*": bashHasCatchAllAsk ? "ask" : "deny" };
+          for (const g of bashAskGlobs) bashRules[g] = "ask";
+          for (const g of bashGrantGlobs) bashRules[g] = "allow";
+          for (const g of bashDenyGlobs) bashRules[g] = "deny";
+          permissions["bash"] = bashRules;
+        } else {
+          permissions["bash"] = bashHasCatchAllAsk ? "ask" : "deny";
         }
       }
       permissionMapByAgentId.set(agent["@id"], permissions);
@@ -591,8 +632,12 @@ export class OntologyRuntime {
     return { ...source };
   }
 
-  private clonePermissionMap(source: Record<string, "allow" | "deny" | "ask">): Record<string, "allow" | "deny" | "ask"> {
-    return { ...source };
+  private clonePermissionMap(source: Record<string, PermissionValue>): Record<string, PermissionValue> {
+    const result: Record<string, PermissionValue> = {};
+    for (const [key, value] of Object.entries(source)) {
+      result[key] = typeof value === "object" ? { ...value } : value;
+    }
+    return result;
   }
 }
 

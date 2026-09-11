@@ -389,34 +389,6 @@ async function enforceBoundedCognitionPreflight(
   const nextSearchActions = state.searchActions + (classification.search ? 1 : 0);
   const nextSpeculationActions = state.speculationActions + (classification.clarification ? 1 : 0);
 
-  if (typeof policy.max_investigation_actions === "number" && nextInvestigationActions > policy.max_investigation_actions) {
-    const message = `Loop guard denied ${toolName}: investigation cap ${policy.max_investigation_actions} exceeded`;
-    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
-      investigationActions: nextInvestigationActions,
-      searchActions: nextSearchActions,
-      speculationActions: nextSpeculationActions,
-    });
-    throw new Error(message);
-  }
-  if (typeof policy.max_search_actions === "number" && nextSearchActions > policy.max_search_actions) {
-    const message = `Loop guard denied ${toolName}: search cap ${policy.max_search_actions} exceeded`;
-    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
-      investigationActions: nextInvestigationActions,
-      searchActions: nextSearchActions,
-      speculationActions: nextSpeculationActions,
-    });
-    throw new Error(message);
-  }
-  if (typeof policy.max_speculation_actions === "number" && nextSpeculationActions > policy.max_speculation_actions) {
-    const message = `Loop guard denied ${toolName}: speculation cap ${policy.max_speculation_actions} exceeded`;
-    await recordBoundedCognitionFailure(options, workflowId, state, toolName, args, policy, "budget-exhausted", message, {
-      investigationActions: nextInvestigationActions,
-      searchActions: nextSearchActions,
-      speculationActions: nextSpeculationActions,
-    });
-    throw new Error(message);
-  }
-
   const nextInvocations = (state.invocationCounts.get(signature) ?? 0) + 1;
   if (typeof policy.max_identical_invocations === "number" && nextInvocations > policy.max_identical_invocations) {
     const message = `Loop guard denied ${toolName}: identical invocation cap ${policy.max_identical_invocations} exceeded`;

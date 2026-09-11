@@ -30,9 +30,6 @@
       "max_identical_invocations": 2,
       "max_identical_failures": 2,
       "max_consecutive_failures": 2,
-      "max_investigation_actions": 8,
-      "max_search_actions": 6,
-      "max_speculation_actions": 1,
       "max_missing_context_failures": 1,
       "escalation_stage_id": "workflow-stage:needs-human"
     },

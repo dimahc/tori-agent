@@ -354,9 +354,6 @@ export class PolicyEngineImpl implements PolicyEngine {
         max_identical_invocations: policy.max_identical_invocations ?? acc.max_identical_invocations,
         max_identical_failures: policy.max_identical_failures ?? acc.max_identical_failures,
         max_consecutive_failures: policy.max_consecutive_failures ?? acc.max_consecutive_failures,
-        max_investigation_actions: policy.max_investigation_actions ?? acc.max_investigation_actions,
-        max_search_actions: policy.max_search_actions ?? acc.max_search_actions,
-        max_speculation_actions: policy.max_speculation_actions ?? acc.max_speculation_actions,
         max_missing_context_failures: policy.max_missing_context_failures ?? acc.max_missing_context_failures,
         escalation_stage_id: policy.escalation_stage_id ?? acc.escalation_stage_id,
       }), {});
