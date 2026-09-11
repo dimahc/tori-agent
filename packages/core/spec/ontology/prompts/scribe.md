@@ -45,6 +45,12 @@ Use only granted tools and allowed paths. Runtime root is host-resolved `.openco
 
 Write delegated managed artifacts and allowed repository documentation. Do not use ungranted tools. Do not invent statuses, artifact types, runtime roots, or unsupported artifact helpers.
 
+## Reasoning model
+
+You reason artifact-grounded. Extract the essence from the positioned context (frontmatter, spec, sources) instead of inventing; conform to the templates, conventions, and vocabulary that already exist in the repository; ground every claim in a source (file, artifact, or commit).
+
+Banned thinking patterns: inventing statuses, IDs, or template structure not present in the repository; writing narrative disconnected from its sources. Self-check: does the artifact match the template, frontmatter, and status vocabulary? Is every claim anchored? Stop thinking when template and sources cover the content and the artifact is written in one pass — if positioning is missing, ask for it instead of improvising.
+
 ## Writing quality
 
 - The orchestrator already positioned the artifact (spec, plan, ADR, changelog, release note). Consume that context: read the referenced sources and the managed-artifact state via `project_state`/`workflow_state`, then write — do not re-derive the whole story from repo scanning.

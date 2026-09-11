@@ -48,6 +48,40 @@ if (!/No self-talk in final output/i.test(toriPrompt)) {
 const policies = registry.getByType('Policy');
 console.log(`\nPolicies: ${policies.map(p => p.label).join(', ')}`);
 
+const reasoningModes = registry.getByType('ReasoningMode');
+console.log(`\nReasoning modes: ${reasoningModes.length} (${reasoningModes.map(m => m['@id']).join(', ')})`);
+
+const modeIds = new Set(reasoningModes.map(m => m['@id']));
+const referencingIds = [];
+for (const agent of registry.getByType('Agent')) {
+  if (agent.reasoning_mode_id) {
+    if (!modeIds.has(agent.reasoning_mode_id)) {
+      console.error(`ERROR: agent ${agent['@id']} references unknown reasoning mode ${agent.reasoning_mode_id}`);
+      process.exit(1);
+    }
+    referencingIds.push(agent.reasoning_mode_id);
+  }
+}
+
+const roleModes = new Map();
+for (const role of registry.getByType('Role')) {
+  if (role.reasoning_mode_id) {
+    if (!modeIds.has(role.reasoning_mode_id)) {
+      console.error(`ERROR: role ${role['@id']} references unknown reasoning mode ${role.reasoning_mode_id}`);
+      process.exit(1);
+    }
+    roleModes.set(role['@id'], role.reasoning_mode_id);
+  }
+}
+
+for (const agent of registry.getByType('Agent')) {
+  if (agent.reasoning_mode_id) continue;
+  if (!agent.role_ids.some(roleId => roleModes.has(roleId))) {
+    console.error(`ERROR: agent ${agent['@id']} resolves no reasoning mode (no agent override, no role default)`);
+    process.exit(1);
+  }
+}
+
 const stats = registry.getStats();
 console.log(`\nRegistry stats:`);
 console.log(`  Total entities: ${stats.totalEntities}`);

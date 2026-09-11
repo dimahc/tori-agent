@@ -5,6 +5,7 @@ import type {
   CapabilityDefinition,
   OntologyEntity,
   PolicyDefinition,
+  ReasoningModeDefinition,
   RoleDefinition,
   ToolDefinition,
   WorkflowDefinition,
@@ -22,6 +23,7 @@ export interface CompilationResult {
   agents: AgentDefinition[];
   roles: RoleDefinition[];
   capabilities: CapabilityDefinition[];
+  reasoningModes: ReasoningModeDefinition[];
   tools: ToolDefinition[];
   workflowDefinitions: WorkflowDefinition[];
   workflowStages: WorkflowStageDefinition[];
@@ -75,6 +77,7 @@ export class OntologyCompiler {
       agents: bundle.agents,
       roles: bundle.roles,
       capabilities: bundle.capabilities,
+      reasoningModes: bundle.reasoningModes,
       tools: bundle.tools,
       workflowDefinitions: bundle.workflowDefinitions,
       workflowStages: bundle.workflowStages,
@@ -158,6 +161,7 @@ export class OntologyCompiler {
         case ENTITY_TYPES.WorkflowStage:
         case ENTITY_TYPES.WorkflowTransition:
         case ENTITY_TYPES.Policy:
+        case ENTITY_TYPES.ReasoningMode:
           break;
         default:
           throw new Error(`Unsupported ontology entity type: ${entity["@type"]}`);

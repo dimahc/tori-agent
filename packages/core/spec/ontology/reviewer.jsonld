@@ -7,6 +7,7 @@
       "@type": "Role",
       "label": "Reviewer",
       "description": "Read-only reviewer",
+      "reasoning_mode_id": "reasoning-mode:falsification",
       "capability_ids": ["capability:review"],
       "permission_grants": [
         { "@id": "permission:reviewer:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect repo" },
@@ -35,6 +36,6 @@
     },
     { "@id": "agent:reviewer:quality", "@type": "Agent", "label": "Reviewer quality", "description": "Quality reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:workflow_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } },
     { "@id": "agent:reviewer:challenge", "@type": "Agent", "label": "Reviewer challenge", "description": "Challenge reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:workflow_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } },
-    { "@id": "agent:reviewer:enhance", "@type": "Agent", "label": "Reviewer enhance", "description": "Enhancement reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:workflow_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } }
+    { "@id": "agent:reviewer:enhance", "@type": "Agent", "label": "Reviewer enhance", "description": "Enhancement reviewer", "role_ids": ["role:reviewer"], "capability_ids": ["capability:review"], "tool_ids": ["tool:read", "tool:structured_read", "tool:bash", "tool:glob", "tool:grep", "tool:project_state", "tool:workflow_state", "tool:check_artifacts", "tool:run_mechanical_checks"], "prompt_ref": "prompt:reviewer", "reasoning_mode_id": "reasoning-mode:impact-ranked", "metadata": { "color": "warning", "human_tone": false, "mode": "subagent", "temperature": 0.2, "runtime_ids": ["opencode", "kilocode"] } }
   ]
 }

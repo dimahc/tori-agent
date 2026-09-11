@@ -25,11 +25,13 @@ export const ontologyContext = {
   check_state_index: "tori:check_state_index",
   command_globs: "tori:command_globs",
   created_at: "tori:created_at",
+  decision_threshold: "tori:decision_threshold",
   definition_id: "tori:definition_id",
   detail: "tori:detail",
   effect: "tori:effect",
   evidence_anchors: "tori:evidence_anchors",
   field_path: "tori:field_path",
+  forbidden_patterns: "tori:forbidden_patterns",
   from_stage_id: "tori:from_stage_id",
   from_stage_ids: "tori:from_stage_ids",
   iteration: "tori:iteration",
@@ -54,8 +56,10 @@ export const ontologyContext = {
   policy_kind_id: "tori:policy_kind_id",
   permission_grants: "tori:permission_grants",
   plan_block_name: "tori:plan_block_name",
+  principles: "tori:principles",
   prompt_ref: "tori:prompt_ref",
   rationale: "tori:rationale",
+  reasoning_mode_id: "tori:reasoning_mode_id",
   record_id: "tori:record_id",
   related_artifact_ids: "tori:related_artifact_ids",
   requesting_agent_id: "tori:requesting_agent_id",
@@ -66,6 +70,7 @@ export const ontologyContext = {
   resets_checks: "tori:resets_checks",
   result_status_id: "tori:result_status_id",
   role_ids: "tori:role_ids",
+  self_check: "tori:self_check",
   sequence_number: "tori:sequence_number",
   session_id: "tori:session_id",
   stage_id: "tori:stage_id",
@@ -97,6 +102,7 @@ export const ENTITY_TYPES = {
   WorkflowStage: "WorkflowStage",
   WorkflowTransition: "WorkflowTransition",
   Policy: "Policy",
+  ReasoningMode: "ReasoningMode",
   WorkflowRun: "WorkflowRun",
   WorkflowTransitionRecord: "WorkflowTransitionRecord",
   WorkflowTaskRecord: "WorkflowTaskRecord",
@@ -272,6 +278,14 @@ export interface CapabilityDefinition extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.Capability;
 }
 
+export interface ReasoningModeDefinition extends OntologyEntity {
+  "@type": typeof ENTITY_TYPES.ReasoningMode;
+  principles: string[];
+  forbidden_patterns: string[];
+  self_check: string[];
+  decision_threshold: string;
+}
+
 export interface ToolDefinition extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.Tool;
   capability_ids: OntologyId[];
@@ -281,6 +295,7 @@ export interface RoleDefinition extends OntologyEntity {
   "@type": typeof ENTITY_TYPES.Role;
   capability_ids: OntologyId[];
   permission_grants: PermissionGrant[];
+  reasoning_mode_id?: OntologyId;
 }
 
 export interface AgentDefinition extends OntologyEntity {
@@ -289,6 +304,7 @@ export interface AgentDefinition extends OntologyEntity {
   capability_ids: OntologyId[];
   tool_ids: OntologyId[];
   prompt_ref: OntologyId;
+  reasoning_mode_id?: OntologyId;
   metadata: {
     color: string;
     default_main_session?: boolean;
@@ -506,6 +522,7 @@ export interface OntologyBundle {
   agents: AgentDefinition[];
   roles: RoleDefinition[];
   capabilities: CapabilityDefinition[];
+  reasoningModes: ReasoningModeDefinition[];
   tools: ToolDefinition[];
   workflowDefinitions: WorkflowDefinition[];
   workflowStages: WorkflowStageDefinition[];
@@ -567,6 +584,20 @@ export const ontologyShapes: OntologyShape[] = [
     targetType: ENTITY_TYPES.Tool,
     required: ["@id", "@type", "label", "description", "capability_ids"],
     arrayProperties: ["capability_ids"],
+  },
+  {
+    targetType: ENTITY_TYPES.ReasoningMode,
+    required: [
+      "@id",
+      "@type",
+      "label",
+      "description",
+      "principles",
+      "forbidden_patterns",
+      "self_check",
+      "decision_threshold",
+    ],
+    arrayProperties: ["principles", "forbidden_patterns", "self_check"],
   },
   {
     targetType: ENTITY_TYPES.WorkflowDefinition,

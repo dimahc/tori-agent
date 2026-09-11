@@ -205,6 +205,7 @@
             "@type": "Role",
             "label": "Orchestrator",
             "description": "Read-mostly workflow orchestrator with no direct mutation power",
+            "reasoning_mode_id": "reasoning-mode:evidence-first",
             "capability_ids": [
                 "capability:orchestration",
                 "capability:workflow-governance",

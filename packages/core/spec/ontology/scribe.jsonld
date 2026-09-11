@@ -11,6 +11,7 @@
       "@type": "Role",
       "label": "Scribe",
       "description": "Writes only delegated managed artifacts",
+      "reasoning_mode_id": "reasoning-mode:artifact-grounded",
       "capability_ids": ["capability:artifact-generation", "capability:artifact-writing"],
       "permission_grants": [
         { "@id": "permission:scribe:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect files" },

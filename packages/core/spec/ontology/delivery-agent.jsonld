@@ -7,6 +7,7 @@
       "@type": "Role",
       "label": "Delivery specialist",
       "description": "Read repo and run git inspection commands only",
+      "reasoning_mode_id": "reasoning-mode:diff-as-truth",
       "capability_ids": ["capability:delivery"],
       "permission_grants": [
         { "@id": "permission:delivery:read", "@type": "PermissionGrant", "tool_id": "tool:read", "effect": "policy-effect:allow", "rationale": "Inspect repo state" },

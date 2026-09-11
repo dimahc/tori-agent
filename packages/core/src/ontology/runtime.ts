@@ -17,6 +17,7 @@ import {
   type OntologyBundle,
   type OntologyId,
   type OutputGovernancePolicy,
+  type ReasoningModeDefinition,
   type RoleDefinition,
   type RuntimeId,
   type RuntimePaths,
@@ -35,6 +36,16 @@ export interface OntologyRuntimeOptions {
 export type PermissionEffect = "allow" | "deny" | "ask";
 export type PermissionValue = PermissionEffect | Record<string, PermissionEffect>;
 
+export interface RuntimeAgentReasoning {
+  id: OntologyId;
+  label: string;
+  source: string;
+  principles: string[];
+  forbidden_patterns: string[];
+  self_check: string[];
+  decision_threshold: string;
+}
+
 export interface RuntimeAgentConfig {
   description: string;
   temperature: number;
@@ -43,6 +54,7 @@ export interface RuntimeAgentConfig {
   prompt: string;
   tools: Record<string, boolean>;
   permission: Record<string, PermissionValue>;
+  reasoning: RuntimeAgentReasoning;
 }
 
 export interface DefaultMainSessionAgent {
@@ -80,10 +92,12 @@ interface RuntimeDerivedState {
   readonly agentsById: Map<OntologyId, AgentDefinition>;
   readonly rolesById: Map<OntologyId, RoleDefinition>;
   readonly toolsById: Map<OntologyId, ToolDefinition>;
+  readonly reasoningModesById: Map<OntologyId, ReasoningModeDefinition>;
   readonly agentIdByHostName: Map<string, OntologyId>;
   readonly governedToolNames: Set<string>;
   readonly toolsMapByAgentId: Map<OntologyId, Record<string, boolean>>;
   readonly permissionMapByAgentId: Map<OntologyId, Record<string, PermissionValue>>;
+  readonly reasoningByAgentId: Map<OntologyId, RuntimeAgentReasoning>;
   readonly agentsByCapability: Map<OntologyId, AgentDefinition[]>;
 }
 
@@ -451,6 +465,16 @@ export class OntologyRuntime {
           typeof value === "object" ? { ...value } : value,
         ]),
       ),
+      reasoning: this.cloneReasoning(ontologyAgentConfig.reasoning),
+    };
+  }
+
+  private cloneReasoning(reasoning: RuntimeAgentReasoning): RuntimeAgentReasoning {
+    return {
+      ...reasoning,
+      principles: [...reasoning.principles],
+      forbidden_patterns: [...reasoning.forbidden_patterns],
+      self_check: [...reasoning.self_check],
     };
   }
 
@@ -471,6 +495,10 @@ export class OntologyRuntime {
     return this.clonePermissionMap(this.derived!.permissionMapByAgentId.get(agent["@id"]) ?? { external_directory: "deny" });
   }
 
+  private buildReasoning(agent: AgentDefinition): RuntimeAgentReasoning {
+    return this.cloneReasoning(this.derived!.reasoningByAgentId.get(agent["@id"])!);
+  }
+
   private toHostAgentKey(agentId: OntologyId): string {
     return agentId.replace(/^agent:/, "");
   }
@@ -488,6 +516,7 @@ export class OntologyRuntime {
         prompt: prompts[index],
         tools: this.buildToolsMap(agent),
         permission: this.buildHostPermission(agent),
+        reasoning: this.buildReasoning(agent),
       };
     }
     return configs;
@@ -501,6 +530,10 @@ export class OntologyRuntime {
     const governedToolNames = new Set<string>();
     const toolsMapByAgentId = new Map<OntologyId, Record<string, boolean>>();
     const permissionMapByAgentId = new Map<OntologyId, Record<string, PermissionValue>>();
+    const reasoningModesById = new Map<OntologyId, ReasoningModeDefinition>(
+      bundle.reasoningModes.map((mode) => [mode["@id"], mode]),
+    );
+    const reasoningByAgentId = new Map<OntologyId, RuntimeAgentReasoning>();
     const agentsByCapability = new Map<OntologyId, AgentDefinition[]>();
 
     for (const tool of bundle.tools) {
@@ -579,6 +612,28 @@ export class OntologyRuntime {
       }
       permissionMapByAgentId.set(agent["@id"], permissions);
 
+      const explicitModeId = agent.reasoning_mode_id;
+      const sourceRole = explicitModeId
+        ? undefined
+        : agentRoles.find((role) => Boolean(role.reasoning_mode_id));
+      const modeId = explicitModeId ?? sourceRole?.reasoning_mode_id;
+      if (!modeId) {
+        throw new Error(`Builtin agent ${agent["@id"]} resolves no reasoning mode; attach reasoning_mode_id to the agent or one of its roles`);
+      }
+      const mode = reasoningModesById.get(modeId);
+      if (!mode) {
+        throw new Error(`Agent ${agent["@id"]} references unknown reasoning mode ${modeId}`);
+      }
+      reasoningByAgentId.set(agent["@id"], {
+        id: mode["@id"],
+        label: mode.label,
+        source: explicitModeId ? agent["@id"] : sourceRole!["@id"],
+        principles: [...mode.principles],
+        forbidden_patterns: [...mode.forbidden_patterns],
+        self_check: [...mode.self_check],
+        decision_threshold: mode.decision_threshold,
+      });
+
       for (const capabilityId of agent.capability_ids) {
         const agents = agentsByCapability.get(capabilityId);
         if (agents) {
@@ -593,10 +648,12 @@ export class OntologyRuntime {
       agentsById,
       rolesById,
       toolsById,
+      reasoningModesById,
       agentIdByHostName,
       governedToolNames,
       toolsMapByAgentId,
       permissionMapByAgentId,
+      reasoningByAgentId,
       agentsByCapability,
     };
   }
@@ -625,6 +682,7 @@ export class OntologyRuntime {
       ...config,
       tools: this.cloneBooleanMap(config.tools),
       permission: this.clonePermissionMap(config.permission),
+      reasoning: this.cloneReasoning(config.reasoning),
     };
   }
 

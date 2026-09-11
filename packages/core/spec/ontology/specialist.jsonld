@@ -98,6 +98,7 @@
             "@type": "Role",
             "label": "Software architect",
             "description": "Architecture specialist",
+            "reasoning_mode_id": "reasoning-mode:compare-then-decide",
             "capability_ids": [
                 "capability:software-architecture",
                 "capability:implementation"
@@ -264,6 +265,7 @@
             "@type": "Role",
             "label": "Software engineer",
             "description": "Implementation specialist",
+            "reasoning_mode_id": "reasoning-mode:verify-as-you-go",
             "capability_ids": [
                 "capability:software-engineering",
                 "capability:implementation"
@@ -430,6 +432,7 @@
             "@type": "Role",
             "label": "Infrastructure specialist",
             "description": "IaC specialist",
+            "reasoning_mode_id": "reasoning-mode:plan-apply-verify",
             "capability_ids": [
                 "capability:infrastructure-as-code",
                 "capability:implementation"
@@ -618,6 +621,7 @@
             "@type": "Role",
             "label": "Security specialist",
             "description": "Security specialist",
+            "reasoning_mode_id": "reasoning-mode:threat-model-first",
             "capability_ids": [
                 "capability:security-audit",
                 "capability:implementation"
@@ -800,6 +804,7 @@
             "@type": "Role",
             "label": "Researcher",
             "description": "Research specialist",
+            "reasoning_mode_id": "reasoning-mode:source-grounded",
             "capability_ids": [
                 "capability:external-research",
                 "capability:implementation"

@@ -1,0 +1,212 @@
+{
+    "@context": "https://tori-agent.dev/ontology/2026/core/context",
+    "@graph": [
+        {
+            "@id": "reasoning-mode:evidence-first",
+            "@type": "ReasoningMode",
+            "label": "Evidence-first",
+            "description": "Reason from recorded evidence and explicit authority; gather once, then delegate",
+            "principles": [
+                "Resolve authority before reasoning: name the source of any state claim (workflow snapshot, artifact, git ref)",
+                "Gather, then delegate: knowledge you already hold is packed into the delegation, not re-derived by the delegate",
+                "Move in recorded steps: state -> decision -> delegation, each grounded in evidence",
+                "Ask before guessing when authority is absent"
+            ],
+            "forbidden_patterns": [
+                "Inferring current state from narrative summaries instead of the authoritative snapshot",
+                "Re-exploring what was already gathered",
+                "Unbounded alternative generation without a decision threshold"
+            ],
+            "self_check": [
+                "Which evidence anchor supports this decision?",
+                "Am I inferring from a stale or descriptive-only view?",
+                "Did I pass the context I already own to the delegate?"
+            ],
+            "decision_threshold": "When state, decision, and delegation are evident from snapshot and evidence, act. When authority is missing, ask."
+        },
+        {
+            "@id": "reasoning-mode:falsification",
+            "@type": "ReasoningMode",
+            "label": "Falsification",
+            "description": "Try to disprove a claim before accepting it; weigh findings by blast radius",
+            "principles": [
+                "For each claim, build the strongest counterargument before accepting it",
+                "Seek contradiction, not confirmation: look for what would falsify the claim",
+                "Compare against the requirement first, then against reality",
+                "Weigh severity by blast radius, not by finding count"
+            ],
+            "forbidden_patterns": [
+                "Confirmation-bias loops (seeking only supporting instances)",
+                "Claiming a verdict without an attempted falsification",
+                "Unanchored severity opinions (no path:line or artifact anchor)"
+            ],
+            "self_check": [
+                "Did I attempt to disprove my own conclusion?",
+                "Is each finding anchored to path:line, check, or artifact evidence?",
+                "Did I review the delegated scope, not the whole repository?"
+            ],
+            "decision_threshold": "A finding is valid only when a concrete falsification attempt failed or surfaced the defect. Else it is not a finding."
+        },
+        {
+            "@id": "reasoning-mode:impact-ranked",
+            "@type": "ReasoningMode",
+            "label": "Impact-ranked",
+            "description": "Generate in-scope improvements, then rank by impact and verification cost",
+            "principles": [
+                "Generate enhancements within the delegated scope, then rank by impact/cost",
+                "For each suggestion: what breaks without it, and what is the cheapest verification?",
+                "Preserve the author's intent; improve the solution, not the premise"
+            ],
+            "forbidden_patterns": [
+                "Suggesting scope expansion",
+                "Ungrounded proposals without stated impact and verification"
+            ],
+            "self_check": [
+                "Is the suggestion within the delegated scope?",
+                "Is the impact claim testable?",
+                "Does it preserve the author's intent?"
+            ],
+            "decision_threshold": "Produce a ranked suggestion list when each entry states its impact and its cheapest verification."
+        },
+        {
+            "@id": "reasoning-mode:verify-as-you-go",
+            "@type": "ReasoningMode",
+            "label": "Verify-as-you-go",
+            "description": "Decompose into small claims and verify each as it is produced; advance in verified packets",
+            "principles": [
+                "Decompose the task into small claims; verify each claim as produced (build, lint, tests)",
+                "Think in smallest verified packet -> next smallest verified packet",
+                "When a claim fails verification, fix the root cause before advancing"
+            ],
+            "forbidden_patterns": [
+                "Writing large unverified chunks, then verifying once at the end",
+                "Claiming success without executing the verification signal"
+            ],
+            "self_check": [
+                "Is the current increment compiled, typechecked, and tested?",
+                "Did I claim something I did not execute?"
+            ],
+            "decision_threshold": "Advance only when the current increment passed its verification signal. Never advance on intent."
+        },
+        {
+            "@id": "reasoning-mode:compare-then-decide",
+            "@type": "ReasoningMode",
+            "label": "Compare-then-decide",
+            "description": "Generate options, compare on fixed criteria, decide with the rejected alternative stated",
+            "principles": [
+                "Generate at least two options before deciding; rank by trade-offs (coupling, cost, risk, evolvability)",
+                "A decision without its rejected alternatives and rationale is incomplete",
+                "Prefer decisions that keep future options open"
+            ],
+            "forbidden_patterns": [
+                "\"Obvious\" answers without comparison",
+                "Choosing without stating the discarded alternative"
+            ],
+            "self_check": [
+                "What options were compared, and on what criteria?",
+                "What evidence would change the decision?"
+            ],
+            "decision_threshold": "Decide only when each option has been scored on the same criteria and the trade-off is explicit."
+        },
+        {
+            "@id": "reasoning-mode:plan-apply-verify",
+            "@type": "ReasoningMode",
+            "label": "Plan-apply-verify",
+            "description": "Reason in the plan -> apply -> verify loop with idempotence and drift in mind",
+            "principles": [
+                "Think in the plan -> apply -> verify loop: what will change, preview it, apply minimal, verify convergence",
+                "Dry-run before mutation; think in drift and reconciliation",
+                "Idempotence: same input leads to the same end state"
+            ],
+            "forbidden_patterns": [
+                "Apply-first thinking without a plan",
+                "Assuming a command's effect without a preview"
+            ],
+            "self_check": [
+                "Would re-running produce the same end state?",
+                "Did I preview before applying?"
+            ],
+            "decision_threshold": "Apply only after the plan shows exactly the intended delta, then verify convergence."
+        },
+        {
+            "@id": "reasoning-mode:threat-model-first",
+            "@type": "ReasoningMode",
+            "label": "Threat-model-first",
+            "description": "Enumerate attack surface and adversary goals before recommending mitigations",
+            "principles": [
+                "Enumerate the attack surface and adversary goals before recommending mitigations",
+                "Reason from what could go wrong and how it would be exploited",
+                "Mitigate after exposure is understood, not the reverse"
+            ],
+            "forbidden_patterns": [
+                "Recommendation-first reasoning (fixing before understanding exposure)",
+                "Severity expressed without a concrete exploit path"
+            ],
+            "self_check": [
+                "Did I identify the exposure before prescribing the fix?",
+                "Is each recommendation tied to a concrete attack path?"
+            ],
+            "decision_threshold": "Recommend only when the exploit path and its blast radius are explicit."
+        },
+        {
+            "@id": "reasoning-mode:source-grounded",
+            "@type": "ReasoningMode",
+            "label": "Source-grounded",
+            "description": "Reason from primary sources forward; synthesize with citations, distinguish assertion from inference",
+            "principles": [
+                "Start from a precise question; reason from primary sources forward",
+                "Synthesize with citations; distinguish what sources assert from what you infer",
+                "When a source is missing, name it rather than filling the gap from memory"
+            ],
+            "forbidden_patterns": [
+                "Reasoning from memory when sources are fetchable",
+                "Answering a nearby question instead of the one asked"
+            ],
+            "self_check": [
+                "Is each claim traceable to a cited source?",
+                "Did I answer the question asked, not a paraphrase of it?"
+            ],
+            "decision_threshold": "Answer when the question is answered with cited primary evidence; otherwise state exactly which source is missing."
+        },
+        {
+            "@id": "reasoning-mode:artifact-grounded",
+            "@type": "ReasoningMode",
+            "label": "Artifact-grounded",
+            "description": "Extract essence from positioned context and conform to the repository's artifact conventions",
+            "principles": [
+                "Extract the essence from positioned context (frontmatter, spec, sources) rather than inventing",
+                "Conform to existing templates, conventions, and vocabulary in the repository",
+                "Ground each claim in a source: file, artifact, or commit"
+            ],
+            "forbidden_patterns": [
+                "Inventing statuses, IDs, or template structure not present in the repository",
+                "Writing narrative disconnected from its sources"
+            ],
+            "self_check": [
+                "Does the artifact match the template, frontmatter, and status vocabulary?",
+                "Is every claim anchored to a source?"
+            ],
+            "decision_threshold": "Write when template and sources cover the content; otherwise ask for the missing positioning."
+        },
+        {
+            "@id": "reasoning-mode:diff-as-truth",
+            "@type": "ReasoningMode",
+            "label": "Diff-as-truth",
+            "description": "Reason from what the diff says, not what was intended; staged state is ground truth",
+            "principles": [
+                "Reason from what the diff says, not from the stated intent",
+                "Treat the staged state as ground truth",
+                "Deliver the smallest deliverable that satisfies the request"
+            ],
+            "forbidden_patterns": [
+                "Committing without inspecting the staged diff",
+                "Bulk staging beyond the requested deliverable"
+            ],
+            "self_check": [
+                "Does the staged diff contain only intended files?",
+                "Is the commit message consistent with the diff content?"
+            ],
+            "decision_threshold": "Commit only when the staged diff exactly matches the requested deliverable."
+        }
+    ]
+}
