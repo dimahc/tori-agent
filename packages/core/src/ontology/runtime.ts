@@ -171,6 +171,10 @@ export class OntologyRuntime {
     return this.sessionAgents.get(sessionId);
   }
 
+  hasSessionBinding(sessionId: string): boolean {
+    return this.sessionAgents.has(sessionId) || this.unknownSessionAgents.has(sessionId);
+  }
+
   unbindSession(sessionId: string): void {
     this.sessionAgents.delete(sessionId);
     this.unknownSessionAgents.delete(sessionId);

@@ -233,8 +233,8 @@ const enforceNativeToolExecution = async (
       if (sessionID) {
         if (agent) {
           ontologyRuntime.bindSession(sessionID, agent);
-        } else {
-          ontologyRuntime.unbindSession(sessionID);
+        } else if (!ontologyRuntime.hasSessionBinding(sessionID)) {
+          ontologyRuntime.bindSessionToDefaultMainAgent(sessionID, runtime);
         }
       }
       await ensureRuntimeDirs();

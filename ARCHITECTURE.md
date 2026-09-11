@@ -80,7 +80,7 @@ All managed paths derive from canonical `buildRuntimePaths()` in `packages/ontol
 
 - workflow transition semantics
 - policy enforcement by bound session agent at `permission.ask` and `tool.execute.before`
-- session binding uses official host surfaces in priority order: `session.created`/`session.updated` session info, `session.next.agent.switched`, then `chat.message.input.agent`
+- session binding uses official host surfaces in priority order: `session.created`/`session.updated` session info, `session.next.agent.switched`, then `chat.message.input.agent`; `session.created` uses the ontology default main-session agent when no agent is supplied
 - no repo-side interception of host-native `write` / `edit` / `bash` when host skips official permission/tool hooks
 - strict SHACL-like shape validation
 - lifecycle/path/consistency behavior

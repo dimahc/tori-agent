@@ -52,7 +52,7 @@ Main-session binding contract:
   - `chat.message` `input.agent` remains binding path when host passes it
 - no silent fallback binding at `permission.ask`, `tool.execute.before`, or repo authorization path
 - unbound or unknown-agent sessions fail closed for ontology-governed permissions
-- `event` on `session.created` still bootstraps runtime dirs; if official session agent surface absent, session stays unbound
+- `event` on `session.created` bootstraps runtime dirs and binds the ontology default main-session agent when the host omits an agent
 - host-native mutation tools (`write` / `edit` / `bash`) are enforced through `permission.ask` and `tool.execute.before`
 
 Hard host obligations:

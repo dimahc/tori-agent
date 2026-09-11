@@ -58,7 +58,7 @@ Runtime hook surface stays explicit and deterministic:
 - `tool.execute.before`
 - `experimental.text.complete`
 
-`config` must mutate host config in place and set official `default_agent`. Host should honor that value for fresh sessions, then pass actual agent through `chat.message` for authoritative session binding before guarded actions.
+`config` must mutate host config in place and set official `default_agent`. Host should honor that value for fresh sessions, then pass actual agent through `chat.message` for authoritative session binding before guarded actions. When the host creates a fresh session without an agent, `session.created` applies the ontology default main-session agent as the initial binding.
 
 Authoritative binding surfaces in strict ABI: `session.created` / `session.updated` event `properties.info.agent`, `session.next.agent.switched` event `properties.agent`, and `chat.message` with `agent`. No repo-side fallback binds unclaimed sessions during `permission.ask` or `tool.execute.before`.
 

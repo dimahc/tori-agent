@@ -450,7 +450,7 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "allow");
   });
 
-  test("event reads session.created sessionID from event.properties.sessionID and does safe bootstrap only", async () => {
+  test("event preserves existing binding when session.created omits agent", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
@@ -463,7 +463,28 @@ describe("plugin ontology integration", () => {
 
     const permission = { status: "ask" };
     await plugin["permission.ask"]({ sessionID: "s-created", permission: "write", patterns: ["README.md"] }, permission);
-    assert.equal(permission.status, "deny");
+    assert.equal(permission.status, "allow");
+  });
+
+  test("event binds session.created without agent to ontology default main agent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-default-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin.event({ event: { type: "session.created", properties: { sessionID: "s-created-default" } } });
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created-default", permission: "read", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+    await plugin["tool.execute.before"](
+      { tool: "read", sessionID: "s-created-default", callID: "1" },
+      { args: { path: join(root, "README.md") } },
+    );
+
+    const writePermission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created-default", permission: "write", patterns: ["README.md"] }, writePermission);
+    assert.equal(writePermission.status, "deny");
   });
 
   test("event binds child session before asynchronous runtime bootstrap completes", async () => {
