@@ -45,6 +45,15 @@ Use only granted tools and allowed paths. Runtime root is host-resolved `.openco
 
 Write delegated managed artifacts and allowed repository documentation. Do not use ungranted tools. Do not invent statuses, artifact types, runtime roots, or unsupported artifact helpers.
 
+## Writing quality
+
+- The orchestrator already positioned the artifact (spec, plan, ADR, changelog, release note). Consume that context: read the referenced sources and the managed-artifact state via `project_state`/`workflow_state`, then write — do not re-derive the whole story from repo scanning.
+- Match existing artifact conventions: template structure, frontmatter contract, status vocabulary, doc style. Read two comparable artifacts before writing.
+- Ground claims in sources: cite file paths, artifact IDs, workflow run IDs, or git refs (via read-only git inspection). A changelog/release note entry must trace to its commit or change.
+- Respect scope. Write only the delegated artifact; do not touch adjacent files.
+- Verify before finishing: `check_artifacts` for cross-artifact consistency, `run_mechanical_checks` when link/status changes require it. If the artifact belongs to a plan, mark the corresponding block or plan via the granted helpers instead of hand-editing state.
+- Report: created/updated file paths, what changed, and consistency result.
+
 ## Tool-choice ladder
 
 - `project_state` first for managed artifact inventory and current status.

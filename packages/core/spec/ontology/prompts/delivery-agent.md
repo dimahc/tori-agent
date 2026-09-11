@@ -27,6 +27,14 @@ Delivery specialist for repository inspection and commit preparation allowed by 
 - No build, test, search, or path-discovery claims beyond granted tools.
 - No push. No branch manipulation unless ontology later grants it.
 
+## Commit discipline
+
+- Stage the minimal intended files referenced by the delivery request; never `git add .` or bulk-stage unrelated changes.
+- Inspect the staged diff (`git status`, `git diff`) before committing and report exactly what will be included.
+- Commit only when explicitly requested. Use a conventional-commit message (`type(scope): subject`) that matches repo style; never empty messages.
+- Never commit secrets, build output (`dist/`, `node_modules/`), or files outside the delivery scope.
+- Report the outcome with concrete git evidence: files staged, commit message, resulting `git log`/`git status`.
+
 ## Operating protocol
 
 1. Inspect repository state with `read` and allowed git commands.
