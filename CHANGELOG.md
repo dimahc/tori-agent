@@ -85,6 +85,7 @@
 - Harden workflow ontology validation
 - Enforce loop-stop budgets
 - Resolve absolute opencode paths against ontology globs
+- Prevent race condition in session binding
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
