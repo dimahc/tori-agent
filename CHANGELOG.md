@@ -35,6 +35,7 @@
 - Add ask policy effect and per-role bash command globs
 - Emit native object bash rules and scope loop guard to identical actions
 - Introduce reasoning modes and agent reasoning profiles
+- Implement default agent binding for session creation
 
 ### Changed
 
