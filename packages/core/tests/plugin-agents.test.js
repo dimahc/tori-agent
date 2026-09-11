@@ -586,6 +586,26 @@ describe("plugin ontology integration", () => {
     await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-native-allow", callID: "3" }, { args: { command: "npm test" } });
   });
 
+  test("tool.execute.before resolves absolute opencode paths against ontology globs for scribe write/edit", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-native-abs-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-scribe-abs", agent: "scribe:adr" }, {});
+
+    await plugin["tool.execute.before"]({ tool: "write", sessionID: "s-scribe-abs", callID: "1" }, { args: { path: join(root, "docs", "adr", "0001-x.md") } });
+    await plugin["tool.execute.before"]({ tool: "edit", sessionID: "s-scribe-abs", callID: "2" }, { args: { path: join(root, "docs", "adr", "0001-x.md") } });
+
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "write", sessionID: "s-scribe-abs", callID: "3" }, { args: { path: join(root, "src", "evil.ts") } }),
+      /Unauthorized native tool execution for write/,
+    );
+    await assert.rejects(
+      () => plugin["tool.execute.before"]({ tool: "edit", sessionID: "s-scribe-abs", callID: "4" }, { args: { path: join(root, "src", "evil.ts") } }),
+      /Unauthorized native tool execution for edit/,
+    );
+  });
+
   test("tool.execute.before allows expanded readonly bash grants for specialists and reviewers only", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-bash-allowlist-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });

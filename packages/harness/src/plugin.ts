@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { buildRuntimePaths, type RuntimeId } from "@tori-agent/ontology";
 import {
   createAuthorizedToolExecutor,
@@ -180,17 +180,24 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
     output.status = decision.effect;
   };
 
-  const enforceNativeToolExecution = async (
+  function toProjectRelativePatterns(pattern: string | string[] | undefined, projectRoot: string): string | string[] | undefined {
+  if (typeof pattern !== "string" || !isAbsolute(pattern)) return pattern;
+  const located = relative(projectRoot, resolve(projectRoot, pattern));
+  return located !== "" && !isAbsolute(located) && !located.startsWith("..") ? located : pattern;
+}
+
+const enforceNativeToolExecution = async (
     input: { tool: string; sessionID: string },
     output: ToolExecuteBeforeHookOutput,
   ): Promise<void> => {
     const toolName = normalizeOfficialPermissionName(input.tool);
     if (!["read", "glob", "grep", "bash", "write", "edit"].includes(toolName)) return;
     if (!ontologyRuntime.isOntologyGovernedToolName(toolName)) return;
+    const pattern = deriveNativeMutationAuthorizationPattern(toolName, output.args);
     const decision = ontologyRuntime.authorizeSession(
       input.sessionID,
       toolName,
-      deriveNativeMutationAuthorizationPattern(toolName, output.args),
+      toProjectRelativePatterns(pattern, projectRoot),
       runtimePaths,
     );
     if (decision.effect === "deny") {
