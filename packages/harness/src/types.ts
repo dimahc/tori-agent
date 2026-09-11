@@ -29,6 +29,7 @@ export interface PluginEventInput {
 export interface ChatMessageHookInput {
   sessionID: string;
   agent?: string;
+  info?: Record<string, unknown>;
   message?: unknown;
   parts?: unknown[];
 }

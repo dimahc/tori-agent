@@ -450,6 +450,18 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "allow");
   });
 
+  test("chat.message binds session from info.agent surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-chat-info-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin["chat.message"]({ sessionID: "s-chat-info", info: { agent: "specialist:software-engineer" } }, {});
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-chat-info", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+  });
+
   test("event preserves existing binding when session.created omits agent", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
@@ -562,6 +574,18 @@ describe("plugin ontology integration", () => {
 
     const permission = { status: "ask" };
     await plugin["permission.ask"]({ sessionID: "s-switch", permission: "write", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+  });
+
+  test("event updates binding from session.next.agent.switched info.agent surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-switch-info-agent-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin.event({ event: { type: "session.next.agent.switched", properties: { sessionID: "s-switch-info", info: { agent: "specialist:software-engineer" } } } });
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-switch-info", permission: "write", patterns: ["README.md"] }, permission);
     assert.equal(permission.status, "allow");
   });
 

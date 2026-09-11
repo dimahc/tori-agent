@@ -177,7 +177,8 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
   };
 
   const bindSessionFromChatMessage = async (message: ChatMessageHookInput, _output: ChatMessageHookOutput): Promise<void> => {
-    if (message.agent) ontologyRuntime.bindSession(message.sessionID, message.agent);
+    const agent = eventSessionAgent(message as unknown as Record<string, unknown>);
+    if (agent) ontologyRuntime.bindSession(message.sessionID, agent);
   };
 
   const handlePermissionAsk = async (request: PermissionAskHookInput, output: PermissionAskHookOutput): Promise<void> => {
@@ -243,7 +244,7 @@ const enforceNativeToolExecution = async (
 
     if (event.type === "session.updated") {
       const sessionID = eventSessionID(event.properties);
-      if (!sessionID || !(event.properties && "info" in event.properties)) return;
+      if (!sessionID) return;
       const agent = eventSessionAgent(event.properties);
       if (agent) {
         ontologyRuntime.bindSession(sessionID, agent);
@@ -255,7 +256,7 @@ const enforceNativeToolExecution = async (
     if (event.type === "session.next.agent.switched") {
       const sessionID = eventSessionID(event.properties);
       if (!sessionID) return;
-      const agent = firstNonEmptyString(event.properties?.agent);
+      const agent = eventSessionAgent(event.properties);
       if (agent) {
         ontologyRuntime.bindSession(sessionID, agent);
         return;
