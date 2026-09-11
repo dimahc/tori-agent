@@ -33,6 +33,7 @@
 - Enforce bounded cognition authority model
 - Add structured_read tool
 - Add ask policy effect and per-role bash command globs
+- Emit native object bash rules and scope loop guard to identical actions
 
 ### Changed
 
@@ -61,6 +62,7 @@
 - Update specialist and tori definitions
 - Document customization and structured_read
 - Formalize runtime layering and tool invariants
+- Raise delegation, review, and delivery prompt quality
 
 ### Fixed
 
