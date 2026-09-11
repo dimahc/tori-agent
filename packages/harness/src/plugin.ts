@@ -43,13 +43,20 @@ function firstNonEmptyString(value: unknown): string | undefined {
 }
 
 function eventSessionID(properties?: Record<string, unknown>): string | undefined {
-  return firstNonEmptyString(properties?.sessionID);
+  const direct = firstNonEmptyString(properties?.sessionID);
+  if (direct) return direct;
+  const info = properties?.info;
+  if (!info || typeof info !== "object" || Array.isArray(info)) return undefined;
+  return firstNonEmptyString((info as Record<string, unknown>).id);
 }
 
 function eventSessionAgent(properties?: Record<string, unknown>): string | undefined {
   const info = properties?.info;
-  if (!info || typeof info !== "object" || Array.isArray(info)) return undefined;
-  return firstNonEmptyString((info as { agent?: unknown }).agent);
+  if (info && typeof info === "object" && !Array.isArray(info)) {
+    const agent = firstNonEmptyString((info as Record<string, unknown>).agent);
+    if (agent) return agent;
+  }
+  return firstNonEmptyString(properties?.agent);
 }
 
 export function buildPlugin(options: { runtime?: RuntimeId; configPath?: string } = {}) {
@@ -241,7 +248,6 @@ const enforceNativeToolExecution = async (
         ontologyRuntime.bindSession(sessionID, agent);
         return;
       }
-      ontologyRuntime.unbindSession(sessionID);
       return;
     }
 
@@ -253,7 +259,7 @@ const enforceNativeToolExecution = async (
         ontologyRuntime.bindSession(sessionID, agent);
         return;
       }
-      ontologyRuntime.unbindSession(sessionID);
+      return;
     }
   };
 

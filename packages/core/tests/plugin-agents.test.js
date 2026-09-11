@@ -482,6 +482,27 @@ describe("plugin ontology integration", () => {
     assert.equal(permissionAfter.status, "allow");
   });
 
+  test("event binds session from legacy session.created info.id/info.agent surface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-legacy-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin.event({ event: { type: "session.created", properties: { info: { id: "ses-legacy", agent: "specialist:software-engineer" } } } });
+
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "ses-legacy", permission: "read", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+  });
+
+  test("event binds legacy session.created info.id/info.agent surface for native read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-legacy-read-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    await plugin.event({ event: { type: "session.created", properties: { info: { id: "ses-legacy-read", agent: "specialist:software-engineer" } } } });
+    await plugin["tool.execute.before"]({ tool: "read", sessionID: "ses-legacy-read", callID: "1" }, { args: { path: join(root, "README.md") } });
+  });
+
   test("event updates binding from official session.updated info.agent surface", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-updated-agent-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
