@@ -52,6 +52,44 @@ Non-obvious source paths in core:
 - **Permission authority is ontology-native.** Role `permission_grants` define tool/path/command permissions with rationale.
 - **Git hooks:** `sh .git-hooks/install.sh` installs the `commit-msg` hook, which rejects empty commit messages and validates the conventional-commit format (`type(scope): subject`). Always use `git commit -m "message"`.
 
+## Skills
+
+Skills are specialized instruction sets for specific task types. **Always check for and load relevant skills before starting work.**
+
+### For tori (orchestrator)
+
+- Before dispatching any task, scan available skills for a match to the task domain.
+- Load the skill with `skill` tool early — its instructions shape how the entire task is executed.
+- When delegating via `task`, include the loaded skill's key constraints in the subagent prompt so the subagent doesn't re-discover them.
+
+### For subagents
+
+- At the start of any task, check `available_skills` for a match.
+- Load the skill immediately with `skill` tool before doing any work.
+- If a skill applies, follow its workflow — do not skip it because the task "looks simple."
+- When in doubt, load the skill — the cost of loading is low, the cost of missing guidance is high.
+
+### Skill lookup
+
+Skills are defined in `.opencode/skills/<name>/SKILL.md`. The `skill` tool loads them with local override and builtin fallback.
+
+### Available skills (non-exhaustive)
+
+| Skill | Trigger |
+| ------ | ------- |
+| `cavecrew` | Delegate to subagent — tells when to use investigator/builder/reviewer |
+| `caveman` | Reduce output tokens — use when brevity requested |
+| `caveman-commit` | Writing commit messages |
+| `caveman-compress` | Compressing memory files |
+| `caveman-help` | Quick reference for caveman modes |
+| `caveman-review` | Reviewing PRs / diffs |
+| `caveman-stats` | Check token usage |
+| `conventional-branch` | Creating/naming Git branches |
+| `direct-reasoning` | Concrete implementation tasks — eliminate reasoning loops |
+| `git-commit` | Staging and committing changes |
+| `spec-writer` | Writing or reviewing specs |
+| `customize-opencode` | Configuring opencode itself (agents, skills, plugins, permissions) |
+
 ## References
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system diagram, component responsibilities, startup flow
