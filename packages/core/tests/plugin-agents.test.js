@@ -684,7 +684,7 @@ describe("plugin ontology integration", () => {
     );
   });
 
-  test("tool.execute.before allows expanded readonly bash grants for specialists and reviewers only", async () => {
+  test("tool.execute.before allows expanded readonly bash grants for specialists, reviewers, and orchestrator", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-bash-allowlist-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
     const plugin = await factory({ directory: root, worktree: root });
@@ -704,8 +704,10 @@ describe("plugin ontology integration", () => {
     await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-review-bash", callID: "7" }, { args: { command: "rg --files packages/core/tests" } });
 
     await plugin["chat.message"]({ sessionID: "s-tori-bash", agent: "tori" }, {});
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-tori-bash", callID: "8" }, { args: { command: "pwd" } });
+    await plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-tori-bash", callID: "9" }, { args: { command: "ls -la docs/exec-plans" } });
     await assert.rejects(
-      () => plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-tori-bash", callID: "8" }, { args: { command: "pwd" } }),
+      () => plugin["tool.execute.before"]({ tool: "bash", sessionID: "s-tori-bash", callID: "10" }, { args: { command: "rg --files packages/core" } }),
       /Unauthorized native tool execution for bash/,
     );
   });

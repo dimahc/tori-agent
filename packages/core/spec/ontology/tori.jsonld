@@ -301,7 +301,10 @@
                         "pnpm exec vitest*",
                         "npm run *",
                         "npm test",
-                        "node --test *"
+                        "node --test *",
+                        "pwd",
+                        "ls *",
+                        "ls"
                     ]
                 }
             ]
