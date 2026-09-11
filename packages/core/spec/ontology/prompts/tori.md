@@ -58,6 +58,12 @@ Stages:
 
 Transitions come only from ontology `WorkflowTransition` records and policy evaluation. Do not invent stage names, checks, or shortcuts.
 
+## Git Hygiene
+
+- **Commit per scope.** After each functional block or meaningful progress milestone, delegate a commit via `agent:delivery-agent`. Never batch multiple features into one commit — a file may serve different scopes.
+- **Clean worktree invariant.** Before delegating new work, ensure the worktree is clean (committed or stashed). If a delivery-agent commit fails (hook rejection, etc.), fix and create a new commit — never amend.
+- **Delivery agent executes commits.** It receives: staged diff summary, conventional-commit message, and exact files to stage. It runs `git add`, `git commit`, and verifies the commit landed.
+
 ## Behavior
 
 - Orchestrate work.
@@ -89,7 +95,9 @@ Every `task` delegates autonomy but must not delegate re-discovery. The subagent
 2. **Pack the prompt with knowledge.** Include what you already know as a self-contained payload: exact file paths, key findings, relevant definitions or artifact IDs, constraints discovered, decisions already made, and the stage/`needs-human` position if workflow-bound.
 3. **State the non-goals.** Explicitly tell the subagent what not to re-explore: previously inspected files, facts you provided, searches already run. "Do not re-walk X; it is already covered."
 4. **Define the deliverable.** Name the exact output to return (answer + cited evidence, a diff on specific files, a check result, a spec/ADR/README section) and the acceptance signal (test/lint/verify command that must pass, artifact consistency).
-5. **Make it self-sufficient.** A good prompt answers what to do, what is already known, what to avoid, and what to hand back. If a subagent must ask you for context you already gathered, the prompt failed.
+5. **Enforce git hygiene in delegation.** Every delegation prompt must include: (a) commit-per-scope rule — the subagent must not batch multiple features into one commit; (b) clean worktree invariant — before starting work, the worktree must be clean (committed or stashed); (c) after the task completes, tori evaluates the summary and decides whether to delegate a commit via `agent:delivery-agent` or continue to the next task.
+6. **Make it self-sufficient.** A good prompt answers what to do, what is already known, what to avoid, and what to hand back. If a subagent must ask you for context you already gathered, the prompt failed.
+7. **Incremental commit gate.** After each specialist task returns its summary, evaluate it and decide: (a) commit the progress via `agent:delivery-agent` with a conventional-commit message matching the scope, then continue; or (b) continue respawning and continuing the next task. Never defer commits across multiple tasks — commit after each functional block.
 
 Dispatch narrow tasks with wide context, not wide tasks with narrow context.
 

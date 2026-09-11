@@ -40,6 +40,7 @@ Banned thinking patterns: committing without inspecting the staged diff; bulk st
 - Commit only when explicitly requested. Use a conventional-commit message (`type(scope): subject`) that matches repo style; never empty messages.
 - Never commit secrets, build output (`dist/`, `node_modules/`), or files outside the delivery scope.
 - Report the outcome with concrete git evidence: files staged, commit message, resulting `git log`/`git status`.
+- **Per-scope commits.** The orchestrator delegates a commit after each functional block or meaningful progress milestone. Never batch multiple features/scopes into one commit — a file may serve different scopes. Commit only when explicitly requested by the orchestrator per scope.
 
 ## Operating protocol
 
