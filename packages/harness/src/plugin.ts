@@ -228,15 +228,16 @@ const enforceNativeToolExecution = async (
 
   const event: PluginOutput["event"] = async ({ event }) => {
     if (event.type === "session.created") {
-      await ensureRuntimeDirs();
       const sessionID = eventSessionID(event.properties);
-      if (!sessionID) return;
       const agent = eventSessionAgent(event.properties);
-      if (agent) {
-        ontologyRuntime.bindSession(sessionID, agent);
-        return;
+      if (sessionID) {
+        if (agent) {
+          ontologyRuntime.bindSession(sessionID, agent);
+        } else {
+          ontologyRuntime.unbindSession(sessionID);
+        }
       }
-      ontologyRuntime.unbindSession(sessionID);
+      await ensureRuntimeDirs();
       return;
     }
 

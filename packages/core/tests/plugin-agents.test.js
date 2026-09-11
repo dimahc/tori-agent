@@ -466,6 +466,18 @@ describe("plugin ontology integration", () => {
     assert.equal(permission.status, "deny");
   });
 
+  test("event binds child session before asynchronous runtime bootstrap completes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-race-"));
+    const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
+    const plugin = await factory({ directory: root, worktree: root });
+
+    const eventPromise = plugin.event({ event: { type: "session.created", properties: { sessionID: "s-created-race", info: { agent: "specialist:software-engineer" } } } });
+    const permission = { status: "ask" };
+    await plugin["permission.ask"]({ sessionID: "s-created-race", permission: "read", patterns: ["README.md"] }, permission);
+    assert.equal(permission.status, "allow");
+    await eventPromise;
+  });
+
   test("event binds session from official session.created info.agent surface", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-session-created-agent-"));
     const factory = buildPlugin({ runtime: "opencode", configPath: join(root, ".opencode", "AGENTS.md") });
