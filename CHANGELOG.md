@@ -36,6 +36,7 @@
 - Emit native object bash rules and scope loop guard to identical actions
 - Introduce reasoning modes and agent reasoning profiles
 - Implement default agent binding for session creation
+- Add golang skill specification
 
 ### Changed
 
@@ -67,6 +68,9 @@
 - Raise delegation, review, and delivery prompt quality
 - Add regression tests for legacy session event parsing
 - Use getBoundAgent for session binding check
+- Add git hygiene and per-scope commit rules to prompts
+- Add prompt reference directory
+- Define skill usage protocols and directory structure
 
 ### Fixed
 
