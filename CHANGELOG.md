@@ -37,6 +37,7 @@
 - Introduce reasoning modes and agent reasoning profiles
 - Implement default agent binding for session creation
 - Add golang skill specification
+- Enforce agent registration for task delegation
 
 ### Changed
 
