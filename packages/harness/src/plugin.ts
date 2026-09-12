@@ -199,6 +199,17 @@ const enforceNativeToolExecution = async (
     output: ToolExecuteBeforeHookOutput,
   ): Promise<void> => {
     const toolName = normalizeOfficialPermissionName(input.tool);
+    if (toolName === "task") {
+      const args = output.args as Record<string, unknown> | undefined;
+      if (args?.agent) {
+        try {
+          ontologyRuntime.requireKnownAgentId(String(args.agent), "task tool");
+        } catch (error) {
+          throw new Error(`Task agent must be an ontologically registered agent: ${(error as Error).message}`);
+        }
+      }
+      return;
+    }
     if (!["read", "glob", "grep", "bash", "write", "edit"].includes(toolName)) return;
     if (!ontologyRuntime.isOntologyGovernedToolName(toolName)) return;
     const pattern = deriveNativeMutationAuthorizationPattern(toolName, output.args);

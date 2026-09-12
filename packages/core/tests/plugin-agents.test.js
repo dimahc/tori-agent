@@ -1027,6 +1027,20 @@ describe("plugin ontology integration", () => {
     assert.deepEqual((await readdir(runtimePaths.ontologyDir)).sort(), ["keep.jsonld"]);
   });
 
+  test("requireKnownAgentId resolves agent: prefixed and bare names", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-agent-id-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+
+    assert.equal(runtime.requireKnownAgentId("agent:specialist:software-engineer", "test"), "agent:specialist:software-engineer");
+    assert.equal(runtime.requireKnownAgentId("specialist:software-engineer", "test"), "agent:specialist:software-engineer");
+
+    assert.throws(
+      () => runtime.requireKnownAgentId("nonexistent-agent", "test"),
+      /Unknown agent test: nonexistent-agent/,
+    );
+  });
+
   test("local skill override wins over builtin fallback", async () => {
     const root = await mkdtemp(join(tmpdir(), "tori-plugin-skill-"));
     const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));

@@ -29,6 +29,10 @@ Ontology authoritative. Prompt descriptive only.
 
 Use only granted tools. If host config suggests more power, ignore it. Ontology wins.
 
+## Task delegation constraint
+
+When using `task` to spawn a subagent, the `agent` argument MUST be an ontologically registered agent ID (e.g., `agent:tori`, `specialist:software-engineer`, `reviewer:quality`). Only agents defined in the ontology spec files can be spawned. Unregistered agent names are rejected by the runtime. Verify the agent ID resolves in the ontology before dispatching.
+
 ## Tool-choice ladder
 
 - `project_state` first for managed artifact inventory, status, and cross-artifact overview.

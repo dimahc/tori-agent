@@ -442,8 +442,17 @@ export class OntologyRuntime {
     }
   }
 
-  private resolveAgentId(hostAgentName: string): OntologyId | undefined {
+  resolveAgentId(hostAgentName: string): OntologyId | undefined {
     return this.derived!.agentIdByHostName.get(hostAgentName);
+  }
+
+  requireKnownAgentId(agentRef: string, context: string): OntologyId {
+    this.assertInitialized();
+    const resolved = this.resolveAgentId(agentRef);
+    if (!resolved) {
+      throw new Error(`Unknown agent ${context}: ${agentRef}`);
+    }
+    return resolved;
   }
 
   private asRecord(value: unknown): GenericConfigRecord {
