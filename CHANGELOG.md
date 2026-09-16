@@ -72,6 +72,7 @@
 - Add git hygiene and per-scope commit rules to prompts
 - Add prompt reference directory
 - Define skill usage protocols and directory structure
+- Transition to specialized agent prompts and clean up documentation
 
 ### Fixed
 
