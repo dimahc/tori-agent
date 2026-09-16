@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc --build"
   },
   "engines": {
     "node": ">=20.19.0"

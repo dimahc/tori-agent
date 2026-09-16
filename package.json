@@ -13,7 +13,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run build -w packages/ontology && npm run build -w packages/core && npm run build -w packages/harness",
+    "build": "npm run build -w packages/ontology && npm run build -w packages/core && npm run build -w packages/harness && npm run build -w packages/cli",
     "test": "node --test packages/*/tests/*.test.js",
     "lint": "eslint packages/core/src/ packages/harness/src/"
   },

@@ -991,7 +991,7 @@
                 "tool:run_mechanical_checks",
                 "tool:save_checkpoint"
             ],
-            "prompt_ref": "prompt:specialist",
+            "prompt_ref": "prompt:specialist-architect",
             "metadata": {
                 "color": "warning",
                 "human_tone": false,
@@ -1029,7 +1029,7 @@
                 "tool:run_mechanical_checks",
                 "tool:save_checkpoint"
             ],
-            "prompt_ref": "prompt:specialist",
+            "prompt_ref": "prompt:specialist-engineer",
             "metadata": {
                 "color": "warning",
                 "human_tone": false,
@@ -1067,7 +1067,7 @@
                 "tool:run_mechanical_checks",
                 "tool:save_checkpoint"
             ],
-            "prompt_ref": "prompt:specialist",
+            "prompt_ref": "prompt:specialist-infrastructure",
             "metadata": {
                 "color": "warning",
                 "human_tone": false,
@@ -1105,7 +1105,7 @@
                 "tool:run_mechanical_checks",
                 "tool:save_checkpoint"
             ],
-            "prompt_ref": "prompt:specialist",
+            "prompt_ref": "prompt:specialist-security",
             "metadata": {
                 "color": "warning",
                 "human_tone": false,
@@ -1144,7 +1144,7 @@
                 "tool:run_mechanical_checks",
                 "tool:save_checkpoint"
             ],
-            "prompt_ref": "prompt:specialist",
+            "prompt_ref": "prompt:specialist-researcher",
             "metadata": {
                 "color": "warning",
                 "human_tone": false,

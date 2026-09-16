@@ -944,7 +944,16 @@ export async function listWorkflowRuns(runtimePaths: RuntimePaths): Promise<Work
   const dirs = await listWorkflowRunDirectories(runtimePaths.workflowsDir);
   const runs = await Promise.all(dirs.map(async (dir) => {
     const snapshotPath = join(runtimePaths.workflowsDir, dir, "snapshot.jsonld");
-    const snapshotDocument = JSON.parse(await readFile(snapshotPath, "utf8")) as { "@graph": WorkflowRun[] };
+    let snapshotDocument: { "@graph": WorkflowRun[] };
+    try {
+      snapshotDocument = JSON.parse(await readFile(snapshotPath, "utf8")) as { "@graph": WorkflowRun[] };
+    } catch (error) {
+      if (isErrnoWithCode(error, "ENOENT")) {
+        const created = await createWorkflowRun(runtimePaths, dir as OntologyId);
+        return created;
+      }
+      throw error;
+    }
     const workflowRunId = snapshotDocument["@graph"]?.[0]?.["@id"];
     if (typeof workflowRunId !== "string") throw new Error(`Workflow snapshot malformed in ${snapshotPath}`);
     const entries = await loadWorkflowEntries(runtimePaths, workflowRunId);

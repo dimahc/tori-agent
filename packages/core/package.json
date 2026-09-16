@@ -46,7 +46,7 @@
     "url": "https://github.com/dimahc/tori-agent"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --build",
     "test": "node --test dist/tests/*.test.js"
   },
   "type": "module",

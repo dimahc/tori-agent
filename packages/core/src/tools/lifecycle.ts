@@ -287,7 +287,7 @@ export async function projectState(_projectRoot: string, runtimePaths: RuntimePa
     readArtifactDir(runtimePaths.specsDir, runtimePaths),
     readArtifactDir(runtimePaths.execPlansDir, runtimePaths),
     readArtifactDir(runtimePaths.briefsDir, runtimePaths),
-    listWorkflowRuns(runtimePaths),
+    listWorkflowRuns(runtimePaths).catch(() => []),
   ]);
   return {
     projection: buildProjectStateProjectionMetadata(),
