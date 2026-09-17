@@ -98,6 +98,24 @@
             ]
         },
         {
+            "@id": "tool:glob",
+            "@type": "Tool",
+            "label": "glob",
+            "description": "Find files",
+            "capability_ids": [
+                "capability:search"
+            ]
+        },
+        {
+            "@id": "tool:grep",
+            "@type": "Tool",
+            "label": "grep",
+            "description": "Search files",
+            "capability_ids": [
+                "capability:search"
+            ]
+        },
+        {
             "@id": "tool:workflow_state",
             "@type": "Tool",
             "label": "workflow_state",
@@ -306,6 +324,20 @@
                         "ls *",
                         "ls"
                     ]
+                },
+                {
+                    "@id": "permission:orchestrator:glob",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:glob",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Search repository state and files"
+                },
+                {
+                    "@id": "permission:orchestrator:grep",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:grep",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Search repository state and files"
                 }
             ]
         },
@@ -1044,7 +1076,9 @@
                 "tool:record_check_result",
                 "tool:check_artifacts",
                 "tool:skill",
-                "tool:question"
+                "tool:question",
+                "tool:glob",
+                "tool:grep"
             ],
             "prompt_ref": "prompt:tori",
             "metadata": {
