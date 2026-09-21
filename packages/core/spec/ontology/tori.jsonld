@@ -322,7 +322,8 @@
                         "node --test *",
                         "pwd",
                         "ls *",
-                        "ls"
+                        "ls",
+                        "cat *"
                     ]
                 },
                 {
