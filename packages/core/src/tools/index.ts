@@ -7,3 +7,4 @@ export * from './lifecycle.js';
 export * from './structured-read.js';
 export * from './workflow.js';
 export * from './ci-hook.js';
+export * from './dispatch.js';

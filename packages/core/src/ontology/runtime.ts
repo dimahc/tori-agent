@@ -448,6 +448,7 @@ export class OntologyRuntime {
 
   requireKnownAgentId(agentRef: string, context: string): OntologyId {
     this.assertInitialized();
+    agentRef =  agentRef.replace("agent:", "") // strip agent: prefix to avoid resolve failing
     const resolved = this.resolveAgentId(agentRef);
     if (!resolved) {
       throw new Error(`Unknown agent ${context}: ${agentRef}`);

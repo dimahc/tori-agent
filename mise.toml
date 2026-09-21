@@ -2,7 +2,7 @@
 node = "22"
 
 [settings]
-verbose = true
+verbose = false
 
 [tasks.build]
 description = "Remove stale build artifacts and rebuild all packages"

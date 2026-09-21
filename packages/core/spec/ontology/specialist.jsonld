@@ -669,6 +669,7 @@
                     "rationale": "Run scans, build/test, and readonly repo inspection",
                     "command_globs": [
                         "pwd",
+                        "cat *",
                         "git status*",
                         "git diff*",
                         "git log*",

@@ -11,6 +11,7 @@ import {
   initializeOntologyRuntime,
   normalizeOfficialPermissionName,
   sanitizeAssistantOutputText,
+  understandAndReformulate,
 } from "@tori-agent/core";
 import type {
   ChatMessageHookInput,
@@ -206,6 +207,11 @@ const enforceNativeToolExecution = async (
           ontologyRuntime.requireKnownAgentId(String(args.agent), "task tool");
         } catch (error) {
           throw new Error(`Task agent must be an ontologically registered agent: ${(error as Error).message}`);
+        }
+        const description = firstNonEmptyString(args.description);
+        if (description) {
+          const reformulated = understandAndReformulate(description, String(args.agent), ontologyRuntime);
+          output.args = { ...args, description: reformulated };
         }
       }
       return;
