@@ -75,6 +75,7 @@
 - Add prompt reference directory
 - Define skill usage protocols and directory structure
 - Transition to specialized agent prompts and clean up documentation
+- Add prompt refinement skill and update tori instructions
 
 ### Fixed
 
