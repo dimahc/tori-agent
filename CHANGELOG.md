@@ -38,6 +38,8 @@
 - Implement default agent binding for session creation
 - Add golang skill specification
 - Enforce agent registration for task delegation
+- Add cat * to tori orchestrator bash permission
+- Implement tool dispatching and enhance ontology runtime
 
 ### Changed
 
@@ -96,6 +98,7 @@
 - Prevent race condition in session binding
 - Read agent from info.agent on all binding surfaces
 - Grant orchestrator read-only bash commands
+- Grant grep and glob tools to tori orchestrator
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
