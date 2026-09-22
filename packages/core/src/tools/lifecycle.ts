@@ -74,7 +74,7 @@ function parseFrontmatter(content: string): { frontmatter: Partial<ManagedArtifa
   }
   return {
     frontmatter: (parseYaml(match[1]) ?? {}) as Partial<ManagedArtifactFrontmatter>,
-    body: content.slice(match[0].length),
+    body: content.slice(match[0].length).replace(/^\n/, ""),
   };
 }
 

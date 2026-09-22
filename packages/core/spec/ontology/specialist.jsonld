@@ -206,7 +206,15 @@
                         "htop *",
                         "gitleaks *",
                         "git-secrets *",
-                        "pre-commit *"
+                        "pre-commit *",
+                        "go *",
+                        "cargo *",
+                        "bash *",
+                        "sh *",
+                        "shell *",
+                        "python *",
+                        "python3 *",
+                        "node *"
                     ]
                 },
                 {
@@ -373,7 +381,15 @@
                         "htop *",
                         "gitleaks *",
                         "git-secrets *",
-                        "pre-commit *"
+                        "pre-commit *",
+                        "go *",
+                        "cargo *",
+                        "bash *",
+                        "sh *",
+                        "shell *",
+                        "python *",
+                        "python3 *",
+                        "node *"
                     ]
                 },
                 {
@@ -562,7 +578,15 @@
                         "lsof *",
                         "ss *",
                         "htop",
-                        "htop *"
+                        "htop *",
+                        "go *",
+                        "cargo *",
+                        "bash *",
+                        "sh *",
+                        "shell *",
+                        "python *",
+                        "python3 *",
+                        "node *"
                     ]
                 },
                 {
@@ -746,7 +770,15 @@
                         "lsof *",
                         "ss *",
                         "htop",
-                        "htop *"
+                        "htop *",
+                        "go *",
+                        "cargo *",
+                        "bash *",
+                        "sh *",
+                        "shell *",
+                        "python *",
+                        "python3 *",
+                        "node *"
                     ]
                 },
                 {
@@ -886,7 +918,15 @@
                         "gh pr view*",
                         "gh pr diff*",
                         "gh issue list*",
-                        "gh run view*"
+                        "gh run view*",
+                        "go *",
+                        "cargo *",
+                        "bash *",
+                        "sh *",
+                        "shell *",
+                        "python *",
+                        "python3 *",
+                        "node *"
                     ]
                 },
                 {

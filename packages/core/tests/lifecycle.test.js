@@ -225,4 +225,34 @@ describe("lifecycle strict ontology", () => {
     assert.equal(payload.projection.classification, "narrative-checkpoint");
     assert.equal(payload.projection.narrative_only, true);
   });
+
+  test("completePlan round-trip preserves format without accumulating blank lines", async () => {
+    const planPath = join(runtimePaths.execPlansDir, "plan.md");
+    await writeFile(
+      planPath,
+      [
+        "---",
+        "artifact_id: exec-plan:roundtrip",
+        `artifact_type_id: ${ARTIFACT_TYPE.execPlan}`,
+        `status_id: ${ARTIFACT_STATUS.active}`,
+        'title: "Plan"',
+        "created_at: 2026-09-08T00:00:00.000Z",
+        "---",
+        "",
+        "- [x] Task one",
+      ].join("\n"),
+      "utf8",
+    );
+    await completePlan(root, runtimePaths, "plan.md");
+    const afterFirst = await readFile(planPath, "utf8");
+    const firstSeparator = afterFirst.indexOf("\n---\n") + 5;
+    const afterSeparator = afterFirst.slice(firstSeparator);
+    assert.equal(afterSeparator.startsWith("\n\n"), false, "first write should not have double blank line");
+    assert.ok(afterSeparator.startsWith("\n"), "body should be separated by single newline");
+    await completePlan(root, runtimePaths, "plan.md");
+    const afterSecond = await readFile(planPath, "utf8");
+    const secondSeparator = afterSecond.indexOf("\n---\n") + 5;
+    const afterSecondBody = afterSecond.slice(secondSeparator);
+    assert.equal(afterSecondBody, afterSeparator, "second write should preserve body exactly");
+  });
 });

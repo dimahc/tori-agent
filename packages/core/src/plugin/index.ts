@@ -735,7 +735,7 @@ export function buildWriteTools(
       description: "Append scratchpad entry in runtime root.",
       args: { section: {}, content: {} },
       async execute({ section, content }) {
-        const entry = `\n## ${String(section)}\n${String(content)}\n`;
+        const entry = `## ${String(section)}\n${String(content)}\n`;
         return JSON.stringify(await writeAppend(projectRoot, runtimePaths.scratchpadFile.replace(`${projectRoot}/`, ""), entry, "scratchpad"));
       },
     },

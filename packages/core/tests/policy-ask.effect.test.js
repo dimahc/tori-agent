@@ -49,7 +49,7 @@ describe("bash ask effect", () => {
   test("unmatched engineer and architect commands resolve to ask", async () => {
     const { runtime, runtimePaths } = await makeRuntime();
     for (const agent of ["engineer", "architect"]) {
-      const decision = decide(runtime, runtimePaths, agent, "node -e console.log(1)");
+      const decision = decide(runtime, runtimePaths, agent, "ruby -e \"puts 1\"");
       assert.equal(decision.effect, "ask", agent);
       assert.match(decision.reason, /pending approval by policy:bash-unknown-ask/);
     }
@@ -59,7 +59,7 @@ describe("bash ask effect", () => {
     const { runtime, runtimePaths } = await makeRuntime();
     assert.equal(decide(runtime, runtimePaths, "infra", "terraform apply -auto-approve").effect, "ask");
     assert.equal(decide(runtime, runtimePaths, "security", "nmap -sS localhost").effect, "ask");
-    assert.equal(decide(runtime, runtimePaths, "researcher", "node -e 1").effect, "ask");
+    assert.equal(decide(runtime, runtimePaths, "researcher", "node -e 1").effect, "allow");
   });
 
   test("have no ask gate and deny unknown commands", async () => {
