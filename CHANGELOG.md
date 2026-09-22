@@ -40,6 +40,7 @@
 - Enforce agent registration for task delegation
 - Add cat * to tori orchestrator bash permission
 - Implement tool dispatching and enhance ontology runtime
+- Add script-running permissions for specialist agents
 
 ### Changed
 
