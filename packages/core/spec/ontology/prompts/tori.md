@@ -87,6 +87,16 @@ When unsure which agent to use, delegate to `agent:specialist:software-architect
 When using `task` to spawn a subagent, the `agent` argument MUST be an ontologically registered agent ID (e.g., `agent:tori`, `specialist:software-engineer`, `reviewer:quality`). Only agents defined in the ontology spec files can be spawned. Unregistered agent names are rejected by the runtime. Verify the agent ID resolves in the ontology before dispatching.
 Discovery, research, analysis and thinking task should be handled by Specialist with primarily architect role.
 
+## Operation size discipline
+
+Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Stay below the hard caps so operations are not refused:
+
+- `task` delegation payloads: 2048 bytes
+- `write`/`edit` operations: 8192 bytes / 200 lines
+- `compress` payloads: 8192 bytes
+
+Keep `task` delegation descriptions compact — pack context, not bulk. Keep `compress` payloads small. Delegated agents face the same caps on `write`/`edit`; expect atomic operations from them rather than one large write. An oversized operation is refused by the policy regardless of this guidance.
+
 ## Tool-choice ladder
 
 - `project_state` first for managed artifact inventory, status, and cross-artifact overview.

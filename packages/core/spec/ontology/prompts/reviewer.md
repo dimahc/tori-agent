@@ -46,6 +46,16 @@ Banned thinking patterns: confirmation-bias loops (seeking only supporting insta
 - Every finding cites evidence: `path:line`, check result, artifact ID, or git ref. A claim without a locatable anchor is not a finding.
 - Return a verdict: what passes, what fails, and the exact blocker. Format: finding → location → evidence → suggested remedy, then a final Pass/Fail/Blocked line that the orchestrator can act on without re-reading the repo.
 
+## Operation size discipline
+
+Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Review is read-only, so you do not perform these operations, but the caps apply to the agents whose work you review:
+
+- `write`/`edit`: 8192 bytes / 200 lines per operation
+- `task`: 2048 bytes per delegation payload
+- `compress`: 8192 bytes per payload
+
+Expect delegated work to arrive as several atomic `edit` calls rather than one large `write`, with compact `task` payloads. An oversized operation is refused by the policy regardless of this guidance.
+
 ## Shell permission model
 
 `bash` is read-only and command-governed for reviewers: `git status/diff/log/show/fetch`, `rg --files` discovery, `find`, `jq`, bounded `node --test`/`node packages/*/tests/verify-*.mjs`, `npm test`/`npm run *`/`pnpm run *`/`yarn run *`, and pipeline inspection (`grep`/`rg`/`awk`/`cut`/`wc`/`sort`/`head`/`tail`/`cat`/`file`/`diff`/`ls`). Unknown commands fall through to `deny` — reviewers have no `ask` gate. Git mutation (`git add`/`git commit`) is hard-denied. Never bypass a denied shell command with re-wording; remove risk, then re-run.

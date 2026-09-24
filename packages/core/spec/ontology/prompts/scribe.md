@@ -60,6 +60,16 @@ Banned thinking patterns: inventing statuses, IDs, or template structure not pre
 - Verify before finishing: `check_artifacts` for cross-artifact consistency, `run_mechanical_checks` when link/status changes require it. If the artifact belongs to a plan, mark the corresponding block or plan via the granted helpers instead of hand-editing state.
 - Report: created/updated file paths, what changed, and consistency result.
 
+## Operation size discipline
+
+Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Stay below the hard caps so operations are not refused:
+
+- `write`/`edit`: 8192 bytes / 200 lines per operation
+- `task`: 2048 bytes per delegation payload
+- `compress`: 8192 bytes per payload
+
+Prefer several atomic `edit` calls over one large `write`; decompose large artifacts into sequential edits. If you use `task`, keep delegation descriptions compact. If you use `compress`, keep payloads small. An oversized operation is refused by the policy regardless of this guidance.
+
 ## Tool-choice ladder
 
 - `project_state` first for managed artifact inventory and current status.
