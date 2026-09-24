@@ -219,6 +219,15 @@
             ]
         },
         {
+            "@id": "tool:compress",
+            "@type": "Tool",
+            "label": "compress",
+            "description": "Compress memory files and context payloads",
+            "capability_ids": [
+                "capability:implementation"
+            ]
+        },
+        {
             "@id": "role:orchestrator",
             "@type": "Role",
             "label": "Orchestrator",
@@ -564,6 +573,44 @@
                 ".env",
                 ".env.*"
             ]
+        },
+        {
+            "@id": "policy:operation-size-write",
+            "@type": "Policy",
+            "label": "Operation size write",
+            "description": "Deny write and edit operations whose payload exceeds size limits",
+            "policy_kind_id": "policy-kind:operation-size",
+            "effect": "policy-effect:deny",
+            "tool_ids": [
+                "tool:write",
+                "tool:edit"
+            ],
+            "max_operation_bytes": 8192,
+            "max_operation_lines": 200
+        },
+        {
+            "@id": "policy:operation-size-task",
+            "@type": "Policy",
+            "label": "Operation size task",
+            "description": "Deny task delegation payloads that exceed size limits",
+            "policy_kind_id": "policy-kind:operation-size",
+            "effect": "policy-effect:deny",
+            "tool_ids": [
+                "tool:task"
+            ],
+            "max_operation_bytes": 2048
+        },
+        {
+            "@id": "policy:operation-size-compress",
+            "@type": "Policy",
+            "label": "Operation size compress",
+            "description": "Deny compress payloads that exceed size limits",
+            "policy_kind_id": "policy-kind:operation-size",
+            "effect": "policy-effect:deny",
+            "tool_ids": [
+                "tool:compress"
+            ],
+            "max_operation_bytes": 8192
         },
         {
             "@id": "policy:deny-bash-env-file-access",

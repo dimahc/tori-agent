@@ -157,7 +157,18 @@
           "@type": { "const": "Policy" },
           "name": { "type": "string" },
           "rules": { "type": "array", "items": { "type": "string" } },
-          "enforcement_level": { "enum": ["Advisory", "Mandatory", "Strict"] }
+          "enforcement_level": { "enum": ["Advisory", "Mandatory", "Strict"] },
+          "policy_kind_id": {
+            "enum": [
+              "policy-kind:authorization",
+              "policy-kind:transition",
+              "policy-kind:execution-loop",
+              "policy-kind:output-governance",
+              "policy-kind:operation-size"
+            ]
+          },
+          "max_operation_bytes": { "type": "integer", "minimum": 0 },
+          "max_operation_lines": { "type": "integer", "minimum": 0 }
         }
       }
     }

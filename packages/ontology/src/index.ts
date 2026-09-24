@@ -120,6 +120,7 @@ export const POLICY_KIND = {
   transition: "policy-kind:transition",
   executionLoop: "policy-kind:execution-loop",
   outputGovernance: "policy-kind:output-governance",
+  operationSize: "policy-kind:operation-size",
 } as const;
 
 export const ARTIFACT_TYPE = {
@@ -202,6 +203,7 @@ export const TOOL_IDS = {
   bash: "tool:bash",
   checkArtifacts: "tool:check_artifacts",
   completePlan: "tool:complete_plan",
+  compress: "tool:compress",
   glob: "tool:glob",
   grep: "tool:grep",
   jq: "tool:jq",
@@ -231,6 +233,7 @@ export const TOOL_NAME_TO_ID: Record<string, OntologyId> = {
   bash: TOOL_IDS.bash,
   check_artifacts: TOOL_IDS.checkArtifacts,
   complete_plan: TOOL_IDS.completePlan,
+  compress: TOOL_IDS.compress,
   edit: TOOL_IDS.edit,
   glob: TOOL_IDS.glob,
   grep: TOOL_IDS.grep,
@@ -365,6 +368,8 @@ export interface PolicyDefinition extends OntologyEntity {
   max_repeated_paragraphs?: number;
   max_repeated_sentences?: number;
   max_self_talk_markers?: number;
+  max_operation_bytes?: number;
+  max_operation_lines?: number;
 }
 
 export interface EvidenceAnchor {
@@ -537,6 +542,8 @@ export interface AuthorizationRequest {
   toolId: OntologyId;
   pattern?: string | string[];
   runtimePaths: RuntimePaths;
+  operation_bytes?: number;
+  operation_lines?: number;
 }
 
 export interface AuthorizationDecision {

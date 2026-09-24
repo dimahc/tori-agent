@@ -34,6 +34,8 @@ export const ontologySchema = {
     max_repeated_paragraphs: { type: "integer", minimum: 0 },
     max_repeated_sentences: { type: "integer", minimum: 0 },
     max_self_talk_markers: { type: "integer", minimum: 0 },
+    max_operation_bytes: { type: "integer", minimum: 0 },
+    max_operation_lines: { type: "integer", minimum: 0 },
   },
 };
 
