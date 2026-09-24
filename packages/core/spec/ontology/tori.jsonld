@@ -348,6 +348,13 @@
                     "tool_id": "tool:grep",
                     "effect": "policy-effect:allow",
                     "rationale": "Search repository state and files"
+                },
+                {
+                    "@id": "permission:orchestrator:compress",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:compress",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Compress memory files and context payloads for context management"
                 }
             ]
         },
@@ -1126,7 +1133,8 @@
                 "tool:skill",
                 "tool:question",
                 "tool:glob",
-                "tool:grep"
+                "tool:grep",
+                "tool:compress"
             ],
             "prompt_ref": "prompt:tori",
             "metadata": {
