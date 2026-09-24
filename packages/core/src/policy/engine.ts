@@ -90,6 +90,7 @@ export class PolicyEngineImpl implements PolicyEngine {
   private readonly agentContexts = new Map<OntologyId, AgentPolicyContext>();
   private readonly grantsByAgentAndTool = new Map<OntologyId, Map<OntologyId, CompiledGrant[]>>();
   private readonly authorizationPolicies: CompiledPolicy[] = [];
+  private readonly operationSizePolicies: CompiledPolicy[] = [];
   private readonly transitionPolicies: CompiledPolicy[] = [];
   private readonly executionPolicies: PolicyDefinition[] = [];
   private readonly outputPolicies: PolicyDefinition[] = [];
@@ -135,6 +136,14 @@ export class PolicyEngineImpl implements PolicyEngine {
       switch (policy.policy_kind_id) {
         case POLICY_KIND.authorization:
           this.authorizationPolicies.push({
+            index,
+            policy,
+            pathMatcher: compileMatcher(policy.path_globs),
+            commandMatcher: compileMatcher(policy.command_globs),
+          });
+          break;
+        case POLICY_KIND.operationSize:
+          this.operationSizePolicies.push({
             index,
             policy,
             pathMatcher: compileMatcher(policy.path_globs),
@@ -212,6 +221,11 @@ export class PolicyEngineImpl implements PolicyEngine {
         matchedGrantIds: denyPolicies.map((policy) => policy["@id"]),
         reason: `${request.toolName} denied by ${last["@id"]}`,
       };
+    }
+
+    const operationSizeDeny = this.evaluateOperationSizePolicies(context, request);
+    if (operationSizeDeny) {
+      return operationSizeDeny;
     }
 
     const grants = this.grantsByAgentAndTool.get(request.agentId)?.get(request.toolId) ?? [];
@@ -397,6 +411,42 @@ export class PolicyEngineImpl implements PolicyEngine {
       if (!matchesAllPatterns(commandMatcher, patterns)) return [];
       return [policy];
     });
+  }
+
+  private getMatchingOperationSizePolicies(context: AgentPolicyContext, request: AuthorizationRequest): PolicyDefinition[] {
+    return this.operationSizePolicies.flatMap(({ policy }) => {
+      if (!this.policyAppliesToAgent(policy, context)) return [];
+      if (policy.tool_ids && !policy.tool_ids.includes(request.toolId)) return [];
+      return [policy];
+    });
+  }
+
+  private evaluateOperationSizePolicies(context: AgentPolicyContext, request: AuthorizationRequest): AuthorizationDecision | null {
+    for (const policy of this.getMatchingOperationSizePolicies(context, request)) {
+      if (
+        typeof policy.max_operation_bytes === "number" &&
+        typeof request.operation_bytes === "number" &&
+        request.operation_bytes > policy.max_operation_bytes
+      ) {
+        return {
+          effect: "deny",
+          matchedGrantIds: [policy["@id"]],
+          reason: `${request.toolName} denied by ${policy["@id"]}: payload ${request.operation_bytes} bytes exceeds ${policy.max_operation_bytes}`,
+        };
+      }
+      if (
+        typeof policy.max_operation_lines === "number" &&
+        typeof request.operation_lines === "number" &&
+        request.operation_lines > policy.max_operation_lines
+      ) {
+        return {
+          effect: "deny",
+          matchedGrantIds: [policy["@id"]],
+          reason: `${request.toolName} denied by ${policy["@id"]}: payload ${request.operation_lines} lines exceeds ${policy.max_operation_lines}`,
+        };
+      }
+    }
+    return null;
   }
 
   private getMatchingTransitionPolicies(workflowRun: WorkflowRun, toStageId: OntologyId): PolicyDefinition[] {
