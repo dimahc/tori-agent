@@ -41,6 +41,10 @@
 - Add cat * to tori orchestrator bash permission
 - Implement tool dispatching and enhance ontology runtime
 - Add script-running permissions for specialist agents
+- Add operation-size policy kind and records
+- Evaluate operation-size policies in engine
+- Measure native tool payloads for operation-size policy
+- Grant compress to tori
 
 ### Changed
 
@@ -77,6 +81,9 @@
 - Define skill usage protocols and directory structure
 - Transition to specialized agent prompts and clean up documentation
 - Add prompt refinement skill and update tori instructions
+- Add operation size discipline prompts
+- Operation-size policy enforcement
+- Raise operation-size task threshold to 8192
 
 ### Fixed
 
@@ -101,6 +108,8 @@
 - Read agent from info.agent on all binding surfaces
 - Grant orchestrator read-only bash commands
 - Grant grep and glob tools to tori orchestrator
+- Grant write_append to write-capable roles
+- Cap write_append, block cat redirects
 ## [v0.3.1] - 2026-08-08
 
 ### Fixed
