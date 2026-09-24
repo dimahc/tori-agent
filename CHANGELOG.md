@@ -84,6 +84,7 @@
 - Add operation size discipline prompts
 - Operation-size policy enforcement
 - Raise operation-size task threshold to 8192
+- Set max lines to 300 instead of 200
 
 ### Fixed
 
