@@ -139,6 +139,16 @@
                     ]
                 },
                 {
+                    "@id": "permission:architect:write_append",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:write_append",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Append content to files",
+                    "path_globs": [
+                        "**"
+                    ]
+                },
+                {
                     "@id": "permission:architect:bash",
                     "@type": "PermissionGrant",
                     "tool_id": "tool:bash",
@@ -314,6 +324,16 @@
                     ]
                 },
                 {
+                    "@id": "permission:engineer:write_append",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:write_append",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Append content to files",
+                    "path_globs": [
+                        "**"
+                    ]
+                },
+                {
                     "@id": "permission:engineer:bash",
                     "@type": "PermissionGrant",
                     "tool_id": "tool:bash",
@@ -484,6 +504,16 @@
                     "tool_id": "tool:edit",
                     "effect": "policy-effect:allow",
                     "rationale": "Modify files",
+                    "path_globs": [
+                        "**"
+                    ]
+                },
+                {
+                    "@id": "permission:infra:write_append",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:write_append",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Append content to files",
                     "path_globs": [
                         "**"
                     ]
@@ -686,6 +716,16 @@
                     ]
                 },
                 {
+                    "@id": "permission:security:write_append",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:write_append",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Append content to files",
+                    "path_globs": [
+                        "**"
+                    ]
+                },
+                {
                     "@id": "permission:security:bash",
                     "@type": "PermissionGrant",
                     "tool_id": "tool:bash",
@@ -878,6 +918,16 @@
                     ]
                 },
                 {
+                    "@id": "permission:researcher:write_append",
+                    "@type": "PermissionGrant",
+                    "tool_id": "tool:write_append",
+                    "effect": "policy-effect:allow",
+                    "rationale": "Append content to files",
+                    "path_globs": [
+                        "**"
+                    ]
+                },
+                {
                     "@id": "permission:researcher:bash",
                     "@type": "PermissionGrant",
                     "tool_id": "tool:bash",
@@ -1023,6 +1073,7 @@
                 "tool:structured_read",
                 "tool:write",
                 "tool:edit",
+                "tool:write_append",
                 "tool:bash",
                 "tool:glob",
                 "tool:grep",
@@ -1061,6 +1112,7 @@
                 "tool:structured_read",
                 "tool:write",
                 "tool:edit",
+                "tool:write_append",
                 "tool:bash",
                 "tool:glob",
                 "tool:grep",
@@ -1099,6 +1151,7 @@
                 "tool:structured_read",
                 "tool:write",
                 "tool:edit",
+                "tool:write_append",
                 "tool:bash",
                 "tool:glob",
                 "tool:grep",
@@ -1137,6 +1190,7 @@
                 "tool:structured_read",
                 "tool:write",
                 "tool:edit",
+                "tool:write_append",
                 "tool:bash",
                 "tool:glob",
                 "tool:grep",
@@ -1175,6 +1229,7 @@
                 "tool:structured_read",
                 "tool:write",
                 "tool:edit",
+                "tool:write_append",
                 "tool:bash",
                 "tool:glob",
                 "tool:grep",

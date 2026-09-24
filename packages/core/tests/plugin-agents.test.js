@@ -427,6 +427,41 @@ describe("plugin ontology integration", () => {
     assert.equal(engineerWrite.effect, "allow");
   });
 
+  test("write_append resolves allow for specialist and scribe, deny for tori", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-plugin-write-append-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({ runtimePaths });
+    runtime.bindSession("s-engineer", "specialist:software-engineer");
+    runtime.bindSession("s-scribe", "scribe:adr");
+    runtime.bindSession("s-tori", "tori");
+    runtime.bindSession("s-unknown", "host-private-agent");
+
+    // specialist: ** allows any path
+    const engineerAny = runtime.authorizeSession("s-engineer", "write_append", "packages/core/src/index.ts", runtimePaths);
+    assert.equal(engineerAny.effect, "allow");
+    assert.ok(engineerAny.matchedGrantIds.includes("permission:engineer:write_append"));
+    assert.notEqual(engineerAny.reason, "No permission grant for write_append");
+
+    // scribe: .opencode/** allowed
+    const scribeAllowed = runtime.authorizeSession("s-scribe", "write_append", ".opencode/specs/foo.md", runtimePaths);
+    assert.equal(scribeAllowed.effect, "allow");
+    assert.ok(scribeAllowed.matchedGrantIds.includes("permission:scribe:write_append"));
+    assert.notEqual(scribeAllowed.reason, "No permission grant for write_append");
+
+    // scribe: outside path_globs denied
+    const scribeDenied = runtime.authorizeSession("s-scribe", "write_append", "src/evil.ts", runtimePaths);
+    assert.equal(scribeDenied.effect, "deny");
+
+    // tori: denied by policy:tori-no-direct-mutation
+    const toriDenied = runtime.authorizeSession("s-tori", "write_append", "README.md", runtimePaths);
+    assert.equal(toriDenied.effect, "deny");
+    assert.match(toriDenied.reason, /policy:tori-no-direct-mutation/);
+
+    // unknown agent: no grant
+    const unknownDenied = runtime.authorizeSession("s-unknown", "write_append", "README.md", runtimePaths);
+    assert.equal(unknownDenied.effect, "deny");
+  });
+
   test("title helpers derive concise stable title and detect placeholders", async () => {
     assert.equal(
       deriveSessionTitle("  Fix session naming to use first user request instead of timestamp fallback.  "),
