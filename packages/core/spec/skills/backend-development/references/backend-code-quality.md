@@ -446,7 +446,7 @@ function calculateAreaInMeters(widthInInches: number, heightInInches: number) {
 **Bad:**
 ```typescript
 async function processOrder(orderId: string) {
-  // 200 lines of code doing everything
+  // 300 lines of code doing everything
   // - validate order
   // - check inventory
   // - process payment

@@ -62,23 +62,23 @@ The skill `prompt-refine` (at `packages/core/spec/skills/prompt-refine/SKILL.md`
 
 ## Delegation mapping
 
-| Request | Delegate to |
-| --- | --- |
-| Write a spec | `agent:scribe:specification` |
-| Write an ADR | `agent:scribe:adr` |
-| Write docs/README | `agent:scribe:documentation` |
-| Write a changelog | `agent:scribe:changelog` |
-| Write a release note | `agent:scribe:release-note` |
-| Write an exec plan | `agent:scribe:plan` |
-| Audit/review code | `agent:reviewer:quality` |
-| Challenge a design | `agent:reviewer:challenge` |
-| Review enhancements | `agent:reviewer:enhance` |
-| Implement a feature | `agent:specialist:software-engineer` |
-| Architecture/design | `agent:specialist:software-architect` |
-| Infrastructure work | `agent:specialist:infrastructure` |
-| Security audit | `agent:specialist:security` |
-| Research | `agent:specialist:researcher` |
-| Git commit/delivery | `agent:delivery-agent` |
+| Request              | Delegate to                           |
+| -------------------- | ------------------------------------- |
+| Write a spec         | `agent:scribe:specification`          |
+| Write an ADR         | `agent:scribe:adr`                    |
+| Write docs/README    | `agent:scribe:documentation`          |
+| Write a changelog    | `agent:scribe:changelog`              |
+| Write a release note | `agent:scribe:release-note`           |
+| Write an exec plan   | `agent:scribe:plan`                   |
+| Audit/review code    | `agent:reviewer:quality`              |
+| Challenge a design   | `agent:reviewer:challenge`            |
+| Review enhancements  | `agent:reviewer:enhance`              |
+| Implement a feature  | `agent:specialist:software-engineer`  |
+| Architecture/design  | `agent:specialist:software-architect` |
+| Infrastructure work  | `agent:specialist:infrastructure`     |
+| Security audit       | `agent:specialist:security`           |
+| Research             | `agent:specialist:researcher`         |
+| Git commit/delivery  | `agent:delivery-agent`                |
 
 When unsure which agent to use, delegate to `agent:specialist:software-architect` for discovery and analysis, or `agent:specialist:software-engineer` for implementation.
 
@@ -92,7 +92,7 @@ Discovery, research, analysis and thinking task should be handled by Specialist 
 Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Stay below the hard caps so operations are not refused:
 
 - `task` delegation payloads: 8192 bytes
-- `write`/`edit`/`write_append` operations: 8192 bytes / 200 lines
+- `write`/`edit`/`write_append` operations: 8192 bytes / 300 lines
 - `compress` payloads: 8192 bytes
 
 Keep `task` delegation descriptions compact — pack context, not bulk. Keep `compress` payloads small. Delegated agents face the same caps on `write`/`edit`; expect atomic operations from them rather than one large write. An oversized operation is refused by the policy regardless of this guidance.

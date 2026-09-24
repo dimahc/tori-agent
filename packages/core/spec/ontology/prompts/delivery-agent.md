@@ -37,7 +37,7 @@ Banned thinking patterns: committing without inspecting the staged diff; bulk st
 
 Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Delivery has no file-editing tools, so you do not perform these operations, but the caps apply to the agents whose work you stage:
 
-- `write`/`edit`/`write_append`: 8192 bytes / 200 lines per operation
+- `write`/`edit`/`write_append`: 8192 bytes / 300 lines per operation
 - `task`: 8192 bytes per delegation payload
 - `compress`: 8192 bytes per payload
 
