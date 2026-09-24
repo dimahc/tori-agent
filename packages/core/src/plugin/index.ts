@@ -27,6 +27,7 @@ import {
   updateWorkflowBoundedCognitionState,
 } from "../tools/workflow.js";
 import { trigger_ci_check } from "../tools/ci-hook.js";
+import { measureOperationPayload } from "../tools/operation-size.js";
 import type { VerificationPolicy } from "../types/verification.js";
 import type { CIConfig } from "../types/ci.js";
 import { normalizeFailureSignature, normalizeToolInvocationSignature } from "../guardrails/output.js";
@@ -573,11 +574,15 @@ export function createAuthorizedToolExecutor(
       {
         ...tool,
         async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<string> {
+          const operation = name === "write_append"
+            ? measureOperationPayload(args)
+            : undefined;
           const decision = options.ontologyRuntime.authorizeToolExecution(
             { sessionID: context?.sessionID, agent: context?.agent },
             name,
             deriveAuthorizationPattern(name, args, options.projectRoot, options.runtimePaths),
             options.runtimePaths,
+            operation,
           );
           if (decision.effect !== "allow") {
             throw new Error(`Unauthorized tool execution for ${name}: ${decision.reason}`);

@@ -7,6 +7,7 @@ import { ENTITY_TYPES, POLICY_EFFECT, POLICY_KIND, buildRuntimePaths } from "@to
 import { initializeOntologyRuntime } from "../dist/ontology/runtime.js";
 import { PolicyEngineImpl } from "../dist/policy/engine.js";
 import { buildPlugin } from "../../harness/dist/plugin.js";
+import { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor } from "../dist/plugin/index.js";
 
 const AGENTS = {
   tori: "agent:tori",
@@ -113,7 +114,7 @@ describe("operation-size policy", () => {
     const write = byId.get(OPERATION_SIZE_POLICIES.write);
     assert.ok(write, "policy:operation-size-write present");
     assert.equal(write.effect, POLICY_EFFECT.deny);
-    assert.deepEqual([...write.tool_ids].sort(), ["tool:edit", "tool:write"]);
+    assert.deepEqual([...write.tool_ids].sort(), ["tool:edit", "tool:write", "tool:write_append"]);
     assert.equal(write.max_operation_bytes, 8192);
     assert.equal(write.max_operation_lines, 200);
 
@@ -266,6 +267,33 @@ describe("operation-size policy", () => {
     await plugin["tool.execute.before"](
       { tool: "compress", sessionID: "s-tori-compress", callID: "2" },
       { args: { content: "small payload" } },
+    );
+  });
+
+  test("write_append managed-path payload measurement flows through createAuthorizedToolExecutor", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tori-operation-size-write-append-"));
+    const runtimePaths = buildRuntimePaths(root, "opencode", join(root, ".opencode"));
+    const runtime = await initializeOntologyRuntime({});
+    const { buildReadOnlyTools, buildWriteTools, createAuthorizedToolExecutor } = await import("../dist/plugin/index.js");
+    const tools = createAuthorizedToolExecutor(
+      { ...buildReadOnlyTools(root, runtimePaths), ...buildWriteTools(root, runtimePaths, "opencode") },
+      { ontologyRuntime: runtime, projectRoot: root, runtimePaths },
+    );
+
+    // engineer: oversized write_append (>8192 B) denied with limit-naming reason
+    await assert.rejects(
+      () => tools.write_append.execute({ file: "notes.md", content: "x".repeat(9000) }, { sessionID: "s-engineer-wa", directory: root, agent: "specialist:software-engineer" }),
+      /Unauthorized tool execution for write_append: write_append denied by policy:operation-size-write: payload \d+ bytes exceeds 8192/,
+    );
+
+    // engineer: undersized write_append allowed
+    const under = await tools.write_append.execute({ file: "small.md", content: "tiny payload" }, { sessionID: "s-engineer-wa2", directory: root, agent: "specialist:software-engineer" });
+    assert.match(under, /"file"/);
+
+    // tori: write_append denied by policy:tori-no-direct-mutation (not operation-size)
+    await assert.rejects(
+      () => tools.write_append.execute({ file: "tori.md", content: "x".repeat(100) }, { sessionID: "s-tori-wa", directory: root, agent: "tori" }),
+      /Unauthorized tool execution for write_append: write_append denied by policy:tori-no-direct-mutation/,
     );
   });
 });

@@ -38,6 +38,7 @@ export {
   stableStringify,
 } from "./guardrails/output.js";
 export * from "./tools/dispatch.js";
+export * from "./tools/index.js";
 export * from "./plugin/index.js";
 export { ontologySchema } from "./schemas/ontology.schema.js";
 export { ontologyContext } from "./schemas/ontology.context.js";

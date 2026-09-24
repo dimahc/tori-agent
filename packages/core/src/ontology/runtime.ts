@@ -308,6 +308,7 @@ export class OntologyRuntime {
     toolName: string,
     pattern?: string | string[],
     runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"],
+    operation?: Pick<AuthorizationRequest, "operation_bytes" | "operation_lines">,
   ): AuthorizationDecision {
     this.assertInitialized();
     if (!context.sessionID) {
@@ -316,7 +317,7 @@ export class OntologyRuntime {
     if (context.agent) {
       this.bindSession(context.sessionID, context.agent);
     }
-    return this.authorizeSession(context.sessionID, toolName, pattern, runtimePaths);
+    return this.authorizeSession(context.sessionID, toolName, pattern, runtimePaths, operation);
   }
 
   getExecutionLoopPolicy(agentId: OntologyId, toolId?: OntologyId): ExecutionLoopPolicy {

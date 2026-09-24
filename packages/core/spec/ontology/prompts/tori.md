@@ -92,7 +92,7 @@ Discovery, research, analysis and thinking task should be handled by Specialist 
 Ontology policy `policy-kind:operation-size` denies oversized operations. This guidance describes that policy; it never overrules it. Stay below the hard caps so operations are not refused:
 
 - `task` delegation payloads: 8192 bytes
-- `write`/`edit` operations: 8192 bytes / 200 lines
+- `write`/`edit`/`write_append` operations: 8192 bytes / 200 lines
 - `compress` payloads: 8192 bytes
 
 Keep `task` delegation descriptions compact — pack context, not bulk. Keep `compress` payloads small. Delegated agents face the same caps on `write`/`edit`; expect atomic operations from them rather than one large write. An oversized operation is refused by the policy regardless of this guidance.
