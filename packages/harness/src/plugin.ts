@@ -43,6 +43,25 @@ function firstNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }
 
+function serializeOperationArgs(args: Record<string, unknown> | undefined): string {
+  if (!args) return "";
+  return Object.entries(args)
+    .map(([key, value]) => `${key}:${typeof value === "string" ? value : JSON.stringify(value)}`)
+    .join("\n");
+}
+
+function measureOperationPayload(args: Record<string, unknown> | undefined): { operation_bytes: number; operation_lines: number } {
+  const serialized = serializeOperationArgs(args);
+  return {
+    operation_bytes: Buffer.byteLength(serialized, "utf8"),
+    operation_lines: serialized === "" ? 0 : serialized.split("\n").length,
+  };
+}
+
+function isOperationSizeDeny(decision: { effect: string; matchedGrantIds: string[] }): boolean {
+  return decision.effect === "deny" && decision.matchedGrantIds.some((id) => id.startsWith("policy:operation-size-"));
+}
+
 function eventSessionID(properties?: Record<string, unknown>): string | undefined {
   const direct = firstNonEmptyString(properties?.sessionID);
   if (direct) return direct;
@@ -156,6 +175,13 @@ async function createPluginSetup(projectRoot: string, runtime: RuntimeId, config
         return "native-tool-authorized";
       },
     },
+    compress: {
+      description: "native compress loop guard",
+      args: {},
+      async execute() {
+        return "native-tool-authorized";
+      },
+    },
   }, { ontologyRuntime, runtimePaths });
   ensureToolRegistryRegistered(tools);
 
@@ -214,16 +240,30 @@ const enforceNativeToolExecution = async (
           output.args = { ...args, description: reformulated };
         }
       }
+      const taskDecision = ontologyRuntime.authorizeSession(
+        input.sessionID,
+        toolName,
+        undefined,
+        runtimePaths,
+        measureOperationPayload(output.args as Record<string, unknown> | undefined),
+      );
+      if (isOperationSizeDeny(taskDecision)) {
+        throw new Error(`Unauthorized native tool execution for ${toolName}: ${taskDecision.reason}`);
+      }
       return;
     }
-    if (!["read", "glob", "grep", "bash", "write", "edit"].includes(toolName)) return;
+    if (!["read", "glob", "grep", "bash", "write", "edit", "compress"].includes(toolName)) return;
     if (!ontologyRuntime.isOntologyGovernedToolName(toolName)) return;
     const pattern = deriveNativeMutationAuthorizationPattern(toolName, output.args);
+    const operation = ["write", "edit", "compress"].includes(toolName)
+      ? measureOperationPayload(output.args as Record<string, unknown> | undefined)
+      : undefined;
     const decision = ontologyRuntime.authorizeSession(
       input.sessionID,
       toolName,
       toProjectRelativePatterns(pattern, projectRoot),
       runtimePaths,
+      operation,
     );
     if (decision.effect === "deny") {
       throw new Error(`Unauthorized native tool execution for ${toolName}: ${decision.reason}`);

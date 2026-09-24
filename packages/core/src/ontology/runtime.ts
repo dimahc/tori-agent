@@ -13,6 +13,7 @@ import {
   isKnownWorkflowStatusId,
   type AgentDefinition,
   type AuthorizationDecision,
+  type AuthorizationRequest,
   type ExecutionLoopPolicy,
   type OntologyBundle,
   type OntologyId,
@@ -266,7 +267,13 @@ export class OntologyRuntime {
     };
   }
 
-  authorizeSession(sessionId: string, toolName: string, pattern?: string | string[], runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"]): AuthorizationDecision {
+  authorizeSession(
+    sessionId: string,
+    toolName: string,
+    pattern?: string | string[],
+    runtimePaths?: Parameters<PolicyEngineImpl["authorize"]>[0]["runtimePaths"],
+    operation?: Pick<AuthorizationRequest, "operation_bytes" | "operation_lines">,
+  ): AuthorizationDecision {
     this.assertInitialized();
     const agentId = this.sessionAgents.get(sessionId);
     if (!agentId) {
@@ -285,6 +292,7 @@ export class OntologyRuntime {
       toolId: getToolId(toolName),
       pattern,
       runtimePaths,
+      ...operation,
     });
   }
 
