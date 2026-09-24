@@ -121,7 +121,7 @@ describe("operation-size policy", () => {
     assert.ok(task, "policy:operation-size-task present");
     assert.equal(task.effect, POLICY_EFFECT.deny);
     assert.deepEqual(task.tool_ids, ["tool:task"]);
-    assert.equal(task.max_operation_bytes, 2048);
+    assert.equal(task.max_operation_bytes, 8192);
 
     const compress = byId.get(OPERATION_SIZE_POLICIES.compress);
     assert.ok(compress, "policy:operation-size-compress present");
@@ -159,8 +159,8 @@ describe("operation-size policy", () => {
       {
         agent: AGENTS.tori,
         tool: "task",
-        operation: { operation_bytes: 3000 },
-        reason: /task denied by policy:operation-size-task: payload 3000 bytes exceeds 2048/,
+        operation: { operation_bytes: 9000 },
+        reason: /task denied by policy:operation-size-task: payload 9000 bytes exceeds 8192/,
       },
       {
         agent: AGENTS.tori,
@@ -232,13 +232,13 @@ describe("operation-size policy", () => {
     // authorization policy evaluated before operation-size), so tori is
     // asserted on task/compress where the operation-size deny is observable.
     const cases = [
-      { agent: AGENTS.tori, tool: "task", operation: { operation_bytes: 3000 } },
+      { agent: AGENTS.tori, tool: "task", operation: { operation_bytes: 9000 } },
       { agent: AGENTS.tori, tool: "compress", operation: { operation_bytes: 9000 } },
       { agent: AGENTS.engineer, tool: "write", operation: { operation_bytes: 9000 } },
-      { agent: AGENTS.engineer, tool: "task", operation: { operation_bytes: 3000 } },
+      { agent: AGENTS.engineer, tool: "task", operation: { operation_bytes: 9000 } },
       { agent: AGENTS.engineer, tool: "compress", operation: { operation_bytes: 9000 } },
       { agent: AGENTS.reviewer, tool: "write", operation: { operation_bytes: 9000 } },
-      { agent: AGENTS.reviewer, tool: "task", operation: { operation_bytes: 3000 } },
+      { agent: AGENTS.reviewer, tool: "task", operation: { operation_bytes: 9000 } },
       { agent: AGENTS.reviewer, tool: "compress", operation: { operation_bytes: 9000 } },
     ];
     for (const { agent, tool, operation } of cases) {
